@@ -1286,6 +1286,8 @@
                 const res = await fetch('/api/status');
                 const data = await res.json();
                 const badge = document.querySelector('.status-badge');
+                const btnStop = document.getElementById('btn-stop');
+                const btnRestart = document.getElementById('btn-restart-only');
 
                 // Safety check if element exists
                 if (!badge) return;
@@ -1295,11 +1297,35 @@
                     badge.style.color = 'var(--success)';
                     badge.style.background = '#E6FFFA';
                     badge.style.borderColor = '#B2F5EA';
+
+                    if (btnStop) {
+                        btnStop.disabled = false;
+                        btnStop.style.opacity = '1';
+                        btnStop.style.cursor = 'pointer';
+                        btnStop.innerText = '停止服务';
+                    }
+                    if (btnRestart) {
+                        btnRestart.innerText = "重启服务";
+                        btnRestart.style.background = "#FDCB6E";
+                        btnRestart.style.color = "#333";
+                    }
                 } else {
                     badge.innerHTML = '<span class="status-dot" style="background:#999; animation:none;"></span>Stopped';
                     badge.style.color = '#666';
                     badge.style.background = '#f5f5f5';
                     badge.style.borderColor = '#dcdcdc';
+
+                    if (btnStop) {
+                        btnStop.disabled = true;
+                        btnStop.style.opacity = '0.5';
+                        btnStop.style.cursor = 'not-allowed';
+                        btnStop.innerText = '停止服务';
+                    }
+                    if (btnRestart) {
+                        btnRestart.innerText = "启动服务";
+                        btnRestart.style.background = "#2ecc71";
+                        btnRestart.style.color = "white";
+                    }
                 }
             } catch (e) {
                 console.error('Status check failed', e);
