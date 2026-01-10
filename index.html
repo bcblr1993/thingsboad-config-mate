@@ -1281,10 +1281,16 @@
             };
         }
 
+        let isActionPending = false; // Global flag to prevent checkStatus updates during user actions
+
         async function checkStatus() {
+            if (isActionPending) return; // Skip updates during user actions
+
             try {
                 const res = await fetch('/api/status');
                 const data = await res.json();
+                console.log('[Debug] Status Check:', data.status);
+
                 const badge = document.querySelector('.status-badge');
                 const btnStop = document.getElementById('btn-stop');
                 const btnRestart = document.getElementById('btn-restart-only');
@@ -1365,6 +1371,7 @@
             const originalText = btn.innerText;
             btn.innerText = '重启中...';
             btn.disabled = true;
+            isActionPending = true;
 
             try {
                 // Clear logs before restart to show fresh status
@@ -1384,6 +1391,8 @@
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
+                isActionPending = false;
+                setTimeout(checkStatus, 1000);
             }
         }
     </script>
