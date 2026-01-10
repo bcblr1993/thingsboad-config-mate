@@ -909,8 +909,8 @@
 
             <!-- Right side controls -->
             <div style="display:flex; gap:10px;">
-                <button class="btn btn-danger" onclick="restartService()">保存并重启服务</button>
-                <button class="btn btn-primary" onclick="saveConfig()">仅保存配置</button>
+                <button id="btn-save-restart" class="btn btn-danger" onclick="restartService()">保存并重启服务</button>
+                <button id="btn-save-only" class="btn btn-primary" onclick="saveConfig()">仅保存配置</button>
             </div>
         </div>
     </div>
@@ -1147,13 +1147,32 @@
 
         function setDirty(dirty) {
             isDirty = dirty;
-            const saveBtn = document.querySelector('.btn-primary');
+            const btnSaveOnly = document.getElementById('btn-save-only');
+            const btnSaveRestart = document.getElementById('btn-save-restart');
+
+            // Safety check
+            if (!btnSaveOnly || !btnSaveRestart) return;
+
             if (isDirty) {
-                saveBtn.textContent = "保存配置 *";
-                saveBtn.style.border = "2px solid #FFD700"; // Gold border to indicate change
+                // Enabled
+                btnSaveOnly.disabled = false;
+                btnSaveOnly.textContent = "保存配置 *";
+                btnSaveOnly.style.opacity = "1";
+                btnSaveOnly.style.cursor = "pointer";
+
+                btnSaveRestart.disabled = false;
+                btnSaveRestart.style.opacity = "1";
+                btnSaveRestart.style.cursor = "pointer";
             } else {
-                saveBtn.textContent = "仅保存配置";
-                saveBtn.style.border = "none";
+                // Disabled
+                btnSaveOnly.disabled = true;
+                btnSaveOnly.textContent = "仅保存配置";
+                btnSaveOnly.style.opacity = "0.5";
+                btnSaveOnly.style.cursor = "not-allowed";
+
+                btnSaveRestart.disabled = true;
+                btnSaveRestart.style.opacity = "0.5";
+                btnSaveRestart.style.cursor = "not-allowed";
             }
         }
 
