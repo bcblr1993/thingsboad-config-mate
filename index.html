@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThingsBoard Config Mate</title>
+    <style>
+        :root {
+            --primary: #2A7DEC;
+            --bg: #F4F7FA;
+            --card-bg: #FFFFFF;
+            --text: #2D3436;
+            --border: #DFE6E9;
+            --success: #00B894;
+            --danger: #D63031;
+            --radius: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, system-ui, sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Removed sidebar - using full-width layout */
+
+        /* Main */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .header {
+            height: 64px;
+            background: linear-gradient(135deg, rgba(42, 125, 236, 0.05), rgba(255, 255, 255, 0.95));
+            border-bottom: 1px solid var(--border);
+            /* Remove direct flex to allow inner container to center */
+            display: block;
+            padding: 0;
+            /* Padding handled by inner */
+            backdrop-filter: blur(12px);
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+        }
+
+        .header-inner {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            /* max-width removed for full width */
+            margin: 0;
+            width: 100%;
+            padding: 0 40px;
+        }
+
+        /* ... */
+
+        .content {
+            padding: 0 40px;
+            overflow-y: auto;
+            flex: 1;
+            width: 100%;
+            /* max-width removed for full width */
+            margin: 24px 0;
+            padding-bottom: 80px;
+        }
+
+        /* ... */
+
+        .field-input {
+            width: 100%;
+            max-width: 640px;
+            /* Limit input width for readability */
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        /* ... */
+
+
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        /* ... skipped styles ... */
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .header-title svg {
+            color: var(--primary);
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            margin-right: 20px;
+        }
+
+        .btn-header {
+            padding: 5px 12px;
+            font-size: 12px;
+            border: 1px solid var(--border);
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #666;
+            transition: 0.2s;
+            font-weight: 500;
+        }
+
+        .btn-header:hover {
+            background: #E3F2FD;
+            color: var(--primary);
+            border-color: #BBDEFB;
+        }
+
+        /* Source Mode */
+        .source-editor {
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            background: #fff;
+            color: #333;
+            display: none;
+        }
+
+        .source-mode-active .content {
+            padding: 0;
+        }
+
+        .source-mode-active .group-section,
+        .source-mode-active .sidebar-controls {
+            display: none !important;
+        }
+
+        .search-box {
+            position: relative;
+            width: 200px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 6px 12px 6px 32px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            transition: 0.2s;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            background: #fff;
+            width: 240px;
+            box-shadow: 0 0 0 3px rgba(42, 125, 236, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+            stroke-width: 2.5;
+        }
+
+        .filtered-out {
+            display: none !important;
+        }
+
+        .btn-header:hover {
+            background: #E3F2FD;
+            color: var(--primary);
+            border-color: #BBDEFB;
+        }
+
+        .status-badge {
+            background: #E6FFFA;
+            color: var(--success);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #B2F5EA;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px 40px;
+            padding-bottom: 100px;
+            scroll-behavior: smooth;
+            width: 100%;
+            /* Full width */
+            margin: 0;
+            /* No auto margin needed */
+        }
+
+        .group-section {
+            margin-bottom: 32px;
+            scroll-margin-top: 20px;
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .group-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+        }
+
+        .group-title::before {
+            content: '';
+            display: block;
+            width: 4px;
+            height: 16px;
+            background: var(--primary);
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: 18px 20px;
+            margin-bottom: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border-color: #BBDEFB;
+            transform: translateY(-2px);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        .label-area {
+            padding-top: 8px;
+        }
+
+        .field-label {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .required::after {
+            content: "*";
+            color: var(--danger);
+            margin-left: 2px;
+        }
+
+        .field-desc {
+            font-size: 12px;
+            color: #999;
+            line-height: 1.4;
+        }
+
+        .field-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+            transition: border 0.2s;
+        }
+
+        .field-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(42, 125, 236, 0.1);
+        }
+
+        .var-code {
+            font-family: monospace;
+            font-size: 11px;
+            color: #B2BEC3;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .action-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 72px;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding: 0 30px;
+            gap: 15px;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        .btn {
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1E5BB0;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: #FFF0F0;
+            color: var(--danger);
+            border: 1px solid #FFDCDC;
+        }
+
+        .btn-danger:hover {
+            background: #FFE5E5;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Password Toggle */
+        .password-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .toggle-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #999;
+            display: flex;
+            align-items: center;
+            padding: 0;
+            outline: none;
+        }
+
+        .toggle-btn:hover {
+            color: var(--primary);
+        }
+
+        /* Collapsible Group Styles */
+        .group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+            padding: 8px 0;
+            border-radius: 6px;
+        }
+
+        .group-header:hover {
+            background-color: rgba(42, 125, 236, 0.04);
+            padding-left: 8px;
+        }
+
+        .icon-chevron {
+            width: 20px;
+            height: 20px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #666;
+        }
+
+        .group-section.collapsed .group-content {
+            display: none;
+        }
+
+        .group-section.collapsed .icon-chevron {
+            transform: rotate(-90deg);
+        }
+
+        .group-section:not(.collapsed) .icon-chevron {
+            filter: drop-shadow(0 0 2px rgba(42, 125, 236, 0.3));
+        }
+
+        .badge-cloud {
+            background: #E3F2FD;
+            color: #1976D2;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #BBDEFB;
+            margin-right: 10px;
+        }
+
+        .badge-edge {
+            background: #FFF3E0;
+            color: #F57C00;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #FFE0B2;
+            margin-right: 10px;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        /* Logs Viewer Modal */
+        .logs-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease;
+        }
+
+        .logs-modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logs-container {
+            background: #1E1E1E;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 1200px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logs-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: linear-gradient(135deg, #2A2A2A, #1E1E1E);
+            border-radius: 12px 12px 0 0;
+        }
+
+        .logs-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #FFF;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .logs-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #AAA;
+        }
+
+        .logs-status.success {
+            color: #4CAF50;
+        }
+
+        .logs-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        .logs-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            background: #1E1E1E;
+            color: #D4D4D4;
+        }
+
+        .log-line {
+            margin: 2px 0;
+            padding: 4px 8px;
+            border-radius: 3px;
+            transition: background 0.1s;
+        }
+
+        .log-line:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Default: No Wrap */
+        .logs-content .log-line {
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        /* Wrap Mode */
+        .logs-content.wrap-mode .log-line {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .log-line.error {
+            color: #F48771;
+            background: rgba(244, 135, 113, 0.1);
+        }
+
+        .log-line.success {
+            color: #4EC9B0;
+            font-weight: 600;
+            background: rgba(78, 201, 176, 0.1);
+        }
+
+        .logs-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #333;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            background: #2A2A2A;
+            border-radius: 0 0 12px 12px;
+        }
+
+        .btn-logs {
+            padding: 8px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-logs-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-logs-primary:hover {
+            background: #1E5BB0;
+        }
+
+        .btn-logs-secondary {
+            background: #3A3A3A;
+            color: #FFF;
+        }
+
+        .btn-logs-secondary:hover {
+            background: #4A4A4A;
+        }
+
+        .status-badge.running .status-dot {
+            background: #00B894;
+            box-shadow: 0 0 0 2px rgba(0, 184, 148, 0.2);
+        }
+
+        .status-badge.stopped .status-dot {
+            background: #D63031;
+            box-shadow: 0 0 0 2px rgba(214, 48, 49, 0.2);
+        }
+
+        .status-badge.unknown .status-dot {
+            background: #B2BEC3;
+        }
+
+        .status-badge.running {
+            color: #00B894;
+            background: rgba(0, 184, 148, 0.1);
+            border: 1px solid rgba(0, 184, 148, 0.2);
+        }
+
+        .status-badge.stopped {
+            color: #D63031;
+            background: rgba(214, 48, 49, 0.1);
+            border: 1px solid rgba(214, 48, 49, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="main">
+        <div class="header">
+            <div class="header-inner">
+                <div class="header-title">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2.5">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                    <span>ThingsBoard Config Mate</span>
+                </div>
+                <div style="display:flex; align-items:center; margin-left:auto;">
+                    <div class="header-controls">
+                        <div class="search-box">
+                            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input type="text" class="search-input" placeholder="搜索配置项..."
+                                onkeyup="filterConfig(this.value)">
+                        </div>
+                        <button class="btn-header" id="btn-toggle-all" onclick="toggleAllGroups()">折叠全部</button>
+                        <button class="btn-header" id="btn-source-mode" onclick="toggleSourceMode()">源码模式</button>
+                        <button class="btn-header" onclick="showLogs(true)" title="查看实时日志"
+                            style="color: var(--primary); border-color: var(--primary);">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" style="vertical-align: text-bottom; margin-right: 4px;">
+                                <polyline points="4 17 10 11 4 5"></polyline>
+                                <line x1="12" y1="19" x2="20" y2="19"></line>
+                            </svg>
+                            实时日志
+                        </button>
+                    </div>
+                    <div id="header-app-type"></div>
+                    <div class="status-badge"><span class="status-dot"></span>Running</div>
+                </div>
+            </div>
+        </div>
+        <div class="content" id="form-container"></div>
+        <textarea id="source-editor" class="source-editor" spellcheck="false"></textarea>
+        <div class="action-bar">
+            <!-- Left side controls -->
+            <div style="display:flex; gap:10px;">
+                <button id="btn-stop" class="btn" style="background:#D63031; color:white; border:none;"
+                    onclick="stopService()">停止服务</button>
+                <button id="btn-restart-only" class="btn" style="background:#FDCB6E; color:#333; border:none;"
+                    onclick="restartServiceOnly()">重启服务</button>
+            </div>
+
+            <!-- Right side controls -->
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-danger" onclick="restartService()">保存并重启服务</button>
+                <button class="btn btn-primary" onclick="saveConfig()">仅保存配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Viewer Modal -->
+    <div id="logs-modal" class="logs-modal">
+        <div class="logs-container">
+            <div class="logs-header">
+                <div class="logs-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    <span>容器日志</span>
+                </div>
+                <div id="logs-status" class="logs-status">
+                    <div class="logs-status-dot"></div>
+                    <span>实时监听中...</span>
+                </div>
+            </div>
+            <div id="logs-content" class="logs-content"></div>
+            <div class="logs-footer">
+                <button class="btn-logs btn-logs-secondary" onclick="clearLogs()">清空日志</button>
+                <button class="btn-logs btn-logs-primary" onclick="closeLogs()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let configMeta = {};
+
+        let configValues = {};
+
+        // Dirty Check State
+        let initialConfigValues = {};
+        let initialSourceContent = null;
+        let isDirty = false;
+
+        async function init() {
+            try {
+                const res = await fetch('/api/config');
+                const data = await res.json();
+                configMeta = data.meta;
+                configValues = data.values;
+
+                // Deep copy initial state
+                initialConfigValues = JSON.parse(JSON.stringify(configValues));
+                setDirty(false);
+
+                renderAll();
+                checkAllDependencies(); // Initial check
+
+                // Start Polling Status
+                checkStatus();
+                setInterval(checkStatus, 5000);
+            } catch (e) { alert('Init failed: ' + e.message); }
+        }
+
+        function renderAll() {
+            // Group keys
+            const groups = {};
+            Object.keys(configMeta).forEach(key => {
+                const g = configMeta[key].group;
+                if (!groups[g]) groups[g] = [];
+                groups[g].push(key);
+            });
+
+            // Custom Sort Order
+            const sortOrder = ['核心设置', 'Edge 连接配置', 'SQL 数据库', '核心存储', 'Cassandra', 'Redis 缓存', '消息队列', 'MQTT 传输', '规则引擎脚本', '高级设置'];
+            const groupNames = Object.keys(groups).sort((a, b) => {
+                const idxA = sortOrder.indexOf(a);
+                const idxB = sortOrder.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return a.localeCompare(b);
+            });
+
+            // Render Form
+            const formContainer = document.getElementById('form-container');
+            formContainer.innerHTML = groupNames.map((g, index) => {
+                const fieldsHtml = groups[g]
+                    .filter(key => !configMeta[key].hidden)
+                    .map(key => renderField(key)).join('');
+
+                if (!fieldsHtml) return '';
+
+                return `
+                    <div id="group-${g}" class="group-section" style="animation-delay: ${index * 0.05}s">
+                        <div class="group-header" onclick="toggleGroup(this.parentNode)">
+                            <div class="group-title">${g}</div>
+                            <svg class="icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </div>
+                        <div class="group-content">
+                            ${fieldsHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Update Header Info
+            const appType = configValues['APPTYPE'] || 'CLOUD';
+            const badgeClass = appType === 'EDGE' ? 'badge-edge' : 'badge-cloud';
+            document.getElementById('header-app-type').innerHTML = `<span class="${badgeClass}">${appType} 模式</span>`;
+        }
+
+        function renderField(key) {
+            const meta = configMeta[key];
+            const val = configValues[key] || '';
+            const reqClass = meta.required ? 'required' : '';
+
+            let inputHtml = '';
+            if (meta.type === 'select') {
+                inputHtml = `<select class="field-input" onchange="updateValue('${key}', this.value)">
+                    ${meta.options.map(o => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`).join('')}
+                </select>`;
+            } else if (meta.type === 'password') {
+                inputHtml = `
+                <div class="password-wrapper">
+                    <input type="password" id="input-${key}" class="field-input" value="${val}" onchange="updateValue('${key}', this.value)" style="padding-right: 35px;">
+                    <button class="toggle-btn" tabindex="-1" onclick="togglePassword('input-${key}', this)">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </button>
+                </div>`;
+            } else if (meta.type === 'readonly') {
+                inputHtml = `<input type="text" class="field-input" value="${val}" disabled style="background:#eee; cursor:not-allowed; color:#666;">`;
+            } else {
+                inputHtml = `<input type="${meta.type || 'text'}" class="field-input" value="${val}" onchange="updateValue('${key}', this.value)">`;
+            }
+
+            return `
+            <div class="card" id="card-${key}">
+                <div class="form-row">
+                    <div class="label-area">
+                        <span class="var-code">${key}</span>
+                        <div class="field-label ${reqClass}">${meta.label}</div>
+                        <div class="field-desc">${meta.comment || ''}</div>
+                    </div>
+                    <div>${inputHtml}</div>
+                </div>
+            </div>`;
+        }
+
+        function updateValue(key, val) {
+            configValues[key] = val;
+            checkAllDependencies(); // Re-evaluate whenever a value changes
+            checkDirtyState();
+        }
+
+        function checkDirtyState() {
+            if (isSourceMode) {
+                const currentContent = document.getElementById('source-editor').value;
+                setDirty(currentContent !== initialSourceContent);
+            } else {
+                // Simple deep comparison for UI mode
+                const isChanged = JSON.stringify(configValues) !== JSON.stringify(initialConfigValues);
+                setDirty(isChanged);
+            }
+        }
+
+        function setDirty(dirty) {
+            isDirty = dirty;
+            const saveBtn = document.querySelector('.btn-primary');
+            if (isDirty) {
+                saveBtn.textContent = "保存配置 *";
+                saveBtn.style.border = "2px solid #FFD700"; // Gold border to indicate change
+            } else {
+                saveBtn.textContent = "仅保存配置";
+                saveBtn.style.border = "none";
+            }
+        }
+
+        // Prevent accidental close
+        window.onbeforeunload = function (e) {
+            if (isDirty) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+
+        function checkAllDependencies() {
+            Object.keys(configMeta).forEach(key => {
+                const meta = configMeta[key];
+                const card = document.getElementById('card-' + key);
+
+                if (!card) return; // Skip if element doesn't exist (e.g. hidden)
+                if (!meta.dependsOn) {
+                    card.classList.remove('hidden');
+                    return;
+                }
+
+                // Evaluate Dependency
+                const isMatch = evaluateDependency(meta.dependsOn);
+                if (isMatch) {
+                    card.classList.remove('hidden');
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+
+            // Post-check: Hide empty groups
+            document.querySelectorAll('.group-section').forEach(group => {
+                const visibleCards = Array.from(group.querySelectorAll('.card'))
+                    .filter(card => !card.classList.contains('hidden') && !card.classList.contains('filtered-out'));
+
+                if (visibleCards.length === 0) {
+                    group.classList.add('hidden');
+                } else {
+                    group.classList.remove('hidden');
+                }
+            });
+        }
+
+        function evaluateDependency(rule) {
+            // Rule structure: { key: "PARENT", value: "val" } OR { or: [...] } OR { and: [...] }
+            if (rule.or) {
+                return rule.or.some(subRule => evaluateDependency(subRule));
+            }
+
+            if (rule.and) {
+                return rule.and.every(subRule => evaluateDependency(subRule));
+            }
+
+            const parentKey = rule.key; // Can be string or array
+            const targetVal = rule.value;
+
+            if (Array.isArray(parentKey)) {
+                // If any parent matches targetVal
+                return parentKey.some(pk => configValues[pk] === targetVal);
+            } else {
+                return configValues[parentKey] === targetVal;
+            }
+        }
+
+        function togglePassword(id, btn) {
+            const input = document.getElementById(id);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+                btn.style.color = 'var(--primary)';
+            } else {
+                input.type = 'password';
+                btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+                btn.style.color = '';
+            }
+        }
+
+        function toggleGroup(groupElement) {
+            groupElement.classList.toggle('collapsed');
+        }
+
+        function filterConfig(query) {
+            query = query.toLowerCase().trim();
+            const cards = document.querySelectorAll('.card');
+
+            cards.forEach(card => {
+                // Should we filter matching dependsOn hidden items? 
+                // Let's assume we filter ALL items, but visibility is ultimately decided by BOTH search and dependency.
+                // But generally, search shouldn't reveal items hidden by business logic. 
+                // So search only applies 'filtered-out' class, checkAllDependencies handles 'hidden'.
+
+                const text = card.textContent.toLowerCase();
+                const isMatch = text.includes(query);
+
+                if (isMatch) {
+                    card.classList.remove('filtered-out');
+                    // Auto-expand group if searching
+                    if (query.length > 0) {
+                        const group = card.closest('.group-section');
+                        if (group && group.classList.contains('collapsed')) {
+                            group.classList.remove('collapsed');
+                        }
+                    }
+                } else {
+                    card.classList.add('filtered-out');
+                }
+            });
+
+            // Re-run group visibility check to hide empty groups
+            checkAllDependencies();
+        }
+
+        let isAllCollapsed = false;
+        function toggleAllGroups() {
+            const btn = document.getElementById('btn-toggle-all');
+            const groups = document.querySelectorAll('.group-section');
+
+            if (isAllCollapsed) {
+                // Expand All
+                groups.forEach(g => g.classList.remove('collapsed'));
+                btn.innerText = "折叠全部";
+                isAllCollapsed = false;
+            } else {
+                // Collapse All
+                groups.forEach(g => g.classList.add('collapsed'));
+                btn.innerText = "展开全部";
+                isAllCollapsed = true;
+            }
+        }
+
+        // --- Source Mode ---
+        let isSourceMode = false;
+
+        async function toggleSourceMode() {
+            isSourceMode = !isSourceMode;
+            const btn = document.getElementById('btn-source-mode');
+            const searchInput = document.querySelector('.search-input');
+            const toggleAllBtn = document.getElementById('btn-toggle-all');
+            const formContainer = document.getElementById('form-container');
+            const editor = document.getElementById('source-editor');
+
+            // Check for unsaved changes before switching
+            if (isDirty) {
+                if (!confirm('当前有未保存的修改，切换模式将丢失这些修改。是否继续？')) {
+                    isSourceMode = !isSourceMode; // Revert toggle
+                    return;
+                }
+            }
+
+            if (isSourceMode) {
+                // Switch to Source Mode
+                btn.innerText = "UI 模式";
+                btn.style.background = "#E3F2FD";
+                btn.style.color = "var(--primary)";
+
+                // Hide UI controls
+                searchInput.disabled = true;
+                toggleAllBtn.style.display = 'none';
+                formContainer.style.display = 'none';
+
+                // Fetch and show raw content
+                try {
+                    const res = await fetch('/api/env-raw');
+                    const text = await res.text();
+                    editor.value = text;
+                    initialSourceContent = text; // Set initial state
+                    setDirty(false);
+
+                    editor.style.display = 'block';
+                    document.body.classList.add('source-mode-active');
+
+                    // Bind input event for dirty check in source mode
+                    editor.oninput = checkDirtyState;
+                } catch (e) {
+                    alert('Failed to load raw config: ' + e.message);
+                    toggleSourceMode(); // Revert
+                }
+            } else {
+                // Switch back to UI Mode
+                btn.innerText = "源码模式";
+                btn.style.background = "";
+                btn.style.color = "";
+
+                // Show UI controls
+                searchInput.disabled = false;
+                toggleAllBtn.style.display = 'block';
+                formContainer.style.display = 'block';
+                editor.style.display = 'none';
+                document.body.classList.remove('source-mode-active');
+
+                // Reload UI config to reflect any changes
+                init();
+            }
+        }
+
+        async function saveConfig(silent = false) {
+            try {
+                if (isSourceMode) {
+                    const rawContent = document.getElementById('source-editor').value;
+                    await fetch('/api/save-raw', { method: 'POST', body: rawContent });
+                } else {
+                    await fetch('/api/save', { method: 'POST', body: JSON.stringify(configValues) });
+                    initialConfigValues = JSON.parse(JSON.stringify(configValues)); // Update initial state
+                }
+
+                if (!silent) {
+                    alert('保存成功');
+                    setDirty(false);
+                    if (isSourceMode) {
+                        initialSourceContent = document.getElementById('source-editor').value;
+                    }
+                }
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function restartService() {
+            if (!confirm('确认保存并重启服务？')) return;
+            await saveConfig(true);
+
+            // Clear previous logs
+            clearLogs();
+
+            // Show logs viewer
+            showLogs();
+
+            const res = await fetch('/api/restart', { method: 'POST' });
+            const data = await res.json();
+
+            if (data.status === 'error') {
+                alert('❌ 重启失败：\n\n' + data.output);
+            }
+        }
+
+        // Logs Viewer Functions
+        let logsEventSource = null;
+        let startupDetected = false;
+
+        function showLogs(isManual = false) {
+            const modal = document.getElementById('logs-modal');
+            const content = document.getElementById('logs-content');
+            const title = modal.querySelector('.logs-title');
+
+            // Dynamic Title
+            if (isManual) {
+                title.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; vertical-align:bottom;"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg> 实时容器日志 (Monitoring)`;
+            } else {
+                title.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px; vertical-align:bottom;"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg> 服务重启日志`;
+            }
+
+            modal.classList.add('active');
+            // Force Clear Logs
+            content.innerHTML = '';
+            startupDetected = false;
+
+            // Connect to SSE
+            connectLogsStream();
+        }
+
+        function closeLogs() {
+            const modal = document.getElementById('logs-modal');
+            modal.classList.remove('active');
+
+            // Disconnect SSE
+            if (logsEventSource) {
+                logsEventSource.close();
+                logsEventSource = null;
+            }
+        }
+
+        function clearLogs() {
+            const content = document.getElementById('logs-content');
+            content.innerHTML = '';
+        }
+
+        let isWrapMode = false;
+        function toggleLogWrap() {
+            isWrapMode = !isWrapMode;
+            const content = document.getElementById('logs-content');
+            const btn = document.getElementById('btn-wrap-toggle');
+
+            if (isWrapMode) {
+                content.classList.add('wrap-mode');
+                btn.textContent = '自动换行: 开';
+                btn.style.color = '#4EC9B0';
+                btn.style.borderColor = '#4EC9B0';
+            } else {
+                content.classList.remove('wrap-mode');
+                btn.textContent = '自动换行: 关';
+                btn.style.color = '#ccc';
+                btn.style.borderColor = '#555';
+            }
+        }
+
+        function connectLogsStream() {
+            if (logsEventSource) {
+                logsEventSource.close();
+            }
+
+            logsEventSource = new EventSource('/api/logs');
+
+            logsEventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const content = document.getElementById('logs-content');
+                const statusEl = document.getElementById('logs-status');
+
+                if (data.type === 'log' || data.type === 'error') {
+                    const line = document.createElement('div');
+                    line.className = 'log-line';
+
+                    // Check for startup success message
+                    if (data.message.includes('Started ThingsBoard') && !startupDetected) {
+                        line.classList.add('success');
+                        startupDetected = true;
+                        statusEl.classList.add('success');
+                        statusEl.querySelector('span').textContent = '✓ 启动成功!';
+                        setTimeout(() => {
+                            statusEl.classList.remove('success');
+                            statusEl.querySelector('span').textContent = '实时监听中...';
+                        }, 5000);
+                    }
+
+                    if (data.type === 'error') {
+                        line.classList.add('error');
+                    }
+
+                    line.textContent = data.message;
+                    content.appendChild(line);
+
+                    // Auto-scroll to bottom
+                    content.scrollTop = content.scrollHeight;
+                } else if (data.type === 'close') {
+                    // Close the connection to stop auto-reconnect
+                    if (logsEventSource) {
+                        logsEventSource.close();
+                        logsEventSource = null;
+                    }
+
+                    const line = document.createElement('div');
+                    line.className = 'log-line';
+                    line.style.color = '#888';
+                    line.textContent = `[连接已关闭，退出代码: ${data.code}]`;
+                    content.appendChild(line);
+                }
+            };
+
+            logsEventSource.onerror = (error) => {
+                console.error('SSE Error:', error);
+                const content = document.getElementById('logs-content');
+                const line = document.createElement('div');
+                line.className = 'log-line error';
+                line.textContent = '[连接错误，请检查服务状态]';
+                content.appendChild(line);
+            };
+        }
+
+        async function checkStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                const badge = document.querySelector('.status-badge');
+
+                // Safety check if element exists
+                if (!badge) return;
+
+                if (data.status === 'running') {
+                    badge.innerHTML = '<span class="status-dot"></span>Running';
+                    badge.style.color = 'var(--success)';
+                    badge.style.background = '#E6FFFA';
+                    badge.style.borderColor = '#B2F5EA';
+                } else {
+                    badge.innerHTML = '<span class="status-dot" style="background:#999; animation:none;"></span>Stopped';
+                    badge.style.color = '#666';
+                    badge.style.background = '#f5f5f5';
+                    badge.style.borderColor = '#dcdcdc';
+                }
+            } catch (e) {
+                console.error('Status check failed', e);
+            }
+        }
+
+        init();
+        async function stopService() {
+            if (!confirm('确定要停止服务吗？此操作将停止容器。')) return;
+
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = '停止中...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/stop', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    alert('✅ 服务已停止');
+                    checkStatus(); // Update badge
+                } else {
+                    alert('❌ 停止失败：\n' + data.output);
+                }
+            } catch (e) {
+                alert('❌ 请求失败：' + e.message);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function restartServiceOnly() {
+            if (!confirm('确定要重启服务吗？(仅重启容器，不应用新配置)')) return;
+
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = '重启中...';
+            btn.disabled = true;
+
+            try {
+                // Clear logs before restart to show fresh status
+                clearLogs();
+
+                const res = await fetch('/api/service-restart', { method: 'POST' });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showLogs(true); // Open logs in manual mode to monitor
+                    checkStatus();
+                } else {
+                    alert('❌ 重启失败：\n' + data.output);
+                }
+            } catch (e) {
+                alert('❌ 请求失败：' + e.message);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>

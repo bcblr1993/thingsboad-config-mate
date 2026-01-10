@@ -1,0 +1,27 @@
+{
+    "name": "tb-config-mate",
+    "version": "1.0.0",
+    "main": "tb-config-src.js",
+    "bin": "tb-config-src.js",
+    "pkg": {
+        "assets": [
+            "index.html",
+            "config-meta.js"
+        ],
+        "targets": [
+            "node18-linux-x64",
+            "node18-macos-x64",
+            "node18-win-x64"
+        ],
+        "outputPath": "dist"
+    },
+    "scripts": {
+        "start": "node tb-config-src.js",
+        "clean": "rm -rf dist node_modules/.cache",
+        "build": "npm run clean && pkg ."
+    },
+    "dependencies": {
+        "js-yaml": "^4.1.1",
+        "pkg": "^5.8.1"
+    }
+}
