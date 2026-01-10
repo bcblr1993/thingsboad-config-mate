@@ -1317,7 +1317,7 @@
 
             // Check for unsaved changes before switching
             if (isDirty) {
-                if (!confirm('当前有未保存的修改，切换模式将丢失这些修改。是否继续？')) {
+                if (!await customConfirm('当前有未保存的修改，切换模式将丢失这些修改。是否继续？', '丢弃并切换', 'var(--danger)')) {
                     isSourceMode = !isSourceMode; // Revert toggle
                     return;
                 }
@@ -1348,7 +1348,7 @@
                     // Bind input event for dirty check in source mode
                     editor.oninput = checkDirtyState;
                 } catch (e) {
-                    alert('Failed to load raw config: ' + e.message);
+                    showToast('Failed to load raw config: ' + e.message, 'error');
                     toggleSourceMode(); // Revert
                 }
             } else {
@@ -1380,17 +1380,17 @@
                 }
 
                 if (!silent) {
-                    alert('保存成功');
+                    showToast('✅ 配置保存成功', 'success');
                     setDirty(false);
                     if (isSourceMode) {
                         initialSourceContent = document.getElementById('source-editor').value;
                     }
                 }
-            } catch (e) { alert('Error: ' + e.message); }
+            } catch (e) { showToast('Error: ' + e.message, 'error'); }
         }
 
         async function restartService() {
-            if (!confirm('确认保存并重启服务？')) return;
+            if (!await customConfirm('确认保存并重启服务？\n此操作将更新配置并重启容器，可能会中断服务。', '保存并重启', '#D63031')) return;
             await saveConfig(true);
 
             // Clear previous logs
@@ -1403,7 +1403,7 @@
             const data = await res.json();
 
             if (data.status === 'error') {
-                alert('❌ 重启失败：\n\n' + data.output);
+                showToast('❌ 重启失败：\n' + data.output, 'error');
             }
         }
 
@@ -1588,32 +1588,35 @@
 
         init();
         async function stopService() {
-            if (!confirm('确定要停止服务吗？此操作将停止容器。')) return;
+            if (!await customConfirm('确认要停止服务吗？此操作将停止容器。', '停止服务', '#D63031')) return;
 
             const btn = event.target;
             const originalText = btn.innerText;
             btn.innerText = '停止中...';
             btn.disabled = true;
+            isActionPending = true;
 
             try {
                 const res = await fetch('/api/stop', { method: 'POST' });
                 const data = await res.json();
                 if (data.status === 'success') {
-                    alert('✅ 服务已停止');
+                    showToast('✅ 服务已停止', 'success');
                     checkStatus(); // Update badge
                 } else {
-                    alert('❌ 停止失败：\n' + data.output);
+                    showToast('❌ 停止失败：\n' + data.output, 'error');
                 }
             } catch (e) {
-                alert('❌ 请求失败：' + e.message);
+                showToast('❌ 请求失败：' + e.message, 'error');
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
+                isActionPending = false;
+                setTimeout(checkStatus, 1000); // Resume polling
             }
         }
 
         async function restartServiceOnly() {
-            if (!confirm('确定要重启服务吗？(仅重启容器，不应用新配置)')) return;
+            if (!await customConfirm('确定要重启服务吗？(仅重启容器，不应用新配置)', '重启服务', '#FDCB6E')) return;
 
             const btn = event.target;
             const originalText = btn.innerText;
@@ -1632,10 +1635,10 @@
                     showLogs(true); // Open logs in manual mode to monitor
                     checkStatus();
                 } else {
-                    alert('❌ 重启失败：\n' + data.output);
+                    showToast('❌ 重启失败：\n' + data.output, 'error');
                 }
             } catch (e) {
-                alert('❌ 请求失败：' + e.message);
+                showToast('❌ 请求失败：' + e.message, 'error');
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
