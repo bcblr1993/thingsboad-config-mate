@@ -144,12 +144,39 @@ function tryInitFromYaml() {
         if (Object.keys(newConfig).length > 0) {
             console.log(`[Info] Extracted ${Object.keys(newConfig).length} configurations from YAML.`);
 
-            // Merge existingEnv (e.g. APP_IMAGE) into newConfig to preserve them
-            // Object.assign(target, source) -> properties in source overwrite target, so EXISTING values win.
-            Object.assign(newConfig, existingEnv);
+            // Calculate missing keys (present in newConfig but NOT in existingEnv)
+            const missingKeys = {};
+            let missingCount = 0;
+            Object.keys(newConfig).forEach(key => {
+                // Use Object.prototype.hasOwnProperty for safety
+                if (!Object.prototype.hasOwnProperty.call(existingEnv, key)) {
+                    missingKeys[key] = newConfig[key];
+                    missingCount++;
+                }
+            });
 
-            console.log(`[Info] Generating/Updating .env with ${Object.keys(newConfig).length} keys...`);
-            saveEnvFile(newConfig);
+            if (missingCount > 0) {
+                console.log(`[Info] Found ${missingCount} missing keys. Updating .env...`);
+
+                if (Object.keys(existingEnv).length === 0 && !fs.existsSync(ENV_FILE_PATH)) {
+                    // New file: Create clean
+                    saveEnvFile(missingKeys);
+                } else {
+                    // Existing file: Append only
+                    let appendContent = '\n# --- Auto-Generated Defaults ---\n';
+                    Object.keys(missingKeys).sort().forEach(key => {
+                        appendContent += `${key}=${missingKeys[key]}\n`;
+                    });
+                    try {
+                        fs.appendFileSync(ENV_FILE_PATH, appendContent);
+                        console.log('[Success] Appended missing configurations to .env');
+                    } catch (err) {
+                        console.error('[Error] Failed to append to .env:', err);
+                    }
+                }
+            } else {
+                console.log('[Info] .env is already complete. No new keys to add.');
+            }
         } else {
             console.log('[Warn] Parsed YAML but found no matching configurations defined in metadata.');
         }
