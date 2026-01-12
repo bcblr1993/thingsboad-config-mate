@@ -33,13 +33,11 @@ module.exports = {
         comment: "jdbc:postgresql://host:port/db_name",
         type: "text",
         group: "SQL 数据库",
-        group: "SQL 数据库",
         required: true
     },
     "SPRING_DATASOURCE_USERNAME": {
         label: "PostgreSQL 用户名",
         type: "text",
-        group: "SQL 数据库",
         group: "SQL 数据库",
         required: true
     },
@@ -47,13 +45,11 @@ module.exports = {
         label: "PostgreSQL 密码",
         type: "password",
         group: "SQL 数据库",
-        group: "SQL 数据库",
         required: true
     },
     "SPRING_DRIVER_CLASS_NAME": {
         label: "数据库驱动",
         type: "text",
-        group: "SQL 数据库",
         group: "SQL 数据库",
         required: true
     },

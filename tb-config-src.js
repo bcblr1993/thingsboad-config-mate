@@ -26,6 +26,33 @@ function getRunningPid() {
 }
 
 // --- CLI Commands ---
+if (args.includes('-h') || args.includes('--help')) {
+    console.log(`
+ThingsBoard Config Mate (TB-CM) - 命令行使用指南
+
+用法:
+  tb-config-mate [命令] [选项]
+
+命令:
+  start     在后台启动配置服务 (默认端口 3300)
+  stop      停止正在运行的后台服务
+  restart   停止并重新启动后台服务
+  status    查看后台服务的运行状态
+
+选项:
+  --port=N  指定服务运行的端口 (默认: 3300)
+  -h, --help 显示此帮助信息
+
+示例:
+  使用指定端口启动:
+    ./tb-config-mate start --port=4000
+  
+  查看当前状态:
+    ./tb-config-mate status
+    `);
+    process.exit(0);
+}
+
 if (command === 'status') {
     const pid = getRunningPid();
     if (pid) {
@@ -77,11 +104,11 @@ if (command === 'start' || command === 'restart') {
     const childArgs = args.filter(a => !['start', 'stop', 'restart', 'status'].includes(a));
 
     let spawnCmd = process.execPath;
-    let spawnArgs = [...childArgs];
-
-    if (!process.pkg) {
-        spawnArgs = [__filename, ...childArgs];
-    }
+    // Always pass the entry script path (__filename) to the child process.
+    // In 'pkg', __filename resolves to the internal snapshot path (e.g. /snapshot/.../tb-config-src.js).
+    // This allows the child process (which is the same binary) to know what script to execute,
+    // avoiding both "missing argv[1]" errors and "invalid module" errors.
+    let spawnArgs = [__filename, ...childArgs];
 
     const child = spawn(spawnCmd, spawnArgs, {
         detached: true,
@@ -516,7 +543,6 @@ function startServer() {
             const htmlPath = path.join(__dirname, 'index.html');
             console.log(`[Debug] Loading HTML from: ${htmlPath}`);
             const html = fs.readFileSync(htmlPath, 'utf-8');
-            console.log(`[Debug] HTML size: ${html.length} bytes, contains 'if (rule.and)': ${html.includes('if (rule.and)')}`);
             res.writeHead(200, {
                 ...headers,
                 'Content-Type': 'text/html; charset=utf-8',

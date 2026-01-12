@@ -51,6 +51,7 @@
             padding: 0;
             /* Padding handled by inner */
             backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
         }
 
@@ -429,6 +430,7 @@
             justify-content: space-between;
             cursor: pointer;
             user-select: none;
+            -webkit-user-select: none;
             transition: all 0.2s ease;
             padding: 8px 0;
             border-radius: 6px;
@@ -505,6 +507,7 @@
             background: rgba(0, 0, 0, 0.7);
             z-index: 2000;
             backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
             animation: fadeIn 0.2s ease;
         }
 
@@ -907,9 +910,9 @@
             <!-- Left side controls -->
             <div style="display:flex; gap:10px;">
                 <button id="btn-stop" class="btn" style="background:#D63031; color:white; border:none;"
-                    onclick="stopService()">停止服务</button>
+                    onclick="stopService(event)">停止服务</button>
                 <button id="btn-restart-only" class="btn" style="background:#FDCB6E; color:#333; border:none;"
-                    onclick="restartServiceOnly()">重启服务</button>
+                    onclick="restartServiceOnly(event)">重启服务</button>
             </div>
 
             <!-- Right side controls -->
@@ -1050,7 +1053,7 @@
                 // Start Polling Status
                 checkStatus();
                 setInterval(checkStatus, 5000);
-            } catch (e) { alert('Init failed: ' + e.message); }
+            } catch (e) { showToast('Init failed: ' + e.message, 'error'); }
         }
 
         function renderAll() {
@@ -1597,7 +1600,7 @@
         }
 
         init();
-        async function stopService() {
+        async function stopService(event) {
             if (!await customConfirm('确认要停止服务吗？此操作将停止容器。', '停止服务', '#D63031')) return;
 
             const btn = event.target;
@@ -1625,7 +1628,7 @@
             }
         }
 
-        async function restartServiceOnly() {
+        async function restartServiceOnly(event) {
             if (!await customConfirm('确定要重启服务吗？(仅重启容器，不应用新配置)', '重启服务', '#FDCB6E')) return;
 
             const btn = event.target;
