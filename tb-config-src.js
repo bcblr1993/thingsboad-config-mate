@@ -4,7 +4,109 @@ const path = require('path');
 const { exec, spawn, execFile } = require('child_process');
 const os = require('os');
 
-const PORT = 3300;
+const args = process.argv.slice(2);
+const command = args[0] && !args[0].startsWith('--') ? args[0] : null;
+
+// --- Config ---
+const portArg = args.find(arg => arg.startsWith('--port='));
+const PORT = portArg ? parseInt(portArg.split('=')[1]) : (process.env.PORT || 3300);
+const PID_FILE = path.join(process.cwd(), 'tb-config-mate.pid');
+const LOG_FILE = path.join(process.cwd(), 'tb-config-mate.log');
+
+// --- Helper: Check Status ---
+function getRunningPid() {
+    if (!fs.existsSync(PID_FILE)) return null;
+    try {
+        const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8'));
+        process.kill(pid, 0); // Check if process exists
+        return pid;
+    } catch (e) {
+        return null;
+    }
+}
+
+// --- CLI Commands ---
+if (command === 'status') {
+    const pid = getRunningPid();
+    if (pid) {
+        console.log(`[Status] Service is RUNNING (PID: ${pid})`);
+    } else {
+        console.log('[Status] Service is STOPPED');
+    }
+    process.exit(0);
+}
+
+if (command === 'stop') {
+    const pid = getRunningPid();
+    if (pid) {
+        try {
+            process.kill(pid);
+            console.log(`[Success] Stopped service (PID: ${pid})`);
+            if (fs.existsSync(PID_FILE)) fs.unlinkSync(PID_FILE);
+        } catch (e) {
+            console.error(`[Error] Failed to stop: ${e.message}`);
+        }
+    } else {
+        console.log('[Info] Service is not running.');
+    }
+    process.exit(0);
+}
+
+if (command === 'restart') {
+    const pid = getRunningPid();
+    if (pid) {
+        try {
+            process.kill(pid);
+            console.log(`[Success] Stopped service (PID: ${pid})`);
+            if (fs.existsSync(PID_FILE)) fs.unlinkSync(PID_FILE);
+        } catch (e) {
+            console.warn(`[Warn] Failed to stop previous instance: ${e.message}`);
+        }
+    }
+}
+
+if (command === 'start' || command === 'restart') {
+    if (command === 'start' && getRunningPid()) {
+        console.log(`[Info] Service is already running (PID: ${getRunningPid()}).`);
+        process.exit(0);
+    }
+
+    console.log(`[Info] Starting background service...`);
+    const logFd = fs.openSync(LOG_FILE, 'a');
+
+    const childArgs = args.filter(a => !['start', 'stop', 'restart', 'status'].includes(a));
+
+    let spawnCmd = process.execPath;
+    let spawnArgs = [...childArgs];
+
+    if (!process.pkg) {
+        spawnArgs = [__filename, ...childArgs];
+    }
+
+    const child = spawn(spawnCmd, spawnArgs, {
+        detached: true,
+        stdio: ['ignore', logFd, logFd],
+        cwd: process.cwd(),
+        env: process.env
+    });
+
+    child.unref();
+    console.log(`[Success] Started (PID: ${child.pid})`);
+    console.log(`[Log] > ${LOG_FILE}`);
+    process.exit(0);
+}
+
+// --- Server / Worker Mode (Foreground) ---
+try {
+    fs.writeFileSync(PID_FILE, process.pid.toString());
+    const cleanup = () => { if (fs.existsSync(PID_FILE)) try { fs.unlinkSync(PID_FILE); } catch (e) { } };
+    process.on('exit', cleanup);
+    process.on('SIGINT', () => { cleanup(); process.exit(); });
+    process.on('SIGTERM', () => { cleanup(); process.exit(); });
+} catch (e) {
+    console.warn('[Warn] Failed to write PID:', e);
+}
+
 const ENV_FILE_PATH = path.join(process.cwd(), '.env');
 
 // Import modularized components
