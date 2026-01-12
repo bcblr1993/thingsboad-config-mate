@@ -464,7 +464,9 @@ function startServer() {
                 return;
             }
 
-            const args = [...dockerComposeCmdArgs, 'up', '-d', '--force-recreate', 'iotcloud'];
+            const config = parseEnvFile();
+            const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
+            const args = [...dockerComposeCmdArgs, 'up', '-d', '--force-recreate', serviceName];
             console.log(`[Info] Executing: ${dockerComposeCmd} ${args.join(' ')}`);
 
             execFile(dockerComposeCmd, args, { cwd: process.cwd() }, (error, stdout, stderr) => {
@@ -561,7 +563,9 @@ function startServer() {
             });
 
             // Use spawn for real-time logs (streaming)
-            const args = [...dockerComposeCmdArgs, 'logs', '-f', '--tail=50', 'iotcloud'];
+            const config = parseEnvFile();
+            const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
+            const args = [...dockerComposeCmdArgs, 'logs', '-f', '--tail=50', serviceName];
             console.log(`[Info] Starting real-time logs: ${dockerComposeCmd} ${args.join(' ')}`);
 
             const child = spawn(dockerComposeCmd, args, {
