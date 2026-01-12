@@ -487,7 +487,7 @@ function startServer() {
                 return;
             }
             const config = parseEnvFile();
-            const serviceName = (config['APPTYPE'] === 'EDGE') ? 'iotedge' : 'iotcloud';
+            const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
             const args = [...dockerComposeCmdArgs, 'stop', serviceName];
 
             console.log(`[Info] Stopping service: ${dockerComposeCmd} ${args.join(' ')}`);
@@ -505,7 +505,7 @@ function startServer() {
                 return;
             }
             const config = parseEnvFile();
-            const serviceName = (config['APPTYPE'] === 'EDGE') ? 'iotedge' : 'iotcloud';
+            const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
             const args = [...dockerComposeCmdArgs, 'restart', serviceName];
 
             console.log(`[Info] Restarting service: ${dockerComposeCmd} ${args.join(' ')}`);
@@ -565,6 +565,8 @@ function startServer() {
             // Use spawn for real-time logs (streaming)
             const config = parseEnvFile();
             const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
+            console.log(`[Debug] Logs Service Detection: APPTYPE=${config['APPTYPE']}, APP_IMAGE=${config['APP_IMAGE']} -> Service=${serviceName}`);
+
             const args = [...dockerComposeCmdArgs, 'logs', '-f', '--tail=50', serviceName];
             console.log(`[Info] Starting real-time logs: ${dockerComposeCmd} ${args.join(' ')}`);
 
@@ -627,7 +629,7 @@ function startServer() {
 
             const config = parseEnvFile();
             // Default to iotcloud unless explicitly EDGE
-            const serviceName = (config['APPTYPE'] === 'EDGE') ? 'iotedge' : 'iotcloud';
+            const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
 
             const args = [...dockerComposeCmdArgs, 'ps', '-q', '--status', 'running', serviceName];
 
