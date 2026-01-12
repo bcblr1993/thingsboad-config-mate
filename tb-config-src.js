@@ -20,143 +20,143 @@ try {
 }
 
 // --- Auto-Init Logic ---
+function tryInitFromYaml() {
+    let existingEnv = {};
 
-
-// Look for conf/thingsboard.yml or conf/tb-edge.yml
-// We check current directory's conf/ first, then current directory
-const candidates = [
-    path.join(process.cwd(), 'conf', 'thingsboard.yml'),
-    path.join(process.cwd(), 'conf', 'tb-edge.yml'),
-    path.join(process.cwd(), 'thingsboard.yml'),
-    path.join(process.cwd(), 'tb-edge.yml'),
-    path.join(__dirname, 'conf', 'thingsboard.yml'),
-    path.join(__dirname, 'conf', 'tb-edge.yml')
-];
-
-let yamlPath = null;
-for (const p of candidates) {
-    if (fs.existsSync(p)) {
-        yamlPath = p;
-        break;
+    if (fs.existsSync(ENV_FILE_PATH)) {
+        try {
+            existingEnv = parseEnvFile();
+            const keyCount = Object.keys(existingEnv).length;
+            if (keyCount > 5) {
+                console.log(`[Info] .env file exists and appears complete (${keyCount} keys). Skipping auto-init.`);
+                return;
+            }
+            console.log(`[Info] .env file exists but has minimal config (${keyCount} keys). Merging with YAML...`);
+        } catch (e) {
+            console.warn('[Warn] Failed to parse existing .env, overwriting:', e);
+        }
     }
-}
 
-if (!yamlPath) {
-    console.log('[Info] No YAML config found in conf/ directory. Skipping.');
-    return;
-}
+    if (!yaml) return;
 
-console.log(`[Info] Found YAML config at: ${yamlPath}`);
+    console.log('[Info] Looking for YAML config...');
 
-try {
-    const fileContents = fs.readFileSync(yamlPath, 'utf8');
-    const data = yaml.load(fileContents);
-    const flattened = flattenYaml(data);
+    const candidates = [
+        path.join(process.cwd(), 'conf', 'thingsboard.yml'),
+        path.join(process.cwd(), 'conf', 'tb-edge.yml'),
+        path.join(process.cwd(), 'thingsboard.yml'),
+        path.join(process.cwd(), 'tb-edge.yml'),
+        path.join(__dirname, 'conf', 'thingsboard.yml'),
+        path.join(__dirname, 'conf', 'tb-edge.yml')
+    ];
 
-    // Auto-extract Env Vars from values
-    // If flattened['QUEUE_TYPE'] = "${TB_QUEUE_TYPE:in-memory}", 
-    // we add flattened['TB_QUEUE_TYPE'] = "${TB_QUEUE_TYPE:in-memory}"
-    Object.keys(flattened).forEach(flatKey => {
-        const val = flattened[flatKey];
-        if (typeof val === 'string') {
-            // Match ${VAR:def} or ${VAR}
-            const match = val.match(/^\$\{([^:]+)(:.*)?\}$/);
-            if (match) {
-                const varName = match[1];
-                if (!flattened[varName]) {
-                    flattened[varName] = val;
+    let yamlPath = null;
+    for (const p of candidates) {
+        if (fs.existsSync(p)) {
+            yamlPath = p;
+            break;
+        }
+    }
+
+    if (!yamlPath) {
+        console.log('[Info] No YAML config found in conf/ directory. Skipping.');
+        return;
+    }
+
+    console.log(`[Info] Found YAML config at: ${yamlPath}`);
+
+    try {
+        const fileContents = fs.readFileSync(yamlPath, 'utf8');
+        const data = yaml.load(fileContents);
+        const flattened = flattenYaml(data);
+
+        // Auto-extract Env Vars from values
+        Object.keys(flattened).forEach(flatKey => {
+            const val = flattened[flatKey];
+            if (typeof val === 'string') {
+                const match = val.match(/^\$\{([^:]+)(:.*)?\}$/);
+                if (match) {
+                    const varName = match[1];
+                    if (!flattened[varName]) {
+                        flattened[varName] = val;
+                    }
                 }
             }
-        }
-    });
+        });
 
-    // Key Mappings for known mismatches
-    const YAML_KEY_MAPPING = {
-        "REDIS_CONNECTION_TYPE": ["REDIS_CONNECTION_TYPE"],
-        "REDIS_HOST": ["REDIS_STANDALONE_HOST"],
-        "REDIS_PORT": ["REDIS_STANDALONE_PORT"],
-        "REDIS_USE_DEFAULT_CLIENT_CONFIG": ["REDIS_STANDALONE_USEDEFAULTCLIENTCONFIG"],
-        "REDIS_CLIENT_NAME": ["REDIS_STANDALONE_CLIENTNAME"],
-        "REDIS_CLIENT_CONNECT_TIMEOUT": ["REDIS_STANDALONE_CONNECTTIMEOUT"],
-        "REDIS_CLIENT_READ_TIMEOUT": ["REDIS_STANDALONE_READTIMEOUT"],
-        "REDIS_CLIENT_USE_POOL_CONFIG": ["REDIS_STANDALONE_USEPOOLCONFIG"],
-        "REDIS_NODES": ["REDIS_CLUSTER_NODES"],
-        "REDIS_MAX_REDIRECTS": ["REDIS_CLUSTER_MAX_REDIRECTS"],
-        "REDIS_USE_DEFAULT_POOL_CONFIG": ["REDIS_CLUSTER_USEDEFAULTPOOLCONFIG", "REDIS_USE_DEFAULT_POOL_CONFIG"],
-        "REDIS_MASTER": ["REDIS_SENTINEL_MASTER"],
-        "REDIS_SENTINELS": ["REDIS_SENTINEL_SENTINELS"],
-        "REDIS_SENTINEL_PASSWORD": ["REDIS_SENTINEL_PASSWORD"],
-        "REDIS_SENTINEL_USE_DEFAULT_POOL_CONFIG": ["REDIS_SENTINEL_USEDEFAULTPOOLCONFIG"],
-        "SPRING_DRIVER_CLASS_NAME": ["SPRING_DATASOURCE_DRIVERCLASSNAME"],
-        "NETTY_MAX_PAYLOAD_SIZE": ["TRANSPORT_MQTT_NETTY_MAX_PAYLOAD_SIZE"],
-        "MQTT_BIND_PORT": ["TRANSPORT_MQTT_BIND_PORT"]
-    };
+        const YAML_KEY_MAPPING = {
+            "REDIS_CONNECTION_TYPE": ["REDIS_CONNECTION_TYPE"],
+            "REDIS_HOST": ["REDIS_STANDALONE_HOST"],
+            "REDIS_PORT": ["REDIS_STANDALONE_PORT"],
+            "REDIS_USE_DEFAULT_CLIENT_CONFIG": ["REDIS_STANDALONE_USEDEFAULTCLIENTCONFIG"],
+            "REDIS_CLIENT_NAME": ["REDIS_STANDALONE_CLIENTNAME"],
+            "REDIS_CLIENT_CONNECT_TIMEOUT": ["REDIS_STANDALONE_CONNECTTIMEOUT"],
+            "REDIS_CLIENT_READ_TIMEOUT": ["REDIS_STANDALONE_READTIMEOUT"],
+            "REDIS_CLIENT_USE_POOL_CONFIG": ["REDIS_STANDALONE_USEPOOLCONFIG"],
+            "REDIS_NODES": ["REDIS_CLUSTER_NODES"],
+            "REDIS_MAX_REDIRECTS": ["REDIS_CLUSTER_MAX_REDIRECTS"],
+            "REDIS_USE_DEFAULT_POOL_CONFIG": ["REDIS_CLUSTER_USEDEFAULTPOOLCONFIG", "REDIS_USE_DEFAULT_POOL_CONFIG"],
+            "REDIS_MASTER": ["REDIS_SENTINEL_MASTER"],
+            "REDIS_SENTINELS": ["REDIS_SENTINEL_SENTINELS"],
+            "REDIS_SENTINEL_PASSWORD": ["REDIS_SENTINEL_PASSWORD"],
+            "REDIS_SENTINEL_USE_DEFAULT_POOL_CONFIG": ["REDIS_SENTINEL_USEDEFAULTPOOLCONFIG"],
+            "SPRING_DRIVER_CLASS_NAME": ["SPRING_DATASOURCE_DRIVERCLASSNAME"],
+            "NETTY_MAX_PAYLOAD_SIZE": ["TRANSPORT_MQTT_NETTY_MAX_PAYLOAD_SIZE"],
+            "MQTT_BIND_PORT": ["TRANSPORT_MQTT_BIND_PORT"]
+        };
 
-    // Filter and Map to known config
-    const newConfig = {};
+        const newConfig = {};
 
-    // Infer APPTYPE based on filename
-    let targetAppType = 'CLOUD'; // Default fallback
-    const filename = path.basename(yamlPath);
-    if (filename === 'thingsboard.yml') {
-        newConfig['APPTYPE'] = 'CLOUD';
-        targetAppType = 'CLOUD';
-    } else if (filename === 'tb-edge.yml') {
-        newConfig['APPTYPE'] = 'EDGE';
-        targetAppType = 'EDGE';
-    }
-
-    Object.keys(CONFIG_META).forEach(metaKey => {
-        const meta = CONFIG_META[metaKey];
-
-        // Scope Filtering
-        // Default scope is 'common' if not specified
-        const scope = meta.scope || 'common';
-
-        // If scope is 'cloud', only allow if targetAppType is CLOUD
-        if (scope === 'cloud' && targetAppType !== 'CLOUD') return;
-
-        // If scope is 'edge', only allow if targetAppType is EDGE
-        if (scope === 'edge' && targetAppType !== 'EDGE') return;
-
-        // DependsOn Filtering (check against newConfig being built)
-        // Note: We need to check dependencies as we build the config
-        // This is a simplified check - for complex dependencies, this may need refinement
-        if (meta.dependsOn && !checkDependsOn(meta.dependsOn, newConfig)) return;
-
-        // Priority 1: Direct Match
-        if (flattened[metaKey] !== undefined) {
-            newConfig[metaKey] = resolveSpringPlaceholder(flattened[metaKey]);
-            return;
+        // Infer APPTYPE based on filename
+        let targetAppType = 'CLOUD';
+        const filename = path.basename(yamlPath);
+        if (filename === 'thingsboard.yml') {
+            newConfig['APPTYPE'] = 'CLOUD';
+            targetAppType = 'CLOUD';
+        } else if (filename === 'tb-edge.yml') {
+            newConfig['APPTYPE'] = 'EDGE';
+            targetAppType = 'EDGE';
         }
 
-        // Priority 2: Mapped Keys
-        if (YAML_KEY_MAPPING[metaKey]) {
-            const mappedKeys = YAML_KEY_MAPPING[metaKey];
-            for (const mappedKey of mappedKeys) {
-                if (flattened[mappedKey] !== undefined) {
-                    newConfig[metaKey] = resolveSpringPlaceholder(flattened[mappedKey]);
-                    return; // Found match
+        Object.keys(CONFIG_META).forEach(metaKey => {
+            const meta = CONFIG_META[metaKey];
+            const scope = meta.scope || 'common';
+            if (scope === 'cloud' && targetAppType !== 'CLOUD') return;
+            if (scope === 'edge' && targetAppType !== 'EDGE') return;
+            if (meta.dependsOn && !checkDependsOn(meta.dependsOn, newConfig)) return;
+
+            if (flattened[metaKey] !== undefined) {
+                newConfig[metaKey] = resolveSpringPlaceholder(flattened[metaKey]);
+                return;
+            }
+
+            if (YAML_KEY_MAPPING[metaKey]) {
+                const mappedKeys = YAML_KEY_MAPPING[metaKey];
+                for (const mappedKey of mappedKeys) {
+                    if (flattened[mappedKey] !== undefined) {
+                        newConfig[metaKey] = resolveSpringPlaceholder(flattened[mappedKey]);
+                        return;
+                    }
                 }
             }
+        });
+
+        if (Object.keys(newConfig).length > 0) {
+            console.log(`[Info] Extracted ${Object.keys(newConfig).length} configurations from YAML.`);
+
+            // Merge existingEnv (e.g. APP_IMAGE) into newConfig to preserve them
+            // Object.assign(target, source) -> properties in source overwrite target, so EXISTING values win.
+            Object.assign(newConfig, existingEnv);
+
+            console.log(`[Info] Generating/Updating .env with ${Object.keys(newConfig).length} keys...`);
+            saveEnvFile(newConfig);
+        } else {
+            console.log('[Warn] Parsed YAML but found no matching configurations defined in metadata.');
         }
-    });
 
-    // Special Handling for things that might not map 1:1 if necessary
-    // But for now, direct mapping is the safest 80/20 rule.
-
-    if (Object.keys(newConfig).length > 0) {
-        console.log(`[Info] Extracted ${Object.keys(newConfig).length} configurations from YAML:`);
-        Object.keys(newConfig).forEach(k => console.log(`   - ${k}: ${newConfig[k]}`));
-        console.log(`[Info] Generating .env...`);
-        saveEnvFile(newConfig);
-    } else {
-        console.log('[Warn] Parsed YAML but found no matching configurations defined in metadata.');
+    } catch (e) {
+        console.error('[Error] Failed to parse YAML:', e);
     }
-
-} catch (e) {
-    console.error('[Error] Failed to parse YAML:', e);
-}
 }
 
 function flattenYaml(obj, prefix = '', res = {}) {
