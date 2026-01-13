@@ -31,6 +31,7 @@
             flex-direction: column;
             height: 100vh;
             overflow: hidden;
+            min-width: 320px;
         }
 
         /* Removed sidebar - using full-width layout */
@@ -46,27 +47,28 @@
         }
 
         .header {
-            height: 64px;
+            min-height: 64px;
             background: linear-gradient(135deg, rgba(42, 125, 236, 0.05), rgba(255, 255, 255, 0.95));
             border-bottom: 1px solid var(--border);
-            /* Remove direct flex to allow inner container to center */
             display: block;
             padding: 0;
-            /* Padding handled by inner */
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+            z-index: 100;
+            position: relative;
         }
 
         .header-inner {
-            height: 100%;
+            min-height: 64px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            /* max-width removed for full width */
             margin: 0;
             width: 100%;
-            padding: 0 40px;
+            padding: 10px 40px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         /* ... */
@@ -923,6 +925,76 @@
             filter: brightness(1.1);
             transform: translateY(-1px);
         }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            margin-left: auto;
+            gap: 10px;
+        }
+
+
+
+        /* Revised Media Query for better button layout */
+        @media (max-width: 768px) {
+            .header-inner {
+                padding: 12px 16px;
+                /* Keep flex-wrap from before, but let's be explicit */
+                flex-direction: column;
+                align-items: stretch;
+                height: auto;
+            }
+
+            .header-title {
+                margin-bottom: 12px;
+                justify-content: center;
+            }
+
+            .header-right {
+                margin-left: 0;
+                width: 100%;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .header-controls {
+                margin-right: 0;
+                flex-wrap: wrap;
+                /* Allow search and buttons to wrap */
+                gap: 10px;
+                justify-content: space-between;
+            }
+
+            .search-box {
+                width: 100%;
+                order: -1;
+                /* Search on top */
+            }
+
+            .search-input,
+            .search-input:focus {
+                width: 100%;
+            }
+
+            /* Container for buttons to keep them on one line if possible */
+            /* Since specific button wrapper doesn't exist, they are siblings of search-box.
+                With flex-wrap: wrap, search-box (100%) breaks line. 
+                Buttons flow on next line. */
+
+            .btn-header {
+                flex: 1;
+                /* Distribute space */
+                justify-content: center;
+                display: flex;
+                align-items: center;
+            }
+
+            /* Hide less important elements if needed */
+            .status-badge {
+                align-self: center;
+                margin-top: 5px;
+            }
+        }
     </style>
 </head>
 
@@ -939,7 +1011,7 @@
                     </svg>
                     <span>ThingsBoard Config Mate</span>
                 </div>
-                <div style="display:flex; align-items:center; margin-left:auto;">
+                <div class="header-right">
                     <div class="header-controls">
                         <div class="search-box">
                             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"

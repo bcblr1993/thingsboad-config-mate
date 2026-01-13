@@ -442,6 +442,22 @@ function tryInitFromYaml() {
                     }
                 }
             }
+
+            // Priority 4: Special Handling for Legacy Edge Keys (No Env Var in YAML)
+            if (targetAppType === 'EDGE') {
+                if (metaKey === 'CLOUD_CHECK_STATUS_BASE_URL' && data?.cloud?.check_status?.baseURL) {
+                    newConfig[metaKey] = data.cloud.check_status.baseURL;
+                    return;
+                }
+                if (metaKey === 'EDGES_STORAGE_HISTORY_STATUS' && data?.cloud?.rpc?.storage?.history_status !== undefined) {
+                    newConfig[metaKey] = String(data.cloud.rpc.storage.history_status);
+                    return;
+                }
+                if (metaKey === 'TELEMETRY_SEPARATION_ENABLED' && data?.cloud?.telemetry?.separation?.enabled !== undefined) {
+                    newConfig[metaKey] = String(data.cloud.telemetry.separation.enabled);
+                    return;
+                }
+            }
         });
 
         if (Object.keys(newConfig).length > 0) {
