@@ -71,6 +71,24 @@
    - 工具调用 Docker API，使用新的环境变量重建并启动容器。
    - 系统以新的参数运行，变更生效。
 
+### 4.1 流程图解
+
+```mermaid
+graph TD
+    Start(启动工具) --> ReadConfig[读取配置]
+    ReadConfig --> RenderUI[渲染 Web 界面]
+    RenderUI --> UserEdit(用户修改配置)
+    
+    UserEdit --> Validate{校验通过?}
+    Validate -- No --> UserEdit
+    Validate -- Yes --> Save[.env 持久化]
+    
+    Save --> Restart(重启服务)
+    Restart --> Inject[注入容器参数]
+    Inject --> DockerUp[Docker Up]
+    DockerUp --> Success((服务运行))
+```
+
 ---
 
 ## 5. 总结
