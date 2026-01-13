@@ -3,6 +3,7 @@ const path = require('path');
 
 // Helper to read .env synchronously
 function getAppType() {
+    // 1. Try to read from .env
     try {
         const envPath = path.join(process.cwd(), '.env');
         if (fs.existsSync(envPath)) {
@@ -15,6 +16,18 @@ function getAppType() {
     } catch (e) {
         console.warn('Failed to read .env for APPTYPE:', e.message);
     }
+
+    // 2. Fallback: Check config files existence
+    const edgeConfigPath = path.join(process.cwd(), 'conf', 'tb-edge.yml');
+    if (fs.existsSync(edgeConfigPath)) {
+        return 'EDGE';
+    }
+
+    const cloudConfigPath = path.join(process.cwd(), 'conf', 'thingsboard.yml');
+    if (fs.existsSync(cloudConfigPath)) {
+        return 'CLOUD';
+    }
+
     return 'CLOUD'; // Default
 }
 
