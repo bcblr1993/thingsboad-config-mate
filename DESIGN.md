@@ -1,135 +1,78 @@
-# ThingsBoard Config Mate 项目整体设计文档
+# ThingsBoard Config Mate 功能设计文档
 
-## 1. 项目概述 (Project Overview)
+## 1. 设计初衷与定位
 
-**ThingsBoard Config Mate** 是一个专为 ThingsBoard 和 ThingsBoard Edge 设计的轻量级、可视化的本地配置与运维辅助工具。
+**ThingsBoard Config Mate** 旨在解决 ThingsBoard 及 ThingsBoard Edge 在私有化部署和本地开发中面临的配置繁琐痛点。
 
-**核心痛点解决**：
+传统的配置修改往往需要深入复杂的 `thingsboard.yml` 或 `docker-compose.yml` 文件，容易出错且难以维护。本工具的设计核心是将**复杂的参数配置**简化为**可视化的交互界面**，通过标准化流程干预容器启动参数，实现“一次配置，随处运行”。
 
-* **配置复杂**：原生的 `thingsboard.yml` 配置文件庞大且参数众多，手动修改容易出错。
-* **环境不一致**：开发、测试、生产环境的配置管理混乱（环境变量 vs YAML）。
-* **运维繁琐**：本地启动、停止 Docker 容器，查看日志需要频繁切换终端命令。
+## 2. 核心设计理念
 
-**设计目标**：
+### 2.1 以 .env 为核心的配置驱动
 
-* **开箱即用**：零依赖，单可执行文件发布（使用 `pkg` 打包）。
-* **可视化**：提供直观的 Web UI 进行参数配置。
-* **双向同步**：支持从 YAML 导入配置，也支持讲配置回写到 YAML。
-* **安全可靠**：提供配置备份、服务状态监控和安全加固。
+系统采用 `.env` 环境变量文件作为配置的“单一事实来源 (Single Source of Truth)”。
 
----
+- **解耦**: 将易变的配置参数（如数据库地址、密钥、功能开关）与静态的程序代码/镜像分离。
+- **便携**: 运维人员只需管理轻量级的 `.env` 文件，即可控制整个系统的运行行为。
 
-## 2. 技术架构 (Technical Architecture)
+### 2.2 容器化注入机制
 
-本项目采用 **B/S 架构**，但打包为本地单体应用发布。
+本工具不直接修改编译后的 JAR 包或二进制文件，而是利用 Docker 容器的特性，在**运行时 (Runtime)** 注入配置：
 
-### 2.1 技术栈
-
-* **运行时**：Node.js (LTS)
-* **后端框架**：原生 Node.js `http` 模块 + 自研轻量级路由（无 Express/Koa 重依赖，追求极致轻量）。
-* **前端**：原生 HTML5 / CSS3 / JavaScript (ES6+)。无 Vue/React 依赖，单文件组件模式。
-* **打包工具**：`pkg` (将源码打包为 Win/Mac/Linux 可执行文件)。
-* **进程管理**：Node.js `child_process` (spawn, execFile)。
-* **容器交互**：直接调用宿主机 `docker` CLI。
-
-### 2.2 架构图
-
-```mermaid
-graph TD
-    User["用户/浏览器"] <--> WebUI["Web 界面 (index.html)"]
-    WebUI -- "HTTP API" --> Server["Node.js 后端服务"]
-    
-    subgraph Core["核心模块"]
-        Server --> ConfigEngine["配置管理引擎"]
-        Server --> ProcessMgr["进程/守护管理"]
-        Server --> DockerCtrl["Docker 控制器"]
-    end
-    
-    subgraph FileSystem["文件系统"]
-        ConfigEngine <--> P_Env[".env 文件"]
-        ConfigEngine <--> P_Yaml["thingsboard.yml"]
-        ConfigEngine --> P_Meta["config-meta.js"]
-        ProcessMgr <--> P_Pid["pid 文件"]
-        DockerCtrl <--> P_Log["实时日志流"]
-    end
-    
-    subgraph External["外部依赖"]
-        DockerCtrl --> DockerCLI["Docker / Docker Compose"]
-    end
-```
+1. **收集**: 用户在可视化界面修改配置。
+2. **生成**: 工具自动生成标准化的 `.env` 文件。
+3. **注入**: 服务启动时，Docker 容器自动加载该文件，覆盖默认的 YAML 配置。
 
 ---
 
-## 3. 核心功能模块 (Core Modules)
+## 3. 功能架构
 
-### 3.1 启动与进程管理 (Boot & Daemon)
+### 3.1 可视化配置管理
 
-为了提供良好的 CLI 体验，程序实现了类似守护进程的机制。
+- **动态表单**: 自动屏蔽不仅要的底层细节，根据用户选择（如 Cloud/Edge 模式）动态展示相关配置项。
+- **智能校验**: 对数据库连接、队列类型等关键参数进行实时逻辑校验，防止无效配置导致服务启动失败。
+- **透明转换**:
+  - 界面操作：`开启 Swagger 文档` -> `点击开关`
+  - 底层转换：`SWAGGER_ENABLED=true` (写入 .env)
 
-* **前台/后台模式**：
-  * `start` 命令：通过 `spawn` 启动子进程（detached 模式），将自身作为服务在后台运行，并记录 PID。
-  * `stop/status` 命令：通过读取 PID 文件管理后台进程的生命周期。
-* **单实例锁**：利用 PID 文件确保同一目录只能运行一个服务实例。
+### 3.2 容器生命周期干预
 
-### 3.2 配置管理引擎 (Configuration Engine)
+工具深度集成了 Docker 控制能力，形成闭环的运维流程：
 
-这是系统的核心大脑，负责处理复杂的配置逻辑。
+- **一键启动/重启**: 修改配置后，可直接触发服务重启，新配置即刻生效。
+- **启动参数控制**:
+  - 自动识别当前环境（Cloud 或 Edge）。
+  - 自动挂载配置文件和数据卷。
+  - 动态设置 JVM 参数和内存限制。
 
-1. **自动发现 (Auto-Discovery)**：
-    * 启动时自动扫描当前及 `conf/` 目录下的 `thingsboard.yml` 或 `tb-edge.yml`。
-    * 自动识别应用类型（APP_TYPE）：`CLOUD` 或 `EDGE`。
+### 3.3 运维辅助
 
-2. **元数据驱动 (Metadata-Driven)**：
-    * **核心定义**：`config-meta.js` 定义了所有支持的配置项，包括：Key、Label、Type、Group（分组）、Validator（校验）和 DependsOn（依赖关系）。
-    * **动态 UI**：前端根据元数据动态渲染表单，自动处理分组折叠、依赖显示/隐藏（例如：仅当 `QUEUE_TYPE=Kafka` 时显示 Kafka 配置）。
-
-3. **双向同步策略**：
-    * **Import (YAML -> ENV)**：首次启动时，解析 YAML 提取 `${VAR:DEFAULT}` 占位符，生成 `.env` 文件。
-    * **Export (ENV -> YAML)**：使用 `--over` 命令，基于正则替换技术，将 `.env` 的值回填到 YAML 的默认值中，同时**保留原文件注释**。
-
-### 3.3 服务控制 (Service Control)
-
-* **Docker 交互**：通过 `child_process.exec` 调用宿主机的 `docker compose` 命令。
-* **状态监测**：轮询检查容器状态，实时反馈到 UI（Running/Stopped 状态灯）。
-* **操作**：支持 Start（启动/重启）、Stop（停止）。
-
-### 3.4 实时日志 (Log Streaming)
-
-* **技术实现**：Server-Sent Events (SSE)。
-* **流程**：
-    1. 后端 `spawn('docker', ['compose', 'logs', '-f', ...])`。
-    2. 监听 stdout/stderr 数据流。
-    3. 通过 HTTP 长连接 (`text/event-stream`) 实时推送到前端。
-    4. 前端 `EventSource` 接收并渲染，支持自动滚动和暂停。
+- **实时日志流**: 无需 SSH 登录服务器，直接在界面查看容器的标准输出日志，快速定位启动错误。
+- **配置备份**: 每次保存配置前自动备份旧环境文件，提供“后悔药”机制。
 
 ---
 
-## 4. 安全与稳定性设计
+## 4. 标准工作流 (Workflow)
 
-### 4.1 安全性
+1. **初始化 (Init)**:
+   - 工具启动，读取现有的 `thingsboard.yml` 模板和环境变量。
+   - 解析出当前系统的运行状态可视化展示。
 
-1. **Localhost 绑定**：HTTP 服务默认绑定 `127.0.0.1`，防止局域网非授权访问。
-2. **文件备份**：任何对 YAML 配置文件的修改操作（如覆盖），系统**强制**创建带时间戳的备份文件（`.bak`）。
-3. **输入清洗**：对写入配置文件的值进行转义（如双引号处理），防止破坏文件语法。
+2. **配置修改 (Config)**:
+   - 用户在 Web 界面调整参数（例如：将数据库从 Postgres 切换为 Hybrid 模式）。
+   - 工具实时校验依赖关系（例如：切换 Hybrid 模式自动要求填写 Cassandra 地址）。
 
-### 4.2 稳定性
+3. **持久化 (Persist)**:
+   - 用户点击保存。
+   - 工具更新 `.env` 文件，确保配置持久化到磁盘。
 
-1. **错误隔离**：关键模块（如 YAML 解析、Docker 调用）均有 Try-Catch 保护，防止主进程崩溃。
-2. **优雅退出**：监听 `SIGTERM/SIGINT` 信号，确保退出时清理 PID 文件和子进程。
+4. **应用生效 (Apply)**:
+   - 用户点击“重启服务”。
+   - 工具调用 Docker API，使用新的环境变量重建并启动容器。
+   - 系统以新的参数运行，变更生效。
 
 ---
 
-## 5. 项目文件结构
+## 5. 总结
 
-```text
-thingsboard-config-mate/
-├── package.json          # 项目依赖与脚本
-├── tb-config-src.js      # 主程序入口 (Backend & CLI)
-├── config-meta.js        # 配置元数据定义
-├── index.html            # 单文件前端 UI
-├── conf/                 # 默认配置文件目录
-│   ├── thingsboard.yml
-│   └── tb-edge.yml
-├── .env                  # 当前环境配置 (运行时生成)
-└── tb-config-mate.log    # 运行日志
-```
+**ThingsBoard Config Mate** 不是一个简单的文本编辑器，而是一个**配置注入器**。它屏蔽了 Docker 和 Spring Boot 配置文件的复杂性，让运维人员和开发者能够通过直观的 GUI，安全、高效地掌控 ThingsBoard 服务的启动行为。
