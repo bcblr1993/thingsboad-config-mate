@@ -123,9 +123,149 @@ if (command === 'start' || command === 'restart') {
     process.exit(0);
 }
 
-// --- Server / Worker Mode (Foreground) ---
+
+// --- Overwrite Mode (--over) ---
+if (args.includes('--over')) {
+    console.log('[Info] Mode: Configuration Overwrite');
+    const ENV_FILE_PATH = path.join(process.cwd(), '.env');
+
+    if (!fs.existsSync(ENV_FILE_PATH)) {
+        console.error('[Error] .env file not found.');
+        process.exit(1);
+    }
+
+    // 1. Parse .env
+    const envVars = {};
+    const envContent = fs.readFileSync(ENV_FILE_PATH, 'utf-8');
+    envContent.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+            const parts = trimmed.split('=');
+            const key = parts[0].trim();
+            // Value: join remaining parts in case value contains '='
+            const val = parts.slice(1).join('=').trim();
+            envVars[key] = val;
+        }
+    });
+
+    const totalEnvKeys = Object.keys(envVars).length;
+    console.log(`[Info] Loaded ${totalEnvKeys} variables from .env`);
+
+    // 2. Identify Target File
+    const appType = envVars['APPTYPE'] || 'CLOUD';
+    let targetFile = null;
+
+    if (appType === 'EDGE') {
+        const candidates = [
+            path.join(process.cwd(), 'conf', 'tb-edge.yml'),
+            path.join(process.cwd(), 'tb-edge.yml')
+        ];
+        targetFile = candidates.find(f => fs.existsSync(f));
+    } else {
+        const candidates = [
+            path.join(process.cwd(), 'conf', 'thingsboard.yml'),
+            path.join(process.cwd(), 'thingsboard.yml')
+        ];
+        targetFile = candidates.find(f => fs.existsSync(f));
+    }
+
+    if (!targetFile) {
+        console.error(`[Error] Target configuration file for ${appType} not found.`);
+        process.exit(1);
+    }
+    console.log(`[Info] Target Config: ${targetFile}`);
+
+    // 3. Backup
+    const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14); // YYYYMMDDHHmmss
+    const backupFile = `${targetFile}.${timestamp}.bak`;
+    try {
+        fs.copyFileSync(targetFile, backupFile);
+        console.log(`[Backup] Created: ${path.basename(backupFile)}`);
+    } catch (e) {
+        console.error('[Error] Backup failed:', e);
+        process.exit(1);
+    }
+
+    // 4. Regex Scanning & Replacement
+    let fileContent = fs.readFileSync(targetFile, 'utf8');
+    let updateCount = 0;
+    let unchangedCount = 0;
+
+    console.log('[Process] Starting placeholder replacement...');
+    console.log('----------------------------------------------------------------');
+
+    Object.keys(envVars).forEach(key => {
+        const newValue = envVars[key];
+
+        // Match ${KEY} or ${KEY:default}
+        // Regex Explanation:
+        // \$\{      Literal ${
+        // KEY       Variable Name
+        // (:[^}]*)? Optional group: colon followed by anything non-} (the default value)
+        // \}        Literal }
+        const regex = new RegExp(`\\$\\{${key}(:[^}]*)?\\}`, 'g');
+
+        let hasMatch = false;
+
+        // We use a callback to perform replacement to allow for logic (escaping, logging) values
+        fileContent = fileContent.replace(regex, (match, defaultGroup, offset, string) => {
+            hasMatch = true;
+
+            // Safety Check: Is this placeholder inside double quotes?
+            // Simple heuristic: look at chars immediately before/after match
+            const prevChar = string[offset - 1];
+            const nextChar = string[offset + match.length];
+            const isQuoted = (prevChar === '"' && nextChar === '"');
+
+            let finalValue = newValue;
+
+            // If inside quotes, escape quotes in the value
+            if (isQuoted) {
+                finalValue = finalValue.replace(/"/g, '\\"');
+            }
+
+            // Construct replacement: ${KEY:NEW_VALUE}
+            const replacement = `\${${key}:${finalValue}}`;
+
+            if (match !== replacement) {
+                console.log(`[Updated] ${key}`);
+                console.log(`          Before: "${match}"`);
+                console.log(`          After:  "${replacement}"`);
+                console.log('----------------------------------------------------------------');
+                updateCount++;
+                return replacement;
+            } else {
+                return match; // No change
+            }
+        });
+
+        if (!hasMatch) {
+            // Log skip only if verbose? Or maybe specific ones? 
+            // User asked for "Detailed log", but logging every skip for 100 vars might be too much.
+            // Let's print matched ones prominently.
+            unchangedCount++;
+        }
+    });
+
+    try {
+        fs.writeFileSync(targetFile, fileContent, 'utf8');
+        console.log(`[Success] Overwrite complete.`);
+        console.log(`          - Total Env Vars: ${totalEnvKeys}`);
+        console.log(`          - Replacements:   ${updateCount}`);
+        console.log(`          - Unchanged/Skip: ${unchangedCount}`);
+    } catch (e) {
+        console.error('[Error] Failed to write changes:', e);
+        // Restore backup? maybe manual
+    }
+
+    process.exit(0);
+} else {
+    // Regular Server Startup continue...
+}
+
 try {
     fs.writeFileSync(PID_FILE, process.pid.toString());
+
     const cleanup = () => { if (fs.existsSync(PID_FILE)) try { fs.unlinkSync(PID_FILE); } catch (e) { } };
     process.on('exit', cleanup);
     process.on('SIGINT', () => { cleanup(); process.exit(); });
@@ -247,6 +387,31 @@ function tryInitFromYaml() {
             targetAppType = 'EDGE';
         }
 
+
+        // Build Reverse Mapping from YAML values
+        // Scan all flattened values. If a value contains "${KEY:DEFAULT}" or "${KEY}", 
+        // we map KEY -> value (the placeholder string itself).
+        // This allows automatic discovery of keys without manual mapping.
+        const reverseMapping = {};
+        Object.keys(flattened).forEach(flatKey => {
+            const val = flattened[flatKey];
+            if (typeof val === 'string') {
+                // Regex to match ${KEY} or ${KEY:DEFAULT}
+                // We capture the KEY name.
+                // Note: YAML might have nested structure like "${HOST}:${PORT}", so we iterate all matches.
+                // But for simple config extraction, usually one key per value.
+                const regex = /\$\{([A-Z0-9_]+)(?::[^}]*)?\}/g;
+                let match;
+                while ((match = regex.exec(val)) !== null) {
+                    const envKey = match[1];
+                    // If we have multiple occurrences (rare), last one wins or we ignore collisions.
+                    // We store the full original value string which resolveSpringPlaceholder can handle.
+                    // But resolveSpringPlaceholder expects the *entire* string to be the value to parse.
+                    reverseMapping[envKey] = val;
+                }
+            }
+        });
+
         Object.keys(CONFIG_META).forEach(metaKey => {
             const meta = CONFIG_META[metaKey];
             const scope = meta.scope || 'common';
@@ -254,11 +419,20 @@ function tryInitFromYaml() {
             if (scope === 'edge' && targetAppType !== 'EDGE') return;
             if (meta.dependsOn && !checkDependsOn(meta.dependsOn, newConfig)) return;
 
+            // Priority 1: Direct key match (doubtful for YAML but possible)
             if (flattened[metaKey] !== undefined) {
                 newConfig[metaKey] = resolveSpringPlaceholder(flattened[metaKey]);
                 return;
             }
 
+            // Priority 2: Auto-discovered Reverse Mapping (The Magic Fix)
+            if (reverseMapping[metaKey] !== undefined) {
+                newConfig[metaKey] = resolveSpringPlaceholder(reverseMapping[metaKey]);
+                return;
+            }
+
+
+            // Priority 3: Explicit Manual Mapping (Legacy/Fallback)
             if (YAML_KEY_MAPPING[metaKey]) {
                 const mappedKeys = YAML_KEY_MAPPING[metaKey];
                 for (const mappedKey of mappedKeys) {
@@ -284,6 +458,39 @@ function tryInitFromYaml() {
                 }
             });
 
+
+            // Log missing keys details
+            const expectedKeys = [];
+            const skippedByDeps = [];
+
+            Object.keys(CONFIG_META).forEach(k => {
+                const meta = CONFIG_META[k];
+                const scope = meta.scope || 'common';
+                if (scope === 'cloud' && targetAppType !== 'CLOUD') return;
+                if (scope === 'edge' && targetAppType !== 'EDGE') return;
+
+                // Check dependencies
+                if (meta.dependsOn && !checkDependsOn(meta.dependsOn, newConfig)) {
+                    skippedByDeps.push(k);
+                    return;
+                }
+                expectedKeys.push(k);
+            });
+
+            const missedExtraction = expectedKeys.filter(k => !newConfig[k] && !existingEnv[k]);
+
+            if (skippedByDeps.length > 0) {
+                console.log(`[Info] ℹ️  Skipped ${skippedByDeps.length} keys because their dependencies (e.g. Queue Type) are not met:`);
+                // Optional: print them if verbose, or just summary. 
+                // User wants to know "why 36 instead of 47", so let's print them compactly.
+                console.log(`   - ${skippedByDeps.join(', ')}`);
+            }
+
+            if (missedExtraction.length > 0) {
+                console.log(`[Info] ⚠️  The following ${missedExtraction.length} keys were expected but NOT found in YAML or .env:`);
+                missedExtraction.forEach(k => console.log(`   - ${k}`));
+            }
+
             if (missingCount > 0) {
                 console.log(`[Info] Found ${missingCount} missing keys. Updating .env...`);
 
@@ -294,6 +501,14 @@ function tryInitFromYaml() {
                     // Existing file: Append only
                     let appendContent = '\n# --- Auto-Generated Defaults ---\n';
                     Object.keys(missingKeys).sort().forEach(key => {
+                        const meta = CONFIG_META[key];
+                        if (meta) {
+                            if (meta.comment) {
+                                appendContent += `# ${meta.label} (${meta.comment})\n`;
+                            } else {
+                                appendContent += `# ${meta.label}\n`;
+                            }
+                        }
                         appendContent += `${key}=${missingKeys[key]}\n`;
                     });
                     try {
@@ -759,19 +974,33 @@ function startServer() {
             // Default to iotcloud unless explicitly EDGE
             const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
 
+            const hasDockerComposeYml = fs.existsSync(path.join(process.cwd(), 'docker-compose.yml'));
+
             const args = [...dockerComposeCmdArgs, 'ps', '-q', '--status', 'running', serviceName];
+
+            // If no docker-compose.yml, we still return 'stopped' + dockerComposeMissing
+            if (!hasDockerComposeYml) {
+                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'stopped',
+                    service: serviceName,
+                    dockerComposeMissing: true
+                }));
+                return;
+            }
 
             execFile(dockerComposeCmd, args, { cwd: process.cwd() }, (error, stdout, stderr) => {
                 if (error) {
                     // Start or other error
                     res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'stopped', service: serviceName }));
+                    res.end(JSON.stringify({ status: 'stopped', service: serviceName, dockerComposeMissing: false }));
                 } else {
                     const isRunning = stdout && stdout.trim().length > 0;
                     res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
                         status: isRunning ? 'running' : 'stopped',
-                        service: serviceName
+                        service: serviceName,
+                        dockerComposeMissing: false
                     }));
                 }
             });
