@@ -230,6 +230,15 @@
             border: 1px solid #B2F5EA;
         }
 
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            min-width: 1024px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            animation: pulse 2s infinite;
+        }
+
         .status-dot {
             width: 6px;
             height: 6px;
@@ -848,6 +857,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            /* Ensure horizontal scroll on small screens */
             opacity: 0;
             visibility: hidden;
             transition: all 0.2s;
