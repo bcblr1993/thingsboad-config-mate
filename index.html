@@ -602,6 +602,65 @@
                 transform: translateY(0);
             }
         }
+        }
+
+        /* History Modal Styles */
+        .history-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .history-item:hover {
+            background: #F8F9FA;
+        }
+
+        .history-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .history-time {
+            font-weight: 500;
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        .history-meta {
+            font-size: 12px;
+            color: #636E72;
+        }
+
+        .btn-restore {
+            padding: 6px 12px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-restore:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
 
         .logs-header {
             padding: 20px 24px;
@@ -868,6 +927,136 @@
             visibility: visible;
         }
 
+        .modal {
+            background: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-lg {
+            max-width: 800px;
+            height: 80vh;
+        }
+
+        .modal-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .diff-container {
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            background: #FAFAFA;
+            border: 1px solid #EEE;
+            border-radius: 4px;
+            padding: 10px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+
+        .diff-line {
+            display: flex;
+            padding: 2px 4px;
+        }
+
+        .diff-added {
+            background-color: #E6FFFA;
+            color: #006048;
+        }
+
+        .diff-removed {
+            background-color: #FFF5F5;
+            color: #C53030;
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        .modal {
+            background: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-lg {
+            max-width: 800px;
+            height: 80vh;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #2D3436;
+            font-size: 18px;
+        }
+
+        .modal-close {
+            font-size: 28px;
+            cursor: pointer;
+            color: #B2BEC3;
+            line-height: 1;
+            padding: 0 4px;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #2D3436;
+        }
+
+        .modal-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .diff-container {
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            background: #FAFAFA;
+            border: 1px solid #EEE;
+            border-radius: 4px;
+            padding: 10px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+
+        .diff-line {
+            display: flex;
+            padding: 2px 4px;
+        }
+
+        .diff-added {
+            background-color: #E6FFFA;
+            color: #006048;
+        }
+
+        .diff-removed {
+            background-color: #FFF5F5;
+            color: #C53030;
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
         .confirm-box {
             background: white;
             padding: 24px;
@@ -1005,6 +1194,59 @@
                 margin-top: 5px;
             }
         }
+
+        /* --- Diff View & Modal Fixes --- */
+        .modal {
+            background: #fff;
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-lg {
+            max-width: 800px;
+            height: 80vh;
+        }
+
+        .modal-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .diff-container {
+            font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            background: #FAFAFA;
+            border: 1px solid #EEE;
+            border-radius: 4px;
+            padding: 10px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+
+        .diff-line {
+            display: flex;
+            padding: 2px 4px;
+        }
+
+        .diff-added {
+            background-color: #E6FFFA;
+            color: #006048;
+        }
+
+        .diff-removed {
+            background-color: #FFF5F5;
+            color: #C53030;
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
     </style>
 </head>
 
@@ -1062,8 +1304,19 @@
 
             <!-- Right side controls -->
             <div style="display:flex; gap:10px;">
-                <button id="btn-save-restart" class="btn btn-danger" onclick="restartService()">保存并重启服务</button>
-                <button id="btn-save-only" class="btn btn-primary" onclick="saveConfig()">仅保存配置</button>
+                <button id="btn-edit" class="btn" style="background:var(--primary); color:white; border:none;"
+                    onclick="setEditMode(true)">开启编辑</button>
+                <button id="btn-cancel-edit" class="btn"
+                    style="background:#636E72; color:white; border:none; display:none;"
+                    onclick="cancelEdit()">取消修改</button>
+
+                <button id="btn-save-restart" class="btn btn-danger" style="display:none;"
+                    onclick="restartService()">保存并重启服务</button>
+                <button id="btn-history" class="btn"
+                    style="background:white; border:1px solid var(--border); color:var(--text);"
+                    onclick="openHistoryModal()">历史版本</button>
+                <button id="btn-save-only" class="btn btn-primary" style="display:none;"
+                    onclick="saveConfig()">仅保存配置</button>
             </div>
         </div>
 
@@ -1075,6 +1328,49 @@
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
             当前目录未检测到 <code>docker-compose.yml</code> 文件，无法执行启动、停止或日志等操作。
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="modal-overlay" style="display:none;">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>配置历史版本</h3>
+                <span class="modal-close" onclick="closeHistoryModal()">&times;</span>
+            </div>
+            <div class="modal-content" style="padding: 0;">
+                <div
+                    style="background: #E3F2FD; color: #1565C0; padding: 8px 12px; margin: 12px 12px 0 12px; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    系统仅保留最近 5 次配置变更的历史版本
+                </div>
+                <ul id="history-list" class="history-list">
+                    <!-- Loaded dynamically -->
+                    <li style="padding: 20px; text-align: center; color: #999;">加载中...</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison / View Modal -->
+    <div id="diff-modal" class="modal-overlay" style="display:none;">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 id="diff-title">内容对比</h3>
+                <span class="modal-close" onclick="closeDiffModal()">&times;</span>
+            </div>
+            <div class="modal-content">
+                <div id="diff-content" class="diff-container">
+                    <!-- Diff content loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
+                <button class="btn" onclick="closeDiffModal()">关闭</button>
+            </div>
         </div>
     </div>
 
@@ -1201,15 +1497,23 @@
         function customConfirm(message, confirmBtnText = '确定', confirmBtnColor = 'var(--primary)') {
             return new Promise((resolve) => {
                 confirmResolver = resolve;
-                document.getElementById('confirm-message').textContent = message;
+                // Support newline in message
+                document.getElementById('confirm-message').innerHTML = message.replace(/\n/g, '<br>');
                 const modal = document.getElementById('confirm-modal');
                 const btnYes = document.getElementById('btn-confirm-yes');
 
                 btnYes.innerText = confirmBtnText;
-                // Basic color mapping
-                if (confirmBtnColor.startsWith('var')) btnYes.style.background = confirmBtnColor;
-                else btnYes.style.background = confirmBtnColor;
 
+                // Keep color logic
+                if (confirmBtnColor.startsWith('var') || confirmBtnColor.startsWith('#')) {
+                    btnYes.style.background = confirmBtnColor;
+                } else {
+                    btnYes.style.background = confirmBtnColor;
+                }
+
+                modal.style.display = 'flex';
+                // Force reflow
+                void modal.offsetWidth;
                 modal.classList.add('active');
             });
         }
@@ -1217,10 +1521,13 @@
         function resolveConfirm(result) {
             const modal = document.getElementById('confirm-modal');
             modal.classList.remove('active');
-            if (confirmResolver) {
-                confirmResolver(result);
-                confirmResolver = null;
-            }
+            setTimeout(() => {
+                modal.style.display = 'none';
+                if (confirmResolver) {
+                    confirmResolver(result);
+                    confirmResolver = null;
+                }
+            }, 200);
         }
 
         async function init() {
@@ -1289,6 +1596,12 @@
             const appType = configValues['APPTYPE'] || 'CLOUD';
             const badgeClass = appType === 'EDGE' ? 'badge-edge' : 'badge-cloud';
             document.getElementById('header-app-type').innerHTML = `<span class="${badgeClass}">${appType} 模式</span>`;
+
+            // Apply Key Highlights
+            // (If any logic needed)
+
+            // Enforce Edit Mode State
+            setEditMode(isEditMode);
         }
 
         function renderField(key) {
@@ -1966,6 +2279,281 @@
                 setTimeout(checkStatus, 1000);
             }
         }
+        // --- History Feature ---
+
+        function openHistoryModal() {
+            const modal = document.getElementById('history-modal');
+            modal.style.display = 'flex';
+            // Force reflow
+            void modal.offsetWidth;
+            modal.classList.add('active');
+            fetchHistory();
+        }
+
+        function closeHistoryModal() {
+            const modal = document.getElementById('history-modal');
+            modal.classList.remove('active');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 200);
+        }
+
+        async function fetchHistory() {
+            const listEl = document.getElementById('history-list');
+            try {
+                const res = await fetch('/api/history');
+                const json = await res.json();
+
+                if (json.status === 'success') {
+                    renderHistory(json.data);
+                } else {
+                    listEl.innerHTML = `<li style="padding: 20px; text-align: center; color: red;">Error: ${json.message}</li>`;
+                }
+            } catch (e) {
+                listEl.innerHTML = `<li style="padding: 20px; text-align: center; color: red;">Request Failed: ${e.message}</li>`;
+            }
+        }
+
+        function renderHistory(files) {
+            const listEl = document.getElementById('history-list');
+            if (!files || files.length === 0) {
+                listEl.innerHTML = `<li style="padding: 20px; text-align: center; color: #999;">暂无历史备份</li>`;
+                return;
+            }
+
+            listEl.innerHTML = files.map(file => `
+                <li class="history-item">
+                    <div class="history-info">
+                        <div class="history-time">${formatDate(file.timestamp)}</div>
+                        <div class="history-meta">${file.filename} · ${(file.size / 1024).toFixed(2)} KB</div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn-restore" onclick="viewContent('${file.filename}')" title="查看内容">查看</button>
+                        <button class="btn-restore" onclick="compareHistory('${file.filename}')" title="与当前配置对比">对比</button>
+                        <button class="btn-restore" style="color:var(--danger); border-color:var(--danger);" onclick="restoreHistory('${file.filename}')">回滚</button>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        function formatDate(isoStr) {
+            const date = new Date(isoStr);
+            return date.toLocaleString('zh-CN', {
+                month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+        }
+
+        // --- Diff / View Logic ---
+
+        function openDiffModal(title) {
+            document.getElementById('diff-title').innerText = title;
+            const modal = document.getElementById('diff-modal');
+            modal.style.display = 'flex';
+            void modal.offsetWidth;
+            modal.classList.add('active');
+        }
+
+        function closeDiffModal() {
+            const modal = document.getElementById('diff-modal');
+            modal.classList.remove('active');
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 200);
+        }
+
+        async function viewContent(filename) {
+            try {
+                const res = await fetch('/api/history/content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    const contentEl = document.getElementById('diff-content');
+                    contentEl.innerHTML = json.content.split('\n').map(line =>
+                        `<div class="diff-line">${escapeHtml(line)}</div>`
+                    ).join('');
+                    openDiffModal(`文件内容: ${filename}`);
+                } else {
+                    alert('获取失败: ' + json.message);
+                }
+            } catch (e) {
+                alert('请求失败: ' + e.message);
+            }
+        }
+
+        async function compareHistory(filename) {
+            try {
+                // 1. Get History Content
+                const resHist = await fetch('/api/history/content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                const jsonHist = await resHist.json();
+
+                // 2. Get Current Content
+                const resCurr = await fetch('/api/env-raw');
+                const textCurr = await resCurr.text();
+
+                if (jsonHist.status === 'success') {
+                    renderDiff(jsonHist.content, textCurr);
+                    openDiffModal(`配置对比 (${filename} vs 当前)`);
+                } else {
+                    alert('获取历史文件失败: ' + jsonHist.message);
+                }
+            } catch (e) {
+                alert('请求失败: ' + e.message);
+            }
+        }
+
+        function renderDiff(oldText, newText) {
+            const oldLines = oldText.split('\n');
+            const newLines = newText.split('\n');
+
+            // Simple key-value based diff (naive line diff for now for simplicity, since config order might change)
+            // Or just visual line diff? Config order shouldn't change much.
+            // Let's do a simple modified Check: Key-based is better for env files.
+
+            const oldMap = parseEnvLines(oldLines);
+            const newMap = parseEnvLines(newLines);
+
+            const allKeys = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
+            const sortedKeys = Array.from(allKeys).sort();
+
+            let html = '';
+
+            sortedKeys.forEach(key => {
+                const oldVal = oldMap[key];
+                const newVal = newMap[key];
+
+                if (oldVal === undefined) {
+                    // Added
+                    html += `<div class="diff-line diff-added">+ ${key}=${newVal}</div>`;
+                } else if (newVal === undefined) {
+                    // Removed
+                    html += `<div class="diff-line diff-removed">- ${key}=${oldVal}</div>`;
+                } else if (oldVal !== newVal) {
+                    // Modified
+                    html += `<div class="diff-line diff-removed">- ${key}=${oldVal}</div>`;
+                    html += `<div class="diff-line diff-added">+ ${key}=${newVal}</div>`;
+                } else {
+                    // Unchanged (optional: hide or show grey?)
+                    // Let's show context? or just changes?
+                    // User asked to "compare", usually implies seeing differences.
+                    // But seeing the whole file with highlights is also good.
+                    // Let's show everything but plain for unchanged.
+                    html += `<div class="diff-line">  ${key}=${newVal}</div>`;
+                }
+            });
+
+            document.getElementById('diff-content').innerHTML = html;
+        }
+
+        function parseEnvLines(lines) {
+            const map = {};
+            lines.forEach(line => {
+                const trim = line.trim();
+                if (!trim || trim.startsWith('#')) return;
+                const parts = trim.split('=');
+                const key = parts[0].trim();
+                const val = parts.slice(1).join('=').trim();
+                map[key] = val;
+            });
+            return map;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        async function restoreHistory(filename) {
+            if (!await customConfirm(`确定要将配置回滚到 ${filename} 吗？\n\n当前未保存的修改将会丢失。`, '确认回滚', 'var(--danger)')) return;
+
+            try {
+                const res = await fetch('/api/history/restore', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                const json = await res.json();
+
+                if (json.status === 'success') {
+                    alert('回滚成功！页面将刷新以加载新配置。');
+                    location.reload();
+                } else {
+                    alert('回滚失败: ' + json.message);
+                }
+            } catch (e) {
+                alert('请求失败: ' + e.message);
+            }
+        }
+
+        // Initialize Modal Listeners
+        window.addEventListener('DOMContentLoaded', () => {
+            const historyModal = document.getElementById('history-modal');
+            const diffModal = document.getElementById('diff-modal');
+
+            /* 
+             * User requested to disable click-outside-to-close for History Modal
+             * to prevent accidental closing.
+            if (historyModal) {
+                historyModal.addEventListener('click', (e) => {
+                    if (e.target === historyModal) closeHistoryModal();
+                });
+            }
+            */
+
+            if (diffModal) {
+                diffModal.addEventListener('click', (e) => {
+                    if (e.target === diffModal) closeDiffModal();
+                });
+            }
+        });
+
+        // --- Global Edit Mode Logic ---
+        let isEditMode = false;
+
+        function setEditMode(enabled) {
+            isEditMode = enabled;
+
+            // 1. Toggle Button Visibility
+            const btnEdit = document.getElementById('btn-edit');
+            const btnCancel = document.getElementById('btn-cancel-edit');
+            const btnSaveRestart = document.getElementById('btn-save-restart');
+            const btnSaveOnly = document.getElementById('btn-save-only');
+
+            if (btnEdit) btnEdit.style.display = enabled ? 'none' : 'block';
+            if (btnCancel) btnCancel.style.display = enabled ? 'block' : 'none';
+            if (btnSaveRestart) btnSaveRestart.style.display = enabled ? 'block' : 'none';
+            if (btnSaveOnly) btnSaveOnly.style.display = enabled ? 'block' : 'none';
+
+            // 2. Toggle Inputs State
+            // Select all inputs, selects, textareas 
+            // Note: source-editor is textarea but has specific id
+            const inputs = document.querySelectorAll('#form-container input, #form-container select, #source-editor');
+            inputs.forEach(el => el.disabled = !enabled);
+        }
+
+        async function cancelEdit() {
+            if (isDirty) {
+                if (!await customConfirm('当前有未保存的修改，取消将丢失这些修改并重置配置。确定吗？', '确认取消', 'var(--danger)')) return;
+            }
+
+            // Reset mode and reload
+            isEditMode = false;
+            // setEditMode(false) will be called by renderAll() inside init()
+            await init();
+        }
+
     </script>
 </body>
 

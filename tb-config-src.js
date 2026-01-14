@@ -12,6 +12,7 @@ const portArg = args.find(arg => arg.startsWith('--port='));
 const PORT = portArg ? parseInt(portArg.split('=')[1]) : (process.env.PORT || 3300);
 const PID_FILE = path.join(process.cwd(), 'tb-config-mate.pid');
 const LOG_FILE = path.join(process.cwd(), 'tb-config-mate.log');
+const HISTORY_DIR = path.join(process.cwd(), '.env_history');
 
 // --- Helper: Check Status ---
 function getRunningPid() {
@@ -631,8 +632,57 @@ function checkDependsOn(dependsOn, config) {
     return true;
 }
 
+// Backup .env before saving
+function backupEnv() {
+    if (!fs.existsSync(ENV_FILE_PATH)) return;
+
+    if (!fs.existsSync(HISTORY_DIR)) {
+        fs.mkdirSync(HISTORY_DIR, { recursive: true });
+    }
+
+    const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').split('.')[0];
+    const backupFile = path.join(HISTORY_DIR, `.env.bak.${timestamp}`);
+
+    try {
+        fs.copyFileSync(ENV_FILE_PATH, backupFile);
+        console.log(`[Backup] Created: ${backupFile}`);
+        rotateBackups();
+    } catch (e) {
+        console.warn('[Warn] Failed to backup .env:', e.message);
+    }
+}
+
+// Keep only the latest 5 backups
+function rotateBackups() {
+    if (!fs.existsSync(HISTORY_DIR)) return;
+
+    const files = fs.readdirSync(HISTORY_DIR)
+        .filter(f => f.startsWith('.env.bak.'))
+        .map(f => ({
+            name: f,
+            path: path.join(HISTORY_DIR, f),
+            time: fs.statSync(path.join(HISTORY_DIR, f)).mtime.getTime()
+        }))
+        .sort((a, b) => b.time - a.time); // Newest first
+
+    if (files.length > 5) {
+        const toDelete = files.slice(5);
+        toDelete.forEach(file => {
+            try {
+                fs.unlinkSync(file.path);
+                console.log(`[Backup] Rotated/Deleted: ${file.name}`);
+            } catch (e) {
+                console.warn('[Warn] Failed to delete old backup:', e.message);
+            }
+        });
+    }
+}
+
 // 保存 .env (重组文件结构以美化)
 function saveEnvFile(newConfig) {
+    // Perform backup before overwriting
+    backupEnv();
+
     let outputLines = [];
     outputLines.push("# ==========================================");
     outputLines.push("# ThingsBoard 配置文件 (自动生成)");
@@ -813,6 +863,87 @@ function startServer() {
             return;
         }
 
+        // API: Get History List
+        if (url === '/api/history' && method === 'GET') {
+            if (!fs.existsSync(HISTORY_DIR)) {
+                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'success', data: [] }));
+                return;
+            }
+
+            const files = fs.readdirSync(HISTORY_DIR)
+                .filter(f => f.startsWith('.env.bak.'))
+                .map(f => {
+                    const stats = fs.statSync(path.join(HISTORY_DIR, f));
+                    return {
+                        filename: f,
+                        timestamp: stats.mtime.toISOString(),
+                        size: stats.size
+                    };
+                })
+                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'success', data: files }));
+            return;
+        }
+
+        // API: Restore History
+        if (url === '/api/history/restore' && method === 'POST') {
+            let body = '';
+            req.on('data', chunk => body += chunk.toString());
+            req.on('end', () => {
+                try {
+                    const { filename } = JSON.parse(body);
+                    const backupPath = path.join(HISTORY_DIR, filename);
+
+                    if (!fs.existsSync(backupPath)) {
+                        res.writeHead(404, { ...headers, 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ status: 'error', message: 'Backup file not found' }));
+                        return;
+                    }
+
+                    fs.copyFileSync(backupPath, ENV_FILE_PATH);
+                    console.log(`[History] Restored .env from ${filename}`);
+
+                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'success', message: 'Restored successfully' }));
+                } catch (e) {
+                    res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'error', message: e.message }));
+                }
+            });
+            return;
+        }
+
+        // API: Get History Content
+        if (url === '/api/history/content' && method === 'POST') {
+            let body = '';
+            req.on('data', chunk => body += chunk.toString());
+            req.on('end', () => {
+                try {
+                    const { filename } = JSON.parse(body);
+                    // Security check: simple path traversal prevention
+                    const safeName = path.basename(filename);
+                    const backupPath = path.join(HISTORY_DIR, safeName);
+
+                    if (!fs.existsSync(backupPath)) {
+                        res.writeHead(404, { ...headers, 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ status: 'error', message: 'File not found' }));
+                        return;
+                    }
+
+                    const content = fs.readFileSync(backupPath, 'utf-8');
+                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'success', content }));
+                } catch (e) {
+                    res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'error', message: e.message }));
+                }
+            });
+            return;
+        }
+
         if (url === '/api/restart' && method === 'POST') {
             if (!dockerComposeCmd) {
                 res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
@@ -823,18 +954,33 @@ function startServer() {
                 return;
             }
 
-            const config = parseEnvFile();
-            const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
-            const args = [...dockerComposeCmdArgs, 'up', '-d', '--force-recreate', serviceName];
-            console.log(`[Info] Executing: ${dockerComposeCmd} ${args.join(' ')}`);
+            // User requested: docker compose down && docker compose up -d
+            // We ignore serviceName here and restart the whole stack for a clean state.
 
-            execFile(dockerComposeCmd, args, { cwd: process.cwd() }, (error, stdout, stderr) => {
-                const result = {
-                    status: error ? 'error' : 'success',
-                    output: stdout + stderr
-                };
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify(result));
+            // 1. Down
+            const argsDown = [...dockerComposeCmdArgs, 'down'];
+            console.log(`[Info] Clean Restart - Step 1/2: ${dockerComposeCmd} ${argsDown.join(' ')}`);
+
+            execFile(dockerComposeCmd, argsDown, { cwd: process.cwd() }, (errDown, stdoutDown, stderrDown) => {
+                if (errDown) {
+                    console.error('[Error] Failed to down:', stderrDown);
+                    res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'error', message: 'Failed to stop services (down)', output: stderrDown }));
+                    return;
+                }
+
+                // 2. Up -d
+                const argsUp = [...dockerComposeCmdArgs, 'up', '-d'];
+                console.log(`[Info] Clean Restart - Step 2/2: ${dockerComposeCmd} ${argsUp.join(' ')}`);
+
+                execFile(dockerComposeCmd, argsUp, { cwd: process.cwd() }, (errUp, stdoutUp, stderrUp) => {
+                    const result = {
+                        status: errUp ? 'error' : 'success',
+                        output: (stdoutDown + stderrDown) + "\n" + (stdoutUp + stderrUp)
+                    };
+                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(result));
+                });
             });
             return;
         }
@@ -845,11 +991,11 @@ function startServer() {
                 res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
                 return;
             }
-            const config = parseEnvFile();
-            const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
-            const args = [...dockerComposeCmdArgs, 'stop', serviceName];
 
-            console.log(`[Info] Stopping service: ${dockerComposeCmd} ${args.join(' ')}`);
+            // User requested: docker compose down (Full stack removal)
+            const args = [...dockerComposeCmdArgs, 'down'];
+
+            console.log(`[Info] Stopping service (Down): ${dockerComposeCmd} ${args.join(' ')}`);
             execFile(dockerComposeCmd, args, { cwd: process.cwd() }, (error, stdout, stderr) => {
                 res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: error ? 'error' : 'success', output: stdout + stderr }));
@@ -863,14 +1009,34 @@ function startServer() {
                 res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
                 return;
             }
-            const config = parseEnvFile();
-            const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
-            const args = [...dockerComposeCmdArgs, 'restart', serviceName];
 
-            console.log(`[Info] Restarting service: ${dockerComposeCmd} ${args.join(' ')}`);
-            execFile(dockerComposeCmd, args, { cwd: process.cwd() }, (error, stdout, stderr) => {
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: error ? 'error' : 'success', output: stdout + stderr }));
+            // User requested: docker compose down && docker compose up -d
+            // Clean Restart (Only Restart, No Save)
+
+            // 1. Down
+            const argsDown = [...dockerComposeCmdArgs, 'down'];
+            console.log(`[Info] Service Restart - Step 1/2: ${dockerComposeCmd} ${argsDown.join(' ')}`);
+
+            execFile(dockerComposeCmd, argsDown, { cwd: process.cwd() }, (errDown, stdoutDown, stderrDown) => {
+                if (errDown) {
+                    console.error('[Error] Failed to down:', stderrDown);
+                    res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ status: 'error', message: 'Failed to stop services (down)', output: stderrDown }));
+                    return;
+                }
+
+                // 2. Up -d
+                const argsUp = [...dockerComposeCmdArgs, 'up', '-d'];
+                console.log(`[Info] Service Restart - Step 2/2: ${dockerComposeCmd} ${argsUp.join(' ')}`);
+
+                execFile(dockerComposeCmd, argsUp, { cwd: process.cwd() }, (errUp, stdoutUp, stderrUp) => {
+                    const result = {
+                        status: errUp ? 'error' : 'success',
+                        output: (stdoutDown + stderrDown) + "\n" + (stdoutUp + stderrUp)
+                    };
+                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(result));
+                });
             });
             return;
         }

@@ -45,48 +45,66 @@
   - 自动挂载配置文件和数据卷。
   - 动态设置 JVM 参数和内存限制。
 
+> **⚠️ 注意**: 为了使工具生成的配置生效，您的 `docker-compose.yml` 服务定义中**必须**显式包含 `env_file: .env` 配置项。否则，即便工具修改了环境变量，容器启动时也无法正常加载。
+
 ### 3.3 运维辅助
 
 - **实时日志流**: 无需 SSH 登录服务器，直接在界面查看容器的标准输出日志，快速定位启动错误。
-- **配置备份**: 每次保存配置前自动备份旧环境文件，提供“后悔药”机制。
 
 ---
 
 ## 4. 标准工作流 (Workflow)
 
-1. **初始化 (Init)**:
-   - 工具启动，读取现有的 `thingsboard.yml` 模板和环境变量。
-   - 解析出当前系统的运行状态可视化展示。
+1. **初始化与检测 (Init & Detect)**:
+   - 工具启动，自动检测 `conf/` 目录下是否存在 `tb-edge.yml` 或 `thingsboard.yml` 以确定运行模式 (Cloud/Edge)。
+   - 扫描 `.env` 文件，如果缺少关键配置，自动从 YAML 配置文件提取默认值并追加到 `.env` 中 (Auto-Mapping)。
 
 2. **配置修改 (Config)**:
-   - 用户在 Web 界面调整参数（例如：将数据库从 Postgres 切换为 Hybrid 模式）。
-   - 工具实时校验依赖关系（例如：切换 Hybrid 模式自动要求填写 Cassandra 地址）。
+   - 启动 Web 服务 (默认端口 3300)，用户通过浏览器访问配置界面。
+   - 界面根据当前模式 (Cloud/Edge) 动态展示相关配置项，隐藏无关选项。
+   - 用户调整参数（例如：启用 Swagger、修改数据库类型），系统并在前端实时校验数据格式。
 
 3. **持久化 (Persist)**:
-   - 用户点击保存。
-   - 工具更新 `.env` 文件，确保配置持久化到磁盘。
+   - 用户点击“保存配置”。
+   - 工具将校验后的参数写入 `.env` 文件，覆盖旧值，确保配置持久化。
 
 4. **应用生效 (Apply)**:
-   - 用户点击“重启服务”。
-   - 工具调用 Docker API，使用新的环境变量重建并启动容器。
-   - 系统以新的参数运行，变更生效。
+   - 用户点击“重启服务”或手动执行 `docker compose up -d`。
+   - Docker 容器读取更新后的 `.env` 文件 (`env_file` 机制)，加载新参数。
+   - 服务以全新配置启动，变更正式生效。
 
 ### 4.1 流程图解
 
 ```mermaid
 graph TD
-    Start(启动工具) --> ReadConfig[读取配置]
-    ReadConfig --> RenderUI[渲染 Web 界面]
-    RenderUI --> UserEdit(用户修改配置)
+    Start("启动工具") --> CheckConf{"读取配置文件"}
     
-    UserEdit --> Validate{校验通过?}
-    Validate -- No --> UserEdit
-    Validate -- Yes --> Save[.env 持久化]
+    CheckConf -- "thingsboard.yml" --> SetCloud["模式: Cloud"]
+    CheckConf -- "tb-edge.yml" --> SetEdge["模式: Edge"]
     
-    Save --> Restart(重启服务)
-    Restart --> Inject[注入容器参数]
-    Inject --> DockerUp[Docker Up]
-    DockerUp --> Success((服务运行))
+    SetCloud --> ExtractCloud["抽取 meta/cloud.js 定义的 Key"]
+    SetEdge --> ExtractEdge["抽取 meta/edge.js 定义的 Key"]
+    
+    ExtractCloud --> CheckEnv{"检查 .env"}
+    ExtractEdge --> CheckEnv
+    
+    CheckEnv -- "Key 已存在" --> Ignore["保持 .env 原值"]
+    CheckEnv -- "Key 不存在" --> Append["追加配置到 .env"]
+    
+    Ignore --> WebUI["渲染 Web 界面 (暴露端口)"]
+    Append --> WebUI
+    
+    WebUI --> UserEdit("用户修改配置")
+    UserEdit --> Validate{"参数校验"}
+    
+    Validate -- "失败" --> UserEdit
+    Validate -- "通过" --> WriteEnv["写入 .env 覆盖 Key"]
+    
+    WriteEnv --> Restart("执行重启")
+    Restart --> DockerCompose["注入容器参数"]
+    
+    DockerCompose -- "依赖 env_file: .env" --> DockerUp["Docker Up -d"]
+    DockerUp --> Success(("服务运行"))
 ```
 
 ---
