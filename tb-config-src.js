@@ -1041,6 +1041,168 @@ function startServer() {
             return;
         }
 
+
+
+        // API: Check Installation Config
+        if (url === '/api/check-install' && method === 'GET') {
+            const installFile = path.resolve(process.cwd(), 'docker-compose-install.yml');
+            const exists = fs.existsSync(installFile);
+            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ status: 'success', exists }));
+            return;
+        }
+
+        // API: Validate Compose Files (Check for env_file)
+        if (url.startsWith('/api/validate-compose') && method === 'GET') {
+            const requiredFiles = ['docker-compose.yml', 'docker-compose-install.yml'];
+
+            const missingFiles = [];
+            const invalidFiles = [];
+
+            // 0. Pre-check: ThingsBoard Config Files (conf/thingsboard.yml or conf/tb-edge.yml)
+            const confDir = path.join(process.cwd(), 'conf');
+            const tbConfigPath = path.join(confDir, 'thingsboard.yml');
+            const edgeConfigPath = path.join(confDir, 'tb-edge.yml');
+
+            const hasTbConfig = fs.existsSync(tbConfigPath);
+            const hasEdgeConfig = fs.existsSync(edgeConfigPath);
+
+            if (!hasTbConfig && !hasEdgeConfig) {
+                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'config_missing',
+                    msg: 'Missing ThingsBoard configuration files',
+                    files: ['conf/thingsboard.yml', 'conf/tb-edge.yml']
+                }));
+                return;
+            }
+
+            // 1. Check Existence
+            requiredFiles.forEach(file => {
+                const filePath = path.resolve(process.cwd(), file);
+                if (!fs.existsSync(filePath)) {
+                    missingFiles.push(file);
+                }
+            });
+
+            // 2. Logic Branching
+            if (missingFiles.length > 0) {
+                // Scenario A: Missing Files -> Warning (Non-blocking)
+                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'missing',
+                    files: missingFiles
+                }));
+                return;
+            }
+
+            // Scenario B: All Files Exist -> Strict Content Check
+            requiredFiles.forEach(file => {
+                const filePath = path.resolve(process.cwd(), file);
+                // We know it exists from step 1
+                if (!checkFileContent(filePath, 'env_file')) {
+                    invalidFiles.push({ file: file, msg: '未配置 env_file (Missing env_file property)' });
+                }
+            });
+
+            if (invalidFiles.length > 0) {
+                // Blocking Error
+                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'error',
+                    errors: invalidFiles
+                }));
+            } else {
+                // Success
+                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'success' }));
+            }
+            return;
+        }
+
+        function checkFileContent(filePath, keyword) {
+            try {
+                const content = fs.readFileSync(filePath, 'utf-8');
+                const lines = content.split('\n');
+                // Regex: Start of line, optional whitespace, keyword, optional whitespace, colon, anything else
+                const regex = new RegExp(`^\\s*${keyword}\\s*:`);
+                return lines.some(line => {
+                    const trimmed = line.trim();
+                    return regex.test(line) && !trimmed.startsWith('#');
+                });
+            } catch (e) {
+                console.error(`[Error] checkFileContent failed for ${filePath}:`, e);
+                return false;
+            }
+        }
+
+        // API: Execute Installation
+        if (url === '/api/install' && method === 'POST') {
+            if (!dockerComposeCmd) {
+                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
+                return;
+            }
+
+            const installFile = 'docker-compose-install.yml';
+            const argsDown = [...dockerComposeCmdArgs, '-f', installFile, 'down'];
+            const argsUp = [...dockerComposeCmdArgs, '-f', installFile, 'up'];
+
+            console.log(`[Info] Starting Installation (Mode: Down then Up): ${installFile}`);
+
+            res.writeHead(200, {
+                ...headers,
+                'Content-Type': 'text/plain',
+                'Transfer-Encoding': 'chunked'
+            });
+
+            // Keep track of active child for cleanup
+            let activeChild = null;
+
+            // Phase 1: Down
+            res.write('[INFO] 正在执行清理 (Clean up)...\n');
+            activeChild = spawn(dockerComposeCmd, argsDown, { cwd: process.cwd() });
+
+            activeChild.stdout.on('data', d => res.write(d));
+            activeChild.stderr.on('data', d => res.write(d));
+
+            activeChild.on('close', (codeDown) => {
+                if (codeDown !== 0) {
+                    res.write(`[WARN] 清理命令退出代码: ${codeDown} (通常表示无运行容器，可忽略)\n`);
+                } else {
+                    res.write('[INFO] 清理完成。\n');
+                }
+
+                res.write('[INFO] 正在启动安装 (Start Install)...\n');
+
+                // Phase 2: Up
+                activeChild = spawn(dockerComposeCmd, argsUp, { cwd: process.cwd() });
+
+                activeChild.stdout.on('data', d => res.write(d));
+                activeChild.stderr.on('data', d => res.write(d));
+
+                activeChild.on('close', (codeUp) => {
+                    console.log(`[Info] Installation finished with code ${codeUp}`);
+                    if (codeUp === 0) {
+                        res.write('\n[SUCCESS] 安装初始化流程执行成功。\n');
+                    } else {
+                        res.write(`\n[ERROR] 安装初始化流程失败，退出代码：${codeUp}。\n`);
+                    }
+                    res.end();
+                    activeChild = null;
+                });
+            });
+
+            req.on('close', () => {
+                if (activeChild && !activeChild.killed) {
+                    console.log('[Info] Request cancelled, killing active process...');
+                    activeChild.kill('SIGTERM');
+                    setTimeout(() => { if (activeChild && !activeChild.killed) activeChild.kill('SIGKILL'); }, 5000);
+                }
+            });
+            return;
+        }
+
         if (url === '/api/env-raw' && method === 'GET') {
             try {
                 const content = fs.existsSync(ENV_FILE_PATH) ? fs.readFileSync(ENV_FILE_PATH, 'utf-8') : '';
@@ -1157,16 +1319,21 @@ function startServer() {
             const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
 
             const hasDockerComposeYml = fs.existsSync(path.join(process.cwd(), 'docker-compose.yml'));
+            const hasDockerComposeInstallYml = fs.existsSync(path.join(process.cwd(), 'docker-compose-install.yml'));
+
+            const missingFiles = [];
+            if (!hasDockerComposeYml) missingFiles.push('docker-compose.yml');
+            if (!hasDockerComposeInstallYml) missingFiles.push('docker-compose-install.yml');
 
             const args = [...dockerComposeCmdArgs, 'ps', '-q', '--status', 'running', serviceName];
 
-            // If no docker-compose.yml, we still return 'stopped' + dockerComposeMissing
-            if (!hasDockerComposeYml) {
+            // If any required file is missing, we still return 'stopped' + missingFiles
+            if (missingFiles.length > 0) {
                 res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     status: 'stopped',
                     service: serviceName,
-                    dockerComposeMissing: true
+                    missingFiles: missingFiles
                 }));
                 return;
             }
@@ -1186,6 +1353,132 @@ function startServer() {
                     }));
                 }
             });
+            return;
+        }
+
+        // API: Diff Runtime vs Local Config
+        if (url === '/api/diff-runtime' && method === 'GET') {
+            if (!dockerComposeCmd) {
+                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
+                return;
+            }
+
+            try {
+                // 1. Identify Service Name (Reuse existing logic)
+                const config = parseEnvFile();
+                // Default logic: EDGE app type -> iotedge, otherwise iotcloud
+                const serviceName = (config['APPTYPE'] === 'EDGE' || (config['APP_IMAGE'] && config['APP_IMAGE'].includes('edge'))) ? 'iotedge' : 'iotcloud';
+
+                // 2. Resolve Container ID via Service Name
+                // Command: docker compose ps -q <serviceName>
+                const argsPs = [...dockerComposeCmdArgs, 'ps', '-q', serviceName];
+
+                execFile(dockerComposeCmd, argsPs, { cwd: process.cwd() }, (errPs, stdoutPs) => {
+                    if (errPs) {
+                        res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ status: 'error', message: 'Failed to resolve container ID', details: errPs.message }));
+                        return;
+                    }
+
+                    const containerId = stdoutPs.trim();
+
+                    if (!containerId) {
+                        res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ status: 'not_running', service: serviceName }));
+                        return;
+                    }
+
+                    // 3. Fetch Runtime Env via docker inspect
+                    // Note: We use 'docker' command directly.
+                    execFile('docker', ['inspect', containerId], (errInspect, stdoutInspect) => {
+                        if (errInspect) {
+                            res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ status: 'error', message: 'Failed to inspect container', details: errInspect.message }));
+                            return;
+                        }
+
+                        let runtimeEnvMap = {};
+                        try {
+                            const inspectData = JSON.parse(stdoutInspect);
+                            if (inspectData && inspectData[0] && inspectData[0].Config && inspectData[0].Config.Env) {
+                                inspectData[0].Config.Env.forEach(envStr => {
+                                    const parts = envStr.split('=');
+                                    const key = parts[0];
+                                    const val = parts.slice(1).join('=');
+                                    runtimeEnvMap[key] = val;
+                                });
+                            }
+                        } catch (e) {
+                            console.error('[Error] Failed to parse inspect output:', e);
+                        }
+
+                        // 4. Fetch Local Config
+                        const localEnvMap = {};
+
+                        // 4.1 Load .env for values
+                        const dotEnvConfig = parseEnvFile();
+
+                        // 4.2 Merge into localEnvMap
+                        // In this tool, the .env file IS the source of truth for variables we care about.
+                        // Variables in docker-compose.yml are either hardcoded or mapped to .env.
+                        // For the purpose of "Did I change my config?", comparing against .env is the most direct way.
+                        Object.assign(localEnvMap, dotEnvConfig);
+
+                        // 5. Compare
+                        // Compare - Only Key in Local config matters
+                        const diffs = [];
+                        // We only care about keys defined in Local Config (.env / compose)
+                        // If Runtime has extra keys (e.g. system default envs), we ignore them.
+                        const interestingKeys = Object.keys(localEnvMap);
+                        const ignoredPrefixes = ['PATH', 'JAVA_', 'LANG', 'LC_', 'HOME', 'LOG_DIR', 'LIB_DIR', 'CONFIG_PATH', 'APP_NAME', 'CONFIG_NAME', 'LOGGING_CONFIG', 'HOSTNAME', 'PWD', 'GPG_KEY'];
+
+                        interestingKeys.forEach(key => {
+                            if (ignoredPrefixes.some(prefix => key.startsWith(prefix))) return;
+
+                            let runtimeVal = runtimeEnvMap[key];
+                            let localVal = localEnvMap[key];
+
+                            // Logic:
+                            // 1. Local has it, Runtime doesn't -> DELETED (Action: Restart needed to apply)
+                            // 2. Local has it, Runtime has different -> MODIFIED (Action: Restart needed)
+                            // 3. Local has it, Runtime has same -> Synced (Ignored)
+
+                            if (runtimeVal !== localVal) {
+                                let state = 'MODIFIED';
+                                if (runtimeVal === undefined) state = 'DELETED';
+                                // Note: 'NEW' case (Runtime has it, Local doesn't) is effectively ignored by iterating interestingKeys only.
+
+                                // Special handling for empty strings if needed, but strict equality is usually fine for envs
+                                diffs.push({
+                                    key,
+                                    runtimeVal: runtimeVal === undefined ? '(missing)' : runtimeVal,
+                                    localVal: localVal === undefined ? '(missing)' : localVal,
+                                    state
+                                });
+                            }
+                        });
+
+                        // Sort: MODIFIED first
+                        diffs.sort((a, b) => {
+                            const score = (s) => s === 'MODIFIED' ? 0 : (s === 'NEW' ? 1 : 2);
+                            return score(a.state) - score(b.state);
+                        });
+
+                        res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({
+                            status: 'success',
+                            service: serviceName,
+                            containerId: containerId,
+                            diffs: diffs
+                        }));
+                    });
+                });
+
+            } catch (e) {
+                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'error', message: 'Internal Server Error', details: e.message }));
+            }
             return;
         }
 

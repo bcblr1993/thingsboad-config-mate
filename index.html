@@ -556,10 +556,10 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.4);
             z-index: 2000;
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
             animation: fadeIn 0.2s ease;
         }
 
@@ -571,14 +571,18 @@
 
         .logs-container {
             background: #1E1E1E;
-            border-radius: 12px;
+            border-radius: 16px;
             width: 90%;
             max-width: 1200px;
             height: 80vh;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            animation: slideUp 0.3s ease;
+            /* Unified Shadow */
+            box-shadow:
+                0 20px 25px -5px rgba(0, 0, 0, 0.3),
+                0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            border: 1px solid #333;
         }
 
         @keyframes fadeIn {
@@ -602,47 +606,221 @@
                 transform: translateY(0);
             }
         }
-        }
 
-        /* History Modal Styles */
-        .history-list {
+
+        /* History Modal Styles - Timeline Layout */
+        .history-timeline {
+            position: relative;
             list-style: none;
-            padding: 0;
+            padding: 20px 20px 20px 30px;
             margin: 0;
         }
 
-        .history-item {
+        /* The vertical line */
+        .history-timeline::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            bottom: 20px;
+            left: 15px;
+            /* Aligns with marker center */
+            width: 2px;
+            background: #e2e8f0;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .timeline-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            left: -21px;
+            /* (15px line position) - (6px half marker) */
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fff;
+            border: 3px solid #3b82f6;
+            z-index: 2;
+            box-shadow: 0 0 0 2px #fff;
+            /* whitespace halo */
+        }
+
+        .timeline-item:hover .timeline-marker {
+            background: #3b82f6;
+            transform: scale(1.1);
+            transition: all 0.2s ease;
+        }
+
+        .timeline-content {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .timeline-item:hover .timeline-content {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+
+        .timeline-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
-            transition: background 0.2s;
+            align-items: flex-start;
+            margin-bottom: 8px;
         }
 
-        .history-item:last-child {
-            border-bottom: none;
-        }
-
-        .history-item:hover {
-            background: #F8F9FA;
-        }
-
-        .history-info {
+        .timeline-time {
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 15px;
             display: flex;
-            flex-direction: column;
-            gap: 4px;
+            align-items: center;
+            gap: 6px;
         }
 
-        .history-time {
+        .timeline-date-badge {
+            font-size: 11px;
+            background: #f1f5f9;
+            color: #64748b;
+            padding: 2px 6px;
+            border-radius: 4px;
             font-weight: 500;
-            color: var(--text);
-            font-size: 14px;
         }
 
-        .history-meta {
-            font-size: 12px;
-            color: #636E72;
+        .history-timeline .btn-restore:hover {
+            border-color: #cbd5e1;
+            background: #f8fafc;
+        }
+
+        /* Runtime Diff Modal Styles */
+        .diff-status-sync {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .diff-status-diff {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            border: 1px solid #fecaca;
+        }
+
+        .runtime-diff-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .runtime-diff-table th {
+            text-align: left;
+            padding: 10px;
+            background: #f8fafc;
+            color: #64748b;
+            font-weight: 600;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .runtime-diff-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+            font-family: monospace;
+            vertical-align: top;
+            word-break: break-all;
+        }
+
+        .diff-val-del {
+            color: #ef4444;
+            text-decoration: line-through;
+            background: #fef2f2;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .diff-val-new {
+            color: #10b981;
+            background: #ecfdf5;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .diff-val-mod {
+            color: #f59e0b;
+            background: #fffbeb;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .diff-tag {
+            display: inline-block;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .diff-tag-mod {
+            background: #fff7ed;
+            color: #c2410c;
+            border: 1px solid #ffedd5;
+        }
+
+        .diff-tag-new {
+            background: #f0fdf4;
+            color: #15803d;
+            border: 1px solid #dcfce7;
+        }
+
+        .diff-tag-del {
+            background: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fee2e2;
+        }
+
+        .timeline-meta {
+            font-size: 13px;
+            color: #64748b;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .timeline-file-tag {
+            background: #eff6ff;
+            color: #2563eb;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .timeline-actions {
+            display: flex;
+            gap: 8px;
         }
 
         .btn-restore {
@@ -927,28 +1105,8 @@
             visibility: visible;
         }
 
-        .modal {
-            background: #fff;
-            padding: 24px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .modal-lg {
-            max-width: 800px;
-            height: 80vh;
-        }
-
-        .modal-content {
-            flex: 1;
-            overflow-y: auto;
-        }
+        /* Remove duplicate redundant styles and rely on unified system */
+        /* .modal, .modal-lg, .modal-content overrides removed */
 
         .diff-container {
             font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
@@ -997,36 +1155,7 @@
             height: 80vh;
         }
 
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .modal-header h3 {
-            margin: 0;
-            color: #2D3436;
-            font-size: 18px;
-        }
-
-        .modal-close {
-            font-size: 28px;
-            cursor: pointer;
-            color: #B2BEC3;
-            line-height: 1;
-            padding: 0 4px;
-            transition: color 0.2s;
-        }
-
-        .modal-close:hover {
-            color: #2D3436;
-        }
-
-        .modal-content {
-            flex: 1;
-            overflow-y: auto;
-        }
+        /* Removed duplicate overrides for header and close button */
 
         .diff-container {
             font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
@@ -1058,18 +1187,22 @@
         }
 
         .confirm-box {
-            background: white;
-            padding: 24px;
-            border-radius: 12px;
-            width: 400px;
+            background: #ffffff;
+            padding: 32px;
+            border-radius: 16px;
+            width: 420px;
             max-width: 90vw;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            transform: scale(0.9);
-            transition: transform 0.2s;
+            /* Deep, soft shadow */
+            box-shadow:
+                0 20px 25px -5px rgba(0, 0, 0, 0.1),
+                0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            transform: scale(0.95) translateY(10px);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            border: 1px solid rgba(255, 255, 255, 0.7);
         }
 
         .modal-overlay.active .confirm-box {
-            transform: scale(1);
+            transform: scale(1) translateY(0);
         }
 
         .confirm-title {
@@ -1124,6 +1257,253 @@
             filter: brightness(1.1);
             transform: translateY(-1px);
         }
+
+        /* --- Unified Modern Modal System --- */
+
+        /* 外层蒙版：全屏、半透明背景、负责居中 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2000;
+
+            /* 毛玻璃背景 */
+            background: rgba(0, 0, 0, 0.4);
+            -webkit-backdrop-filter: blur(8px);
+            backdrop-filter: blur(8px);
+
+            /* 动画 */
+            opacity: 0;
+            transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* 激活状态：显示并居中 */
+        .modal.active {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            opacity: 1;
+        }
+
+        /* 内容容器：白色卡片，固定宽度 */
+        .modal-content {
+            position: relative;
+            background: #ffffff;
+            border-radius: 16px;
+            width: 500px;
+            max-width: 92vw;
+            max-height: 85vh;
+
+            /* 阴影 */
+            box-shadow:
+                0 20px 25px -5px rgba(0, 0, 0, 0.1),
+                0 8px 10px -6px rgba(0, 0, 0, 0.1);
+
+            /* 布局 */
+            display: flex;
+            flex-direction: column;
+
+            /* 动画 */
+            transform: scale(0.96) translateY(10px);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* 激活时的动画 */
+        .modal.active .modal-content {
+            transform: scale(1) translateY(0);
+        }
+
+        /* 大尺寸变体 */
+        .modal-lg .modal-content {
+            width: 800px;
+            max-width: 95vw;
+            height: 85vh;
+        }
+
+        /* 模态框头部 */
+        .modal-header {
+            padding: 24px 32px;
+            border-bottom: 1px solid #f1f5f9;
+            background: rgba(255, 255, 255, 0.8);
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        /* 标题 */
+        .modal-title {
+            font-weight: 600;
+            font-size: 18px;
+            color: #1e293b;
+            letter-spacing: -0.01em;
+        }
+
+        /* 模态框主体 */
+        .modal-body {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+            color: #475569;
+            line-height: 1.6;
+        }
+
+        /* 模态框底部 */
+        .modal-footer {
+            padding: 24px 32px;
+            border-top: 1px solid #f1f5f9;
+            background: #f8fafc;
+            border-bottom-left-radius: 16px;
+            border-bottom-right-radius: 16px;
+
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        /* 关闭按钮 */
+        .close-btn {
+            cursor: pointer;
+            font-size: 24px;
+            color: #94a3b8;
+            line-height: 1;
+            padding: 4px;
+            border-radius: 4px;
+            transition: color 0.2s, background 0.2s;
+        }
+
+        .close-btn:hover {
+            color: #475569;
+            background: #f1f5f9;
+        }
+
+        /* Install Modal Styles (Aligned with generic modal) */
+        .install-modal-content {
+            background: #ffffff;
+            padding: 0;
+            border-radius: 16px;
+            width: 600px;
+            max-width: 95vw;
+            /* Deep, soft shadow */
+            box-shadow:
+                0 20px 25px -5px rgba(0, 0, 0, 0.1),
+                0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            max-height: 85vh;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            transform: scale(0.96) translateY(10px);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .modal-overlay.active .install-modal-content {
+            transform: scale(1) translateY(0);
+        }
+
+        .install-header {
+            padding: 24px 32px;
+            background: rgba(255, 255, 255, 0.8);
+            border-bottom: 1px solid #f1f5f9;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+        }
+
+        .install-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        .progress-container {
+            margin-bottom: 8px;
+        }
+
+        .progress-bar-wrapper {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: #10b981;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-status {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #666;
+            margin-top: 6px;
+        }
+
+        .install-terminal {
+            background: #1e1e1e;
+            color: #a9b7c6;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 16px;
+            overflow-y: auto;
+            flex-grow: 1;
+            min-height: 300px;
+            white-space: pre-wrap;
+            border-top: 1px solid #333;
+        }
+
+        .install-terminal .log-success {
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        .install-terminal .log-error {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .install-terminal .log-info {
+            color: #2196f3;
+        }
+
+        .install-footer {
+            padding: 24px 32px;
+            background: #f8fafc;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: flex-end;
+            border-bottom-left-radius: 16px;
+            border-bottom-right-radius: 16px;
+        }
+
+        .btn-install-init {
+            background-color: #f59e0b;
+            color: white;
+            display: none;
+            /* Initially hidden */
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-install-init:hover {
+            background-color: #d97706;
+            transform: translateY(-1px);
+        }
+
 
         .header-right {
             display: flex;
@@ -1196,23 +1576,7 @@
         }
 
         /* --- Diff View & Modal Fixes --- */
-        .modal {
-            background: #fff;
-            padding: 24px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .modal-lg {
-            max-width: 800px;
-            height: 80vh;
-        }
+        /* --- Removed specific redundant modal styles to enforce unified design --- */
 
         .modal-content {
             flex: 1;
@@ -1247,6 +1611,31 @@
             text-decoration: line-through;
             opacity: 0.7;
         }
+
+        .info-banner {
+            background: #E0F2FE;
+            color: #0369A1;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.5;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin: 0;
+        }
+
+        /* Specific fix for history banner placement */
+        #history-modal .info-banner {
+            margin: 16px 16px 0 16px;
+        }
+
+        /* Loading Spinner */
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 
@@ -1264,6 +1653,15 @@
                     <span>ThingsBoard Config Mate</span>
                 </div>
                 <div class="header-right">
+                    <button class="btn-header" onclick="checkRuntimeSync()" title="检查运行配置同步状态"
+                        style="margin-right: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M23 4v6h-6"></path>
+                            <path d="M1 20v-6h6"></path>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                    </button>
                     <div class="header-controls">
                         <div class="search-box">
                             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -1304,6 +1702,7 @@
 
             <!-- Right side controls -->
             <div style="display:flex; gap:10px;">
+                <button id="btn-install-init" class="btn-install-init" onclick="checkInstallAndConfirm()">初始化安装</button>
                 <button id="btn-edit" class="btn" style="background:var(--primary); color:white; border:none;"
                     onclick="setEditMode(true)">开启编辑</button>
                 <button id="btn-cancel-edit" class="btn"
@@ -1332,44 +1731,43 @@
     </div>
 
     <!-- History Modal -->
-    <div id="history-modal" class="modal-overlay" style="display:none;">
-        <div class="modal">
+    <div id="history-modal" class="modal-overlay">
+        <div class="modal-content" style="width: 600px; max-width: 90vw; max-height: 70vh;">
             <div class="modal-header">
-                <h3>配置历史版本</h3>
-                <span class="modal-close" onclick="closeHistoryModal()">&times;</span>
+                <div class="modal-title">配置历史版本</div>
+                <div class="close-btn" onclick="closeHistoryModal()">&times;</div>
             </div>
-            <div class="modal-content" style="padding: 0;">
-                <div
-                    style="background: #E3F2FD; color: #1565C0; padding: 8px 12px; margin: 12px 12px 0 12px; border-radius: 6px; font-size: 13px; display: flex; align-items: center; gap: 6px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="16" x2="12" y2="12"></line>
-                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                    </svg>
-                    系统仅保留最近 5 次配置变更的历史版本
-                </div>
-                <ul id="history-list" class="history-list">
+            <div class="info-banner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                系统仅保留最近 5 次配置变更的历史版本
+            </div>
+            <div class="modal-body" style="padding: 0; flex: 1; min-height: 200px; overflow: auto;">
+                <ul id="history-list" class="history-timeline">
                     <!-- Loaded dynamically -->
-                    <li style="padding: 20px; text-align: center; color: #999;">加载中...</li>
+                    <li style="padding: 32px; text-align: center; color: #94a3b8;">加载中...</li>
                 </ul>
             </div>
         </div>
     </div>
 
     <!-- Comparison / View Modal -->
-    <div id="diff-modal" class="modal-overlay" style="display:none;">
-        <div class="modal modal-lg">
+    <div id="diff-modal" class="modal-overlay">
+        <div class="modal-content" style="width: 800px; max-width: 95vw; height: 85vh;">
             <div class="modal-header">
-                <h3 id="diff-title">内容对比</h3>
-                <span class="modal-close" onclick="closeDiffModal()">&times;</span>
+                <div class="modal-title" id="diff-title">内容对比</div>
+                <div class="close-btn" onclick="closeDiffModal()">&times;</div>
             </div>
-            <div class="modal-content">
-                <div id="diff-content" class="diff-container">
+            <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; height: 100%;">
+                <div id="diff-content" class="diff-container" style="flex: 1; border: none; border-radius: 0;">
                     <!-- Diff content loaded here -->
                 </div>
             </div>
-            <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
-                <button class="btn" onclick="closeDiffModal()">关闭</button>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeDiffModal()">关闭</button>
             </div>
         </div>
     </div>
@@ -1419,12 +1817,43 @@
                 文件缺失提示
             </div>
             <div class="confirm-message">
-                当前目录未检测到 <b>docker-compose.yml</b> 文件。<br><br>
-                这将导致无法执行服务启动、停止或查看日志等操作，但您仍可以浏览和修改配置。
+                <div
+                    style="text-align: left; background: #FFF5F5; padding: 12px; border-radius: 6px; border: 1px solid #FED7D7;">
+                    当前目录缺失关键配置文件：<br>
+                    <b style="color: #D63031;">docker-compose.yml</b> 和 <b
+                        style="color: #D63031;">docker-compose-install.yml</b>
+                </div>
+                <div style="text-align: left; margin-top: 12px; color: #555; font-size: 13px; line-height: 1.6;">
+                    • 核心功能（如启动、停止服务）将 <b>不可用</b>。<br>
+                    • 但您仍可继续 <b>浏览或编辑</b> 历史配置与模板。
+                </div>
             </div>
             <div class="confirm-actions">
                 <button class="btn-confirm" style="background: #D63031;"
                     onclick="closeMissingAlertModal()">确认并继续</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Install Progress Modal -->
+    <div id="install-modal" class="modal-overlay">
+        <div class="install-modal-content">
+            <div class="install-header">
+                <div class="install-title">正在初始化服务...</div>
+                <div class="progress-container">
+                    <div class="progress-bar-wrapper">
+                        <div id="install-progress-bar" class="progress-bar-fill"></div>
+                    </div>
+                    <div class="progress-status">
+                        <span id="install-status-text">准备就绪</span>
+                        <span id="install-percent">0%</span>
+                    </div>
+                </div>
+            </div>
+            <div id="install-logs" class="install-terminal"></div>
+            <div class="install-footer">
+                <button id="btn-close-install" class="btn" onclick="closeInstallModal()"
+                    style="display: none;">关闭</button>
             </div>
         </div>
     </div>
@@ -1511,7 +1940,6 @@
                     btnYes.style.background = confirmBtnColor;
                 }
 
-                modal.style.display = 'flex';
                 // Force reflow
                 void modal.offsetWidth;
                 modal.classList.add('active');
@@ -2117,13 +2545,32 @@
                 if (!badge) return;
 
                 const missingAlert = document.getElementById('docker-compose-missing-alert');
-                if (data.dockerComposeMissing) {
+                // Check for missing files (array)
+                if (data.missingFiles && data.missingFiles.length > 0) {
                     if (missingAlert) missingAlert.style.display = 'block';
 
                     // Show Modal only once
                     if (!hasShownMissingAlert) {
                         hasShownMissingAlert = true;
-                        document.getElementById('missing-alert-modal').classList.add('active');
+                        const modal = document.getElementById('missing-alert-modal');
+                        const msgEl = modal.querySelector('.confirm-message');
+
+                        // Dynamic message
+                        const fileList = data.missingFiles.map(f => `<b style="color: #D63031;">${f}</b>`).join(' 和 ');
+                        if (msgEl) {
+                            msgEl.innerHTML = `
+                                <div style="text-align: left; background: #FFF5F5; padding: 12px; border-radius: 6px; border: 1px solid #FED7D7;">
+                                    当前目录缺失关键配置文件：<br>
+                                    ${fileList}
+                                </div>
+                                <div style="text-align: left; margin-top: 12px; color: #555; font-size: 13px; line-height: 1.6;">
+                                    • 核心功能（如启动、停止服务）将 <b>不可用</b>。<br>
+                                    • 但您仍可继续 <b>浏览或编辑</b> 历史配置与模板。
+                                </div>
+                            `;
+                        }
+
+                        modal.classList.add('active');
                     }
 
                     // Disable buttons
@@ -2283,7 +2730,6 @@
 
         function openHistoryModal() {
             const modal = document.getElementById('history-modal');
-            modal.style.display = 'flex';
             // Force reflow
             void modal.offsetWidth;
             modal.classList.add('active');
@@ -2300,6 +2746,10 @@
 
         async function fetchHistory() {
             const listEl = document.getElementById('history-list');
+            if (!listEl) {
+                console.error("history-list element not found!");
+                return;
+            }
             try {
                 const res = await fetch('/api/history');
                 const json = await res.json();
@@ -2310,6 +2760,7 @@
                     listEl.innerHTML = `<li style="padding: 20px; text-align: center; color: red;">Error: ${json.message}</li>`;
                 }
             } catch (e) {
+                console.error(e);
                 listEl.innerHTML = `<li style="padding: 20px; text-align: center; color: red;">Request Failed: ${e.message}</li>`;
             }
         }
@@ -2317,23 +2768,53 @@
         function renderHistory(files) {
             const listEl = document.getElementById('history-list');
             if (!files || files.length === 0) {
-                listEl.innerHTML = `<li style="padding: 20px; text-align: center; color: #999;">暂无历史备份</li>`;
+                listEl.innerHTML = `<li style="padding: 30px; text-align: center; color: #94a3b8; font-style: italic;">
+                    <div style="margin-bottom: 8px; font-size: 24px;">📭</div>
+                    暂无历史备份
+                </li>`;
                 return;
             }
 
-            listEl.innerHTML = files.map(file => `
-                <li class="history-item">
-                    <div class="history-info">
-                        <div class="history-time">${formatDate(file.timestamp)}</div>
-                        <div class="history-meta">${file.filename} · ${(file.size / 1024).toFixed(2)} KB</div>
-                    </div>
-                    <div style="display:flex; gap:8px;">
-                        <button class="btn-restore" onclick="viewContent('${file.filename}')" title="查看内容">查看</button>
-                        <button class="btn-restore" onclick="compareHistory('${file.filename}')" title="与当前配置对比">对比</button>
-                        <button class="btn-restore" style="color:var(--danger); border-color:var(--danger);" onclick="restoreHistory('${file.filename}')">回滚</button>
+            listEl.innerHTML = files.map((file, index) => {
+                const dateObj = new Date(file.timestamp);
+                const timeStr = dateObj.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const dateStr = dateObj.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+                const isLatest = index === 0;
+
+                return `
+                <li class="timeline-item">
+                    <div class="timeline-marker" style="${isLatest ? 'border-color: #10b981;' : ''}"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <div class="timeline-time">
+                                ${timeStr}
+                                <span class="timeline-date-badge">${dateStr}</span>
+                                ${isLatest ? '<span style="font-size: 10px; background: #d1fae5; color: #059669; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">LATEST</span>' : ''}
+                            </div>
+                        </div>
+                        <div class="timeline-meta">
+                             <span class="timeline-file-tag">YAML</span> 
+                             <span>${file.filename}</span>
+                             <span style="color: #cbd5e1;">|</span>
+                             <span>${(file.size / 1024).toFixed(2)} KB</span>
+                        </div>
+                        <div class="timeline-actions">
+                            <button class="btn-restore" onclick="viewContent('${file.filename}')" title="查看内容">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px; vertical-align:-2px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                查看
+                            </button>
+                            <button class="btn-restore" onclick="compareHistory('${file.filename}')" title="与当前配置对比">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px; vertical-align:-2px;"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M9 21H4v-5"></path></svg>
+                                对比
+                            </button>
+                            <button class="btn-restore" style="color:var(--danger); border-color:var(--danger);" onclick="restoreHistory('${file.filename}')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px; vertical-align:-2px;"><path d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8"></path></svg>
+                                回滚
+                            </button>
+                        </div>
                     </div>
                 </li>
-            `).join('');
+            `}).join('');
         }
 
         function formatDate(isoStr) {
@@ -2349,7 +2830,6 @@
         function openDiffModal(title) {
             document.getElementById('diff-title').innerText = title;
             const modal = document.getElementById('diff-modal');
-            modal.style.display = 'flex';
             void modal.offsetWidth;
             modal.classList.add('active');
         }
@@ -2554,7 +3034,459 @@
             await init();
         }
 
+        // --- Installation Feature Logic ---
+
+        // Check if install file exists
+        // --- Runtime Config Diff Logic ---
+        async function checkRuntimeSync() {
+            const btn = document.querySelector('.btn-header[onclick="checkRuntimeSync()"]');
+            const originalHtml = btn.innerHTML;
+
+            try {
+                // Loading State
+                btn.innerHTML = `<svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
+                btn.disabled = true;
+
+                const res = await fetch('/api/diff-runtime');
+                const json = await res.json();
+
+                console.log("Runtime Check Response:", json);
+                if (json.status === 'success') {
+                    renderRuntimeDiff(json);
+                } else if (json.status === 'not_running') {
+                    showToast('⚠️ 服务未运行，无法获运行时配置', 'error');
+                } else {
+                    showToast('❌ 检查失败: ' + json.message, 'error');
+                }
+            } catch (e) {
+                console.error("Diff check failed", e);
+                showToast('❌ 请求失败: ' + e.message, 'error');
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        }
+
+        function renderRuntimeDiff(data) {
+            const modal = document.getElementById('runtime-diff-modal');
+            const tbody = document.getElementById('runtime-diff-tbody');
+            const statusDiv = document.getElementById('diff-status-bar');
+            const loadingDiv = document.getElementById('runtime-diff-loading');
+            const resultDiv = document.getElementById('runtime-diff-result');
+            const restartBtn = document.getElementById('btn-restart-from-diff');
+
+            // Reset UI
+            console.log("Opening Runtime Diff Modal...");
+            modal.style.display = 'flex'; // Force flex
+            void modal.offsetWidth;
+            modal.classList.add('active');
+            console.log("Modal active class added, display set to flex");
+
+            loadingDiv.style.display = 'none';
+            resultDiv.style.display = 'block';
+            tbody.innerHTML = '';
+
+            const diffs = data.diffs || [];
+            if (diffs.length === 0) {
+                // Synced
+                statusDiv.innerHTML = `
+                    <div class="diff-status-sync">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        运行配置与本地文件完全一致 (Synced)
+                    </div>
+                `;
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 40px; color: #64748b;">✅ 所有配置项均已同步生效。</td></tr>`;
+                restartBtn.style.display = 'none';
+            } else {
+                // Has Diffs
+                statusDiv.innerHTML = `
+                    <div class="diff-status-diff">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        检测到 ${diffs.length} 个配置项不一致 (需重启生效)
+                    </div>
+                `;
+                restartBtn.style.display = 'block';
+
+                tbody.innerHTML = diffs.map(diff => {
+                    let runtimeClass = '';
+                    let localClass = '';
+                    let stateTag = '';
+
+                    if (diff.state === 'MODIFIED') {
+                        runtimeClass = 'diff-val-del';
+                        localClass = 'diff-val-new';
+                        stateTag = '<span class="diff-tag diff-tag-mod">MODIFIED</span>';
+                    } else if (diff.state === 'NEW') {
+                        runtimeClass = ''; // Missing
+                        localClass = 'diff-val-new';
+                        stateTag = '<span class="diff-tag diff-tag-new">NEW</span>';
+                    } else if (diff.state === 'DELETED') {
+                        runtimeClass = 'diff-val-del';
+                        localClass = ''; // Missing
+                        stateTag = '<span class="diff-tag diff-tag-del">DELETED</span>';
+                    }
+
+                    return `
+                        <tr>
+                            <td style="font-weight:600; color:#1e293b;">${diff.key}</td>
+                            <td><span class="${runtimeClass}">${escapeHtml(diff.runtimeVal)}</span></td>
+                            <td><span class="${localClass}">${escapeHtml(diff.localVal)}</span></td>
+                            <td>${stateTag}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+
+        function closeRuntimeDiffModal() {
+            const modal = document.getElementById('runtime-diff-modal');
+            modal.classList.remove('active');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                document.getElementById('runtime-diff-result').style.display = 'none';
+                document.getElementById('runtime-diff-loading').style.display = 'block';
+            }, 200);
+        }
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            return text.toString()
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        async function checkInstallAvailability() {
+            try {
+                const res = await fetch('/api/check-install');
+                const data = await res.json();
+                if (data.exists) {
+                    const btn = document.getElementById('btn-install-init');
+                    if (btn) btn.style.display = 'block';
+                }
+            } catch (e) {
+                console.error("Failed to check install availability", e);
+            }
+        }
+
+        async function checkInstallAndConfirm() {
+            const message = "<b>初始化安装确认</b><br><br>确定要开始初始化安装流程吗？<br>这将执行 docker-compose-install.yml 文件定义的任务。<br><br><b>注意：此操作通常只执行一次。</b>";
+            try {
+                // customConfirm(message, btnText, btnColor)
+                const confirmed = await customConfirm(message, "开始安装", "#f59e0b");
+                if (confirmed) {
+                    startInstallService();
+                }
+            } catch (e) {
+                console.error("Confirmation error", e);
+            }
+        }
+
+        function closeInstallModal() {
+            document.getElementById('install-modal').classList.remove('active');
+        }
+
+        async function startInstallService() {
+            const modal = document.getElementById('install-modal');
+            const progressBar = document.getElementById('install-progress-bar');
+            const statusText = document.getElementById('install-status-text');
+            const percentText = document.getElementById('install-percent');
+            const logsContainer = document.getElementById('install-logs');
+            const closeBtn = document.getElementById('btn-close-install');
+
+            modal.classList.add('active');
+            closeBtn.style.display = 'none';
+            logsContainer.innerHTML = '';
+            progressBar.style.width = '0%';
+            statusText.textContent = '正在启动安装...';
+            percentText.textContent = '0%';
+
+            let alreadyInitialized = false;
+
+            try {
+                const response = await fetch('/api/install', { method: 'POST' });
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+
+                    // Check for specific "System Already Initialized" error signal
+                    if (chunk.includes("already present in database") || chunk.includes("sysadmin@thingsboard.org")) {
+                        alreadyInitialized = true;
+                    }
+
+                    const span = document.createElement('span');
+                    span.textContent = chunk;
+
+                    if (chunk.toLowerCase().includes('error')) span.className = 'log-error';
+                    else if (chunk.includes('[SUCCESS]')) span.className = 'log-success';
+                    else span.className = 'log-info';
+
+                    logsContainer.appendChild(span);
+                    logsContainer.scrollTop = logsContainer.scrollHeight;
+
+                    parseInstallProgress(chunk, progressBar, statusText, percentText);
+                }
+
+                if (alreadyInitialized) {
+                    statusText.textContent = '系统已初始化 (无需重复安装)';
+                    progressBar.style.width = '100%';
+                    percentText.textContent = '100%';
+
+                    // Add a success note log
+                    const successNote = document.createElement('div');
+                    successNote.className = 'log-success';
+                    successNote.textContent = '\n[TIP] 检测到系统数据已存在，初始化流程视为完成。';
+                    logsContainer.appendChild(successNote);
+                    logsContainer.scrollTop = logsContainer.scrollHeight;
+                } else {
+                    statusText.textContent = '安装流程结束';
+                }
+
+                closeBtn.style.display = 'block';
+
+            } catch (error) {
+                console.error("Install Error", error);
+                const errSpan = document.createElement('div');
+                errSpan.className = 'log-error';
+                errSpan.textContent = `\n[System Error]: ${error.message}`;
+                logsContainer.appendChild(errSpan);
+                closeBtn.style.display = 'block';
+            }
+        }
+
+        function parseInstallProgress(text, bar, statusEl, percentEl) {
+            const milestones = [
+                { key: 'Installing DataBase schema for entities', pct: 10, msg: '正在安装实体数据结构 (Schema)' },
+                { key: 'Installing DataBase schema for timeseries', pct: 30, msg: '正在安装时序数据结构 (Schema)' },
+                { key: 'Loading system data', pct: 50, msg: '正在加载系统数据' },
+                { key: 'Loading system widgets', pct: 60, msg: '正在加载部件库 (Widgets)' },
+                { key: 'Loading system SCADA symbols', pct: 70, msg: '正在加载 SCADA 符号' },
+                { key: 'Loading system images', pct: 85, msg: '正在加载系统图片' },
+                { key: 'Installation finished successfully', pct: 100, msg: '安装初始化完成' }
+            ];
+
+            for (const m of milestones) {
+                if (text.includes(m.key)) {
+                    bar.style.width = `${m.pct}%`;
+                    percentEl.textContent = `${m.pct}%`;
+                    statusEl.textContent = m.msg;
+                    break;
+                }
+            }
+        }
+
+        // Initialize check
+        window.addEventListener('load', () => {
+            // Run after existing init
+            setTimeout(() => {
+                checkInstallAvailability();
+                checkEnvConfigValidation();
+            }, 500);
+        });
+
+        // Startup Validation Check
+        async function checkEnvConfigValidation() {
+            try {
+                const res = await fetch('/api/validate-compose?t=' + Date.now());
+                const data = await res.json();
+
+                const listEl = document.getElementById('validate-files-list');
+                const modal = document.getElementById('validate-modal');
+                const titleEl = document.getElementById('validate-modal-title');
+                const msgEl = document.getElementById('validate-modal-msg');
+                const closeBtn = document.getElementById('validate-modal-close');
+                const actionBtn = document.getElementById('validate-modal-btn');
+                const hintEl = document.getElementById('validate-modal-hint');
+
+                if (data.status === 'missing') {
+                    // Scenario A: Missing Files -> Do NOTHING.
+                    // Let the existing 'missing-alert-modal' handle this case to avoid double alerts.
+                    return;
+                } else if (data.status === 'config_missing') {
+                    // Scenario B: Missing ThingsBoard Config -> Blocking Error
+                    listEl.style.display = 'none';
+                    hintEl.style.display = 'none';
+
+                    titleEl.textContent = '⛔️ 关键配置缺失 (Critical Configuration Missing)';
+                    titleEl.style.color = '#ef4444';
+
+                    msgEl.innerHTML = `
+                        <div style="text-align: left; background: #FFF5F5; padding: 12px; border-radius: 6px; border: 1px solid #FED7D7; font-size: 13px;">
+                            <div style="font-weight: 600; margin-bottom: 6px; color: #C0392B;">未找到 ThingsBoard 配置文件：</div>
+                             <div style="margin-bottom: 4px;">• 请确保 <code>conf/thingsboard.yml</code></div>
+                             <div style="margin-bottom: 4px;">• 或 <code>conf/tb-edge.yml</code> 存在。</div>
+                        </div>
+                        <div style="text-align: left; margin-top: 12px; color: #555; font-size: 13px; line-height: 1.6;">
+                            • 本工具依赖配置文件来生成元数据。<br>
+                            • 请检查 <code>conf/</code> 目录是否完整。<br>
+                            • <b>工具将会暂停</b>，直到问题修复。
+                        </div>
+                    `;
+
+                    closeBtn.style.display = 'none';
+
+                    actionBtn.textContent = '已修复，刷新页面重试 (Reload)';
+                    actionBtn.classList.remove('btn-ghost');
+                    actionBtn.classList.add('btn-confirm');
+                    actionBtn.style.backgroundColor = '#ef4444';
+                    actionBtn.onclick = () => location.reload();
+
+                    modal.style.display = 'flex';
+                    modal.classList.add('active');
+                    return;
+                } else if (data.status === 'error' && data.errors.length > 0) {
+                    // Hide the raw list and hint, we will use msgEl for everything
+                    listEl.style.display = 'none';
+                    hintEl.style.display = 'none';
+
+                    // Build styled error list
+                    const errorItems = data.errors.map(err =>
+                        `<div style="margin-bottom: 4px;">• <b style="color: #D63031;">${err.file}</b>: ${err.msg.replace('Missing env_file property', '未配置 env_file')}</div>`
+                    ).join('');
+
+                    // Blocking Mode
+                    titleEl.textContent = '⛔️ 严重配置错误 (Critical Configuration Error)';
+                    titleEl.style.color = '#ef4444';
+
+                    msgEl.innerHTML = `
+                        <div style="text-align: left; background: #FFF5F5; padding: 12px; border-radius: 6px; border: 1px solid #FED7D7; font-size: 13px;">
+                            <div style="font-weight: 600; margin-bottom: 6px; color: #C0392B;">检测到以下文件配置不正确：</div>
+                            ${errorItems}
+                        </div>
+                        <div style="text-align: left; margin-top: 12px; color: #555; font-size: 13px; line-height: 1.6;">
+                            • 本工具依赖 <code>env_file</code> 配置来加载环境变量。<br>
+                            • 请在上述文件中添加 <code>env_file: [.env]</code> 配置项。<br>
+                            • 为了数据安全，<b>工具将暂停运行</b>，直到问题修复。
+                        </div>
+                    `;
+
+                    // Hide close button
+                    closeBtn.style.display = 'none';
+
+                    // Change action button to Reload
+                    actionBtn.textContent = '已修复，刷新页面重试 (Reload)';
+                    actionBtn.classList.remove('btn-ghost');
+                    actionBtn.classList.add('btn-confirm');
+                    actionBtn.style.backgroundColor = '#ef4444';
+                    actionBtn.onclick = () => location.reload();
+
+                    modal.style.display = 'flex'; // Force show
+                    modal.classList.add('active');
+                }
+            } catch (e) {
+                console.error("Validation check failed", e);
+            }
+        }
+
+        function closeValidateModal() {
+            const modal = document.getElementById('validate-modal');
+            modal.style.display = 'none'; // Force hide
+            modal.classList.remove('active');
+        }
+
     </script>
+
+    <!-- Validation Warning Modal -->
+    <!-- Validation Warning Modal -->
+    <div id="validate-modal" class="modal-overlay" style="display: none;">
+        <div class="confirm-box">
+            <div class="confirm-title" id="validate-modal-title" style="color: #ef4444;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path
+                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                ⚠️ 配置校验警告
+            </div>
+
+            <div class="confirm-message" id="validate-modal-msg">
+                <!-- Message content will be injected by JS -->
+                检测到当前目录下的 Docker Compose 文件未正确配置 <code>env_file</code>。
+            </div>
+
+            <!-- List container (hidden by default in JS for critical error) -->
+            <div id="validate-files-list-container" class="diff-container"
+                style="background: rgba(0,0,0,0.05); padding: 10px; margin: 10px 0; border-radius: 4px; display: none;">
+                <ul id="validate-files-list" style="margin: 0; padding-left: 20px; color: #f87171;"></ul>
+            </div>
+
+            <p id="validate-modal-hint" style="font-size: 0.9em; color: #9ca3af; margin: 10px 0 20px 0; display: none;">
+                建议检查上述文件，确保 <code>env_file:</code> 配置项存在且未被注释。</p>
+
+            <div class="confirm-actions">
+                <!-- Close button logic handles visibility -->
+                <button class="btn btn-ghost" id="validate-modal-close" onclick="closeValidateModal()"
+                    style="display: none;">取消</button>
+                <button class="btn btn-confirm" id="validate-modal-btn" onclick="closeValidateModal()"
+                    style="background: #ef4444;">我知道了</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Runtime Diff Modal -->
+    <div id="runtime-diff-modal" class="modal-overlay" style="display:none;">
+        <div class="modal-content" style="width: 900px; max-width: 95vw; height: 85vh;">
+            <div class="modal-header">
+                <div class="modal-title">运行环境配置检查</div>
+                <div class="close-btn" onclick="closeRuntimeDiffModal()">&times;</div>
+            </div>
+            <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; height: 100%;">
+                <div id="runtime-diff-loading"
+                    style="text-align: center; padding: 60px 20px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <svg class="spinner" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" style="animation: spin 1s linear infinite; color: var(--primary);">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                    </svg>
+                    <p style="margin-top: 16px; color: #64748b; font-size: 15px;">正在分析运行环境...</p>
+                </div>
+
+                <div id="runtime-diff-result"
+                    style="display:none; flex: 1; overflow: hidden; padding: 24px; display: flex; flex-direction: column;">
+                    <div id="diff-status-bar" style="margin-bottom: 24px;">
+                        <!-- Injected by JS -->
+                    </div>
+
+                    <div
+                        style="flex: 1; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                        <table class="runtime-diff-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 30%;">变量名 (Key)</th>
+                                    <th style="width: 30%;">运行中 (Runtime)</th>
+                                    <th style="width: 30%;">本地文件 (Local)</th>
+                                    <th style="width: 10%;">状态</th>
+                                </tr>
+                            </thead>
+                            <tbody id="runtime-diff-tbody">
+                                <!-- Injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="info-banner" style="margin-top: 20px; flex-shrink: 0;">
+                        <strong>说明：</strong>
+                        <ul style="margin: 4px 0 0 16px; padding: 0;">
+                            <li><span style="color:#ef4444">红色</span>：需要重启才能生效的变更。</li>
+                            <li>比较的是 <code>docker inspect</code> (运行真值) 与 <code>.env</code> (本地定义)。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" onclick="closeRuntimeDiffModal()">关闭</button>
+                <button class="btn btn-confirm" id="btn-restart-from-diff" onclick="restartService()">立即重启服务</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
