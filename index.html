@@ -1318,9 +1318,9 @@
 
         /* 大尺寸变体 */
         .modal-lg .modal-content {
-            width: 800px;
-            max-width: 95vw;
-            height: 85vh;
+            width: 650px;
+            max-width: 90vw;
+            height: 70vh;
         }
 
         /* 模态框头部 */
@@ -1674,6 +1674,15 @@
                         </div>
                         <button class="btn-header" id="btn-toggle-all" onclick="toggleAllGroups()">折叠全部</button>
                         <button class="btn-header" id="btn-source-mode" onclick="toggleSourceMode()">源码模式</button>
+                        <button class="btn-header" id="btn-header-history" onclick="openHistoryModal()"
+                            title="查看配置历史版本">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" style="vertical-align: text-bottom; margin-right: 4px;">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            历史版本
+                        </button>
                         <button class="btn-header" id="btn-header-logs" onclick="showLogs(true)" title="查看实时日志"
                             style="color: var(--primary); border-color: var(--primary);">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1710,9 +1719,7 @@
                     onclick="cancelEdit()">取消修改</button>
 
 
-                <button id="btn-history" class="btn"
-                    style="background:white; border:1px solid var(--border); color:var(--text);"
-                    onclick="openHistoryModal()">历史版本</button>
+
                 <button id="btn-save-only" class="btn btn-primary" style="display:none;"
                     onclick="saveConfig()">仅保存配置</button>
             </div>
@@ -1987,7 +1994,7 @@
             });
 
             // Custom Sort Order
-            const sortOrder = ['云边公共配置', '核心设置', 'Edge 连接配置', 'Edge 状态检查', 'Edge 存储与队列', 'Edge 遥测分离', 'SQL 数据库', '核心存储', 'Cassandra', '缓存配置', '消息队列', 'MQTT 传输', '规则引擎脚本', '高级设置'];
+            const sortOrder = ['SQL 数据库', '核心设置', 'Edge 连接配置', '云边通信状态检查', '离线恢复策略', 'Edge 遥测分离', '核心存储', 'Cassandra', '缓存配置', '消息队列', 'MQTT 传输', '规则引擎脚本', '高级设置'];
             const groupNames = Object.keys(groups).sort((a, b) => {
                 const idxA = sortOrder.indexOf(a);
                 const idxB = sortOrder.indexOf(b);
@@ -2575,13 +2582,15 @@
                     badge.style.background = '#E6FFFA';
                     badge.style.borderColor = '#B2F5EA';
 
+                    // 运行中：显示停止和重启，隐藏启动
                     if (btnStop) {
+                        btnStop.style.display = 'inline-block';
                         btnStop.disabled = false;
                         btnStop.style.opacity = '1';
                         btnStop.style.cursor = 'pointer';
-                        btnStop.innerText = '停止服务';
                     }
                     if (btnRestart) {
+                        btnRestart.style.display = 'inline-block';
                         btnRestart.disabled = false;
                         btnRestart.innerText = "重启服务";
                         btnRestart.style.background = "#FDCB6E";
@@ -2603,13 +2612,12 @@
                     badge.style.background = '#f5f5f5';
                     badge.style.borderColor = '#dcdcdc';
 
+                    // 已停止：隐藏停止和重启，显示启动
                     if (btnStop) {
-                        btnStop.disabled = true;
-                        btnStop.style.opacity = '0.5';
-                        btnStop.style.cursor = 'not-allowed';
-                        btnStop.innerText = '停止服务';
+                        btnStop.style.display = 'none';
                     }
                     if (btnRestart) {
+                        btnRestart.style.display = 'inline-block';
                         btnRestart.disabled = false;
                         btnRestart.innerText = "启动服务";
                         btnRestart.style.background = "#2ecc71";

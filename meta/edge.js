@@ -9,10 +9,33 @@ module.exports = {
         hidden: true
     },
 
+    // === PostgreSQL 配置 ===
+    "SPRING_DATASOURCE_URL": {
+        label: "PostgreSQL 连接 URL",
+        comment: "格式必须为: jdbc:postgresql://host:port/db_name",
+        type: "text",
+        group: "SQL 数据库",
+        required: true
+    },
+    "SPRING_DATASOURCE_USERNAME": {
+        label: "PostgreSQL 用户名",
+        comment: "对应连接数据库的用户名",
+        type: "text",
+        group: "SQL 数据库",
+        required: true
+    },
+    "SPRING_DATASOURCE_PASSWORD": {
+        label: "PostgreSQL 密码",
+        comment: "对应连接数据库的密码",
+        type: "password",
+        group: "SQL 数据库",
+        required: true
+    },
+
     // === Edge 连接配置 (基础) ===
     "CLOUD_ROUTING_KEY": {
         label: "Edge 路由标识 (Routing Key)",
-        comment: "Edge 上云的唯一标识 (UUID)",
+        comment: "Edge 上云的唯一标识 (UUID),需要提前在平台创建边缘实例后获取该值",
         type: "text",
         group: "Edge 连接配置",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
@@ -20,74 +43,78 @@ module.exports = {
     },
     "CLOUD_ROUTING_SECRET": {
         label: "Edge 密钥 (Secret)",
-        comment: "Edge 上云的验证密钥",
+        comment: "Edge 上云的验证密钥,需要提前在平台创建边缘实例后获取该值",
         type: "password",
         group: "Edge 连接配置",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         required: true
     },
     "CLOUD_RPC_HOST": {
-        label: "云端 RPC 主机地址",
-        comment: "默认: newcloud.sprixin.com",
+        label: "边缘与云端通信 RPC 地址",
+        comment: "默认为: newcloud.sprixin.com，外部私有化部署修改为私有化地址",
         type: "text",
         group: "Edge 连接配置",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         default: "newcloud.sprixin.com"
     },
 
-    // === Edge 状态检查 ===
+    // === 云边通信状态检查 ===
     "CLOUD_CHECK_STATUS_BASE_URL": {
-        label: "状态检查 Base URL",
-        comment: "默认: https://newcloud.sprixin.com/",
+        label: "云边通信状态检查 Base URL",
+        comment: "https://newcloud.sprixin.com/ 默认为公司云平台地址，外部私有化部署修改为私有化地址",
         type: "text",
-        group: "Edge 状态检查",
+        group: "云边通信状态检查",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         default: "https://newcloud.sprixin.com/"
     },
     "CLOUD_CHECK_STATUS_TENANT_USERNAME": {
         label: "状态检查租户账号",
+        comment: "默认为: cloud@sprixin.com，此账号需要在云平台创建",
         type: "text",
-        group: "Edge 状态检查",
+        group: "云边通信状态检查",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         default: "cloud@sprixin.com"
     },
     "CLOUD_CHECK_STATUS_TENANT_PASSWORD": {
         label: "状态检查租户密码",
+        comment: "默认为: eBrfmK0W5tFciz，此密码需要在云平台创建",
         type: "password",
-        group: "Edge 状态检查",
+        group: "云边通信状态检查",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         default: "eBrfmK0W5tFciz"
     },
     "CLOUD_CHECK_STATUS_PERIOD_MIN": {
         label: "状态检查周期 (分)",
+        comment: "默认为: 10,单位为分钟",
         type: "number",
-        group: "Edge 状态检查",
+        group: "云边通信状态检查",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         default: 10
     },
 
-    // === Edge 存储与队列调优 ===
+    // === 离线恢复策略调优 ===
     "EDGES_STORAGE_HISTORY_STATUS": {
-        label: "启用实时优先 (History Status)",
-        comment: "开启时网络恢复后优先上送实时数据",
+        label: "是否开启离线恢复后实时优先",
+        comment: "开启后，网络恢复时，优先上送实时数据",
         type: "select",
         options: ["true", "false"],
-        group: "Edge 存储与队列",
+        group: "离线恢复策略",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         default: "true"
     },
     "EDGES_STORAGE_MAX_READ_HISTORY_COUNT": {
         label: "历史数据每次上送条数",
+        comment: "默认为: 50, 单位为条。仅在 EDGES_STORAGE_HISTORY_STATUS 为 true 时生效",
         type: "number",
-        group: "Edge 存储与队列",
+        group: "离线恢复策略",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         default: 50
     },
     "EDGES_STORAGE_REALTIME_LAG_THRESHOLD_MS": {
         label: "实时数据延迟阈值 (ms)",
-        comment: "仅在 TB_QUEUE_TYPE 为 caffeine 时生效",
+        comment: "默认为: 180000, 单位为毫秒。仅在 TB_QUEUE_TYPE 不是 kafka 时生效",
         type: "number",
-        group: "Edge 存储与队列",
+        group: "离线恢复策略",
         dependsOn: {
             and: [
                 { key: "APPTYPE", value: "EDGE" },
@@ -98,9 +125,9 @@ module.exports = {
     },
     "EDGES_STORAGE_KAFKA_BACKFILL_THRESHOLD_MS": {
         label: "Kafka 回填历史间隔 (ms)",
-        comment: "仅在 TB_QUEUE_TYPE 为 kafka 时生效",
+        comment: "默认为: 1000, 单位为毫秒。仅在 TB_QUEUE_TYPE 为 kafka 时生效",
         type: "number",
-        group: "Edge 存储与队列",
+        group: "离线恢复策略",
         dependsOn: {
             and: [
                 { key: "APPTYPE", value: "EDGE" },
@@ -112,8 +139,8 @@ module.exports = {
 
     // === 遥测分离配置 (Edge) ===
     "TELEMETRY_SEPARATION_ENABLED": {
-        label: "启用遥测读写分离",
-        comment: "开启后将使用独立 gRPC 通道传输遥测数据",
+        label: "使用启用遥测分离",
+        comment: "开启后遥测类型数据将使用独立 gRPC 通道传输",
         type: "select",
         options: ["true", "false"],
         group: "Edge 遥测分离",
@@ -121,7 +148,8 @@ module.exports = {
         default: "false"
     },
     "TELEMETRY_GRPC_CLIENT_HOST": {
-        label: "遥测 gRPC 主机地址",
+        label: "云平台遥测分离 GRPC 地址",
+        comment: "默认为: newcloud.sprixin.com，外部私有化部署修改为私有化地址",
         type: "text",
         group: "Edge 遥测分离",
         dependsOn: {
@@ -134,6 +162,7 @@ module.exports = {
     },
     "TB_QUEUE_KAFKA_TELEMETRY_TS_KV_CLOUD_EVENT_MAX_POLL_RECORDS": {
         label: "遥测分离拉取条数",
+        comment: "默认为: 50, 单位为条。仅在 TB_QUEUE_TYPE 为 kafka 且 TELEMETRY_SEPARATION_ENABLED 为 true 时生效",
         type: "number",
         group: "Edge 遥测分离",
         dependsOn: {
@@ -146,6 +175,7 @@ module.exports = {
     },
     "TB_QUEUE_TELEMETRY_TS_KV_CLOUD_EVENT_PARTITIONS": {
         label: "遥测分离队列分区数",
+        comment: "默认为: 2, 单位为个。仅在 TB_QUEUE_TYPE 为 kafka 且 TELEMETRY_SEPARATION_ENABLED 为 true 时生效",
         type: "number",
         group: "Edge 遥测分离",
         dependsOn: {
@@ -163,7 +193,7 @@ module.exports = {
     // === 核心存储 ===
     "DATABASE_TS_TYPE": {
         label: "历史数据存储类型",
-        comment: "选择时序数据的存储引擎 (sql 或 cassandra)",
+        comment: "ts_kv 表历史数据存储，目前仅支持 sql 以及 cassandra 两种",
         type: "select",
         options: ["sql", "cassandra"],
         group: "核心存储",
@@ -171,7 +201,7 @@ module.exports = {
     },
     "DATABASE_TS_LATEST_TYPE": {
         label: "最新数据存储类型",
-        comment: "最新数据的存储引擎",
+        comment: "ts_kv_latest 表最新数据存储，目前仅支持 sql 以及 cassandra 以及 redis 三种",
         type: "select",
         options: ["sql", "cassandra", "redis"],
         group: "核心存储",
@@ -179,7 +209,7 @@ module.exports = {
     },
     "TS_KV_TTL": {
         label: "系统数据过期时间 (TTL)",
-        comment: "单位: 秒。0 表示永不过期 (仅 Cassandra)",
+        comment: "单位: 秒。0 表示永不过期, 仅在历史存储为 cassandra 时生效",
         type: "number",
         default: 0,
         group: "核心存储",
@@ -210,27 +240,6 @@ module.exports = {
         type: "number",
         default: 259200,
         group: "核心存储"
-    },
-
-    // === PostgreSQL 配置 ===
-    "SPRING_DATASOURCE_URL": {
-        label: "PostgreSQL 连接 URL",
-        comment: "jdbc:postgresql://host:port/db_name",
-        type: "text",
-        group: "SQL 数据库",
-        required: true
-    },
-    "SPRING_DATASOURCE_USERNAME": {
-        label: "PostgreSQL 用户名",
-        type: "text",
-        group: "SQL 数据库",
-        required: true
-    },
-    "SPRING_DATASOURCE_PASSWORD": {
-        label: "PostgreSQL 密码",
-        type: "password",
-        group: "SQL 数据库",
-        required: true
     },
 
     // === Cassandra 配置 ===
@@ -428,7 +437,7 @@ module.exports = {
     // === MQTT 传输 ===
     "MQTT_BIND_PORT": {
         label: "MQTT: 监听端口",
-        comment: "默认为 1883",
+        comment: "默认 1883。⚠️ 修改后需同步更新 docker-compose.yml 端口映射",
         type: "number",
         group: "MQTT 传输",
         default: 1883,

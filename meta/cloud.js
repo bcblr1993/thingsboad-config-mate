@@ -243,7 +243,7 @@ module.exports = {
     // === MQTT 传输 ===
     "MQTT_BIND_PORT": {
         label: "MQTT: 监听端口",
-        comment: "默认为 1883",
+        comment: "默认 1883。⚠️ 修改后需同步更新 docker-compose.yml 端口映射",
         type: "number",
         group: "MQTT 传输",
         default: 1883,
