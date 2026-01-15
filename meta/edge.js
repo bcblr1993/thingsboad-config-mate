@@ -453,13 +453,6 @@ module.exports = {
         required: true,
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
     },
-    "TB_QUEUE_KAFKA_CLOUD_EVENT_MAX_POLL_RECORDS": {
-        label: "Cloud Event 队列拉取条数",
-        type: "number",
-        group: "消息队列",
-        default: 100,
-        dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
-    },
 
     // === MQTT 传输 ===
     "MQTT_BIND_PORT": {
