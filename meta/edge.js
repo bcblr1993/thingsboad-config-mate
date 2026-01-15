@@ -138,7 +138,7 @@ module.exports = {
     },
     "TB_QUEUE_KAFKA_CLOUD_EVENT_MAX_POLL_RECORDS": {
         label: "Cloud Event 每次上云条数 (Kafka)",
-        comment: "默认为: 50, 单位为条。当队列为 kafka 每次从边缘 kafka 拉取 cloud_event 多少数据上云",
+        comment: "默认为: 100, 单位为条。当队列为 kafka 每次从边缘 kafka 拉取 cloud_event 多少数据上云",
         type: "number",
         group: "离线恢复策略",
         dependsOn: {
@@ -147,11 +147,11 @@ module.exports = {
                 { key: "TB_QUEUE_TYPE", value: "kafka" }
             ]
         },
-        default: 50
+        default: 100
     },
     "TB_QUEUE_KAFKA_CLOUD_EVENT_TS_MAX_POLL_RECORDS": {
         label: "时序数据每次上云条数 (Kafka)",
-        comment: "默认为: 50, 单位为条。当队列为 kafka 时 每次从边缘 kafka 拉取 ts_kv_cloud_evnet 多少数据上云",
+        comment: "默认为: 200, 单位为条。当队列为 kafka 时 每次从边缘 kafka 拉取 ts_kv_cloud_evnet 多少数据上云",
         type: "number",
         group: "离线恢复策略",
         dependsOn: {
@@ -160,7 +160,7 @@ module.exports = {
                 { key: "TB_QUEUE_TYPE", value: "kafka" }
             ]
         },
-        default: 50
+        default: 200
     },
 
     // === 遥测分离配置 (Edge) ===
@@ -188,7 +188,7 @@ module.exports = {
     },
     "TB_QUEUE_KAFKA_TELEMETRY_TS_KV_CLOUD_EVENT_MAX_POLL_RECORDS": {
         label: "遥测分离拉取条数",
-        comment: "默认为: 50, 单位为条。当开启遥测分离是 每个通道拉取多少 telemetry_ts_kv_cloud_event 上云",
+        comment: "默认为: 200, 单位为条。当开启遥测分离是 每个通道拉取多少 telemetry_ts_kv_cloud_event 上云",
         type: "number",
         group: "Edge 遥测分离",
         dependsOn: {
@@ -198,7 +198,7 @@ module.exports = {
                 { key: "TB_QUEUE_TYPE", value: "kafka" }
             ]
         },
-        default: 50
+        default: 200
     },
     "TB_QUEUE_TELEMETRY_TS_KV_CLOUD_EVENT_PARTITIONS": {
         label: "遥测分离队列分区数",
