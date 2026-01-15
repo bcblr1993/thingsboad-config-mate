@@ -1738,7 +1738,7 @@
 
     <!-- History Modal -->
     <div id="history-modal" class="modal-overlay">
-        <div class="modal-content" style="width: 600px; max-width: 90vw; max-height: 70vh;">
+        <div class="modal-content" style="width: 550px; max-width: 90vw; height: auto; max-height: 60vh;">
             <div class="modal-header">
                 <div class="modal-title">配置历史版本</div>
                 <div class="close-btn" onclick="closeHistoryModal()">&times;</div>
@@ -1751,7 +1751,7 @@
                 </svg>
                 系统仅保留最近 5 次配置变更的历史版本
             </div>
-            <div class="modal-body" style="padding: 0; flex: 1; min-height: 200px; overflow: auto;">
+            <div class="modal-body" style="padding: 0; flex: 1; min-height: 0; overflow: auto;">
                 <ul id="history-list" class="history-timeline">
                     <!-- Loaded dynamically -->
                     <li style="padding: 32px; text-align: center; color: #94a3b8;">加载中...</li>
@@ -1762,7 +1762,8 @@
 
     <!-- Comparison / View Modal -->
     <div id="diff-modal" class="modal-overlay">
-        <div class="modal-content" style="width: 800px; max-width: 95vw; height: 85vh;">
+        <div class="modal-content"
+            style="width: 900px; max-width: 95vw; height: auto; min-height: 400px; max-height: 85vh;">
             <div class="modal-header">
                 <div class="modal-title" id="diff-title">内容对比</div>
                 <div class="close-btn" onclick="closeDiffModal()">&times;</div>
@@ -1793,16 +1794,16 @@
                     <span>容器日志</span>
                 </div>
                 <button id="btn-wrap-toggle" class="btn-ghost"
-                    style="margin-left: auto; margin-right: 12px; font-size: 12px; padding: 4px 10px; height: 28px; line-height: 1; border-color: #555; color: #ccc;"
+                    style="margin-left: auto; margin-right: 12px; font-size: 12px; padding: 4px 10px; height: 28px; line-height: 1; border-color: #4EC9B0; color: #4EC9B0;"
                     onclick="toggleLogWrap()">
-                    自动换行: 关
+                    自动换行: 开
                 </button>
                 <div id="logs-status" class="logs-status">
                     <div class="logs-status-dot"></div>
                     <span>实时监听中...</span>
                 </div>
             </div>
-            <div id="logs-content" class="logs-content"></div>
+            <div id="logs-content" class="logs-content wrap-mode"></div>
             <div class="logs-footer">
                 <button class="btn-logs btn-logs-secondary" onclick="clearLogs()">清空日志</button>
                 <button class="btn-logs btn-logs-primary" onclick="closeLogs()">关闭</button>
@@ -2412,7 +2413,7 @@
             content.innerHTML = '';
         }
 
-        let isWrapMode = false;
+        let isWrapMode = true;
         function toggleLogWrap() {
             isWrapMode = !isWrapMode;
             const content = document.getElementById('logs-content');
@@ -2703,6 +2704,7 @@
 
         function openHistoryModal() {
             const modal = document.getElementById('history-modal');
+            modal.style.display = 'flex'; // Reset display property overwritten by close
             // Force reflow
             void modal.offsetWidth;
             modal.classList.add('active');
@@ -2803,6 +2805,7 @@
         function openDiffModal(title) {
             document.getElementById('diff-title').innerText = title;
             const modal = document.getElementById('diff-modal');
+            modal.style.display = 'flex'; // Reset display property overwritten by close
             void modal.offsetWidth;
             modal.classList.add('active');
         }
@@ -3403,9 +3406,9 @@
         </div>
     </div>
 
-    <!-- Runtime Diff Modal -->
     <div id="runtime-diff-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-content" style="width: 900px; max-width: 95vw; height: 85vh;">
+        <div class="modal-content"
+            style="width: 900px; max-width: 95vw; height: auto; min-height: 400px; max-height: 80vh;">
             <div class="modal-header">
                 <div class="modal-title">运行环境配置检查</div>
                 <div class="close-btn" onclick="closeRuntimeDiffModal()">&times;</div>
