@@ -1,4 +1,4 @@
-# ThingsBoard Config Mate 功能设计文档
+# 可视化配置工具功能设计文档
 
 ## 1. 设计初衷与定位
 
@@ -34,6 +34,7 @@
 - **透明转换**:
   - 界面操作：`开启 Swagger 文档` -> `点击开关`
   - 底层转换：`SWAGGER_ENABLED=true` (写入 .env)
+- **源码模式 (Source Mode)**: 针对高级用户，提供 `.env` 文件的直接编辑能力，支持语法高亮，满足批量复制粘贴或微调的需求。
 
 ### 3.2 容器生命周期干预
 
@@ -63,6 +64,31 @@
   2. 系统将选中的备份文件内容覆盖回 `.env`。
   3. 触发服务重启，使回滚的配置生效。
 
+### 3.5 运行时视差监测 (Runtime Drift Detection)
+
+除了配置文件的历史版本与当前版本的对比，本工具还引入了**运行时环境**与**本地配置**的实时比对功能，以解决“配置文件已修改但容器未重启”导致的配置漂移问题。
+
+- **实时探测**: 通过 Docker API (`docker inspect`) 获取当前正在运行容器的实际环境变量。
+- **三态对比**:
+  - **Match (一致)**: 本地配置与运行时一致。
+  - **Modified (差异)**: 本地配置已修改，但容器使用的是旧值（提示需要重启）。
+  - **Missing (缺失)**: 容器中存在但本地 `.env` 中不存在，或反之。
+
+### 3.6 安装与初始化向导 (Installation Wizard)
+
+为了简化首次部署流程，工具内置了安装向导功能：
+
+- **环境检查**: 启动时自动检测 `docker-compose-install.yml` 是否存在。
+- **一键安装**: 如果检测到安装脚本，提供可视化界面引导用户执行一键安装（执行 `docker compose -f docker-compose-install.yml up`）。
+- **流程可视化**: 实时展示安装过程的日志输出，确保用户了解安装进度和结果。
+
+### 3.7 静态文件回写 (Static Injection)
+
+针对不支持 `env_file` 或需要固化配置的场景，工具提供了 `--over` 命令行模式。
+
+- **功能**: 将 `.env` 中的环境变量值直接写入 `thingsboard.yml` 或 `tb-edge.yml` 配置文件。
+- **机制**: 智能识别 `${VAR_NAME}` 占位符并进行替换，生成无变量引用的纯静态配置文件。
+
 ---
 
 ## 4. 标准工作流 (Workflow)
@@ -89,34 +115,43 @@
 
 ```mermaid
 graph TD
-    Start("启动工具") --> CheckConf{"读取配置文件"}
+    %% 后端初始化流程
+    Start("启动工具") --> CheckConf{"扫描配置文件"}
     
     CheckConf -- "thingsboard.yml" --> SetCloud["模式: Cloud"]
     CheckConf -- "tb-edge.yml" --> SetEdge["模式: Edge"]
     
-    SetCloud --> ExtractCloud["抽取 meta/cloud.js 定义的 Key"]
-    SetEdge --> ExtractEdge["抽取 meta/edge.js 定义的 Key"]
+    SetCloud --> AutoInit["自动合并/生成 .env"]
+    SetEdge --> AutoInit
     
-    ExtractCloud --> CheckEnv{"检查 .env"}
-    ExtractEdge --> CheckEnv
+    AutoInit --> WebServer["启动 Web 服务 (后端)"]
+    WebServer --> WebUI["加载浏览器 UI (前端)"]
     
-    CheckEnv -- "Key 已存在" --> Ignore["保持 .env 原值"]
-    CheckEnv -- "Key 不存在" --> Append["追加配置到 .env"]
+    %% 前端交互流程 (Dashboard 加载后)
+    WebUI --> CheckInstall{"前端检测 install.yml?"}
     
-    Ignore --> WebUI["渲染 Web 界面 (暴露端口)"]
-    Append --> WebUI
+    CheckInstall -- "存在" --> ShowInstallBtn["显示'初始化安装'按钮"]
+    CheckInstall -- "不存在" --> Dashboard["进入配置面板"]
+    ShowInstallBtn --> Dashboard
     
-    WebUI --> UserEdit("用户修改配置")
-    UserEdit --> Validate{"参数校验"}
+    Dashboard --> Actions{用户操作}
     
-    Validate -- "失败" --> UserEdit
-    Validate -- "通过" --> WriteEnv["写入 .env 覆盖 Key"]
+    Actions -- "点击安装" --> Wizard["进入安装向导"]
+    Wizard --> DoInstall["执行一键安装"]
     
-    WriteEnv --> Restart("执行重启")
-    Restart --> DockerCompose["注入容器参数"]
+    Actions -- "修改配置" --> Validate{"参数校验"}
+    Actions -- "查看 diff" --> RuntimeDiff["对比运行时差异"]
+    Actions -- "版本回滚" --> Restore["恢复历史 .env"]
     
-    DockerCompose -- "依赖 env_file: .env" --> DockerUp["Docker Up -d"]
-    DockerUp --> Success(("服务运行"))
+    Validate -- "通过" --> Backup["自动备份 (.env_history)"]
+    Backup --> WriteEnv["持久化写入 .env"]
+    
+    Restore --> Restart
+    WriteEnv --> Restart("重启服务 (Down & Up)")
+    
+    Restart --> DockerActions["Docker Compose 执行"]
+    DockerActions --> StreamLogs["推送实时日志 (SSE)"]
+    StreamLogs --> Success(("服务就绪"))
 ```
 
 ---
