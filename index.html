@@ -1709,8 +1709,7 @@
                     style="background:#636E72; color:white; border:none; display:none;"
                     onclick="cancelEdit()">取消修改</button>
 
-                <button id="btn-save-restart" class="btn btn-danger" style="display:none;"
-                    onclick="restartService()">保存并重启服务</button>
+
                 <button id="btn-history" class="btn"
                     style="background:white; border:1px solid var(--border); color:var(--text);"
                     onclick="openHistoryModal()">历史版本</button>
@@ -2091,10 +2090,9 @@
         function setDirty(dirty) {
             isDirty = dirty;
             const btnSaveOnly = document.getElementById('btn-save-only');
-            const btnSaveRestart = document.getElementById('btn-save-restart');
 
             // Safety check
-            if (!btnSaveOnly || !btnSaveRestart) return;
+            if (!btnSaveOnly) return;
 
             if (isDirty) {
                 // Enabled
@@ -2102,20 +2100,12 @@
                 btnSaveOnly.textContent = "保存配置 *";
                 btnSaveOnly.style.opacity = "1";
                 btnSaveOnly.style.cursor = "pointer";
-
-                btnSaveRestart.disabled = false;
-                btnSaveRestart.style.opacity = "1";
-                btnSaveRestart.style.cursor = "pointer";
             } else {
                 // Disabled
                 btnSaveOnly.disabled = true;
                 btnSaveOnly.textContent = "仅保存配置";
                 btnSaveOnly.style.opacity = "0.5";
                 btnSaveOnly.style.cursor = "not-allowed";
-
-                btnSaveRestart.disabled = true;
-                btnSaveRestart.style.opacity = "0.5";
-                btnSaveRestart.style.cursor = "not-allowed";
             }
         }
 
@@ -2372,31 +2362,6 @@
                     }
                 }
             } catch (e) { showToast('Error: ' + e.message, 'error'); }
-        }
-
-        async function restartService() {
-            // Validate first
-            const errors = validateConfig();
-            if (errors.length > 0) {
-                showToast(`❌ 无法重启：以下必填项未填写：\n${errors.join(', ')}`, 'error');
-                return;
-            }
-
-            if (!await customConfirm('确认保存并重启服务？\n此操作将更新配置并重启容器，可能会中断服务。', '保存并重启', '#D63031')) return;
-            await saveConfig(true);
-
-            // Clear previous logs
-            clearLogs();
-
-            // Show logs viewer
-            showLogs();
-
-            const res = await fetch('/api/restart', { method: 'POST' });
-            const data = await res.json();
-
-            if (data.status === 'error') {
-                showToast('❌ 重启失败：\n' + data.output, 'error');
-            }
         }
 
         // Logs Viewer Functions
@@ -3008,12 +2973,10 @@
             // 1. Toggle Button Visibility
             const btnEdit = document.getElementById('btn-edit');
             const btnCancel = document.getElementById('btn-cancel-edit');
-            const btnSaveRestart = document.getElementById('btn-save-restart');
             const btnSaveOnly = document.getElementById('btn-save-only');
 
             if (btnEdit) btnEdit.style.display = enabled ? 'none' : 'block';
             if (btnCancel) btnCancel.style.display = enabled ? 'block' : 'none';
-            if (btnSaveRestart) btnSaveRestart.style.display = enabled ? 'block' : 'none';
             if (btnSaveOnly) btnSaveOnly.style.display = enabled ? 'block' : 'none';
 
             // 2. Toggle Inputs State

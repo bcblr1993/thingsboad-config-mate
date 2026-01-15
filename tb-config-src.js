@@ -297,14 +297,12 @@ function tryInitFromYaml() {
         try {
             existingEnv = parseEnvFile();
             const keyCount = Object.keys(existingEnv).length;
-            if (keyCount > 5) {
-                console.log(`[Info] .env file exists and appears complete (${keyCount} keys). Skipping auto-init.`);
-                return;
-            }
-            console.log(`[Info] .env file exists but has minimal config (${keyCount} keys). Merging with YAML...`);
+            console.log(`[Info] .env file exists with ${keyCount} keys. Checking for missing configurations...`);
         } catch (e) {
-            console.warn('[Warn] Failed to parse existing .env, overwriting:', e);
+            console.warn('[Warn] Failed to parse existing .env, will create new:', e);
         }
+    } else {
+        console.log('[Info] .env file not found. Will create from YAML...');
     }
 
     if (!yaml) return;
@@ -418,7 +416,8 @@ function tryInitFromYaml() {
             const scope = meta.scope || 'common';
             if (scope === 'cloud' && targetAppType !== 'CLOUD') return;
             if (scope === 'edge' && targetAppType !== 'EDGE') return;
-            if (meta.dependsOn && !checkDependsOn(meta.dependsOn, newConfig)) return;
+            // 注意: 不再检查 dependsOn，所有配置项都会被提取到 .env
+            // UI 显示/隐藏由前端的 dependsOn 逻辑控制
 
             // Priority 1: Direct key match (doubtful for YAML but possible)
             if (flattened[metaKey] !== undefined) {
@@ -478,30 +477,17 @@ function tryInitFromYaml() {
 
             // Log missing keys details
             const expectedKeys = [];
-            const skippedByDeps = [];
 
             Object.keys(CONFIG_META).forEach(k => {
                 const meta = CONFIG_META[k];
                 const scope = meta.scope || 'common';
                 if (scope === 'cloud' && targetAppType !== 'CLOUD') return;
                 if (scope === 'edge' && targetAppType !== 'EDGE') return;
-
-                // Check dependencies
-                if (meta.dependsOn && !checkDependsOn(meta.dependsOn, newConfig)) {
-                    skippedByDeps.push(k);
-                    return;
-                }
+                // 不再根据 dependsOn 跳过，所有配置项都应该被提取
                 expectedKeys.push(k);
             });
 
             const missedExtraction = expectedKeys.filter(k => !newConfig[k] && !existingEnv[k]);
-
-            if (skippedByDeps.length > 0) {
-                console.log(`[Info] ℹ️  Skipped ${skippedByDeps.length} keys because their dependencies (e.g. Queue Type) are not met:`);
-                // Optional: print them if verbose, or just summary. 
-                // User wants to know "why 36 instead of 47", so let's print them compactly.
-                console.log(`   - ${skippedByDeps.join(', ')}`);
-            }
 
             if (missedExtraction.length > 0) {
                 console.log(`[Info] ⚠️  The following ${missedExtraction.length} keys were expected but NOT found in YAML or .env:`);

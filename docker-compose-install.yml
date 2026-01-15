@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+    tb-config-mate:
+        image: tb-config-mate:latest
+        container_name: tb-config-mate
+        ports:
+            - "3400:3400"
+        volumes:
+            - /Users/chenxu/WebstormProjects/thingsboad-config-mate:/app
+        environment:
+            - TZ=Asia/Shanghai
+        env_file:
+            - .env
+        restart: always

@@ -156,6 +156,213 @@ graph TD
 
 ---
 
-## 5. 总结
+## 5. 配置项参考 (Edge 模式)
+
+以下是 ThingsBoard Edge 部署模式下的标准配置项清单，所有配置项均可在界面中编辑并写入 `.env` 文件：
+
+### 5.1 Edge 连接配置
+
+| 配置项 | 说明 | 类型 |
+|--------|------|------|
+| `CLOUD_ROUTING_KEY` | Edge 路由标识 (UUID) | 必填 |
+| `CLOUD_ROUTING_SECRET` | Edge 上云验证密钥 | 必填 |
+| `CLOUD_RPC_HOST` | 云端 RPC 主机地址 | 可选 |
+
+### 5.2 Edge 状态检查
+
+| 配置项 | 说明 | 类型 |
+|--------|------|------|
+| `CLOUD_CHECK_STATUS_BASE_URL` | 状态检查 Base URL | 可选 |
+| `CLOUD_CHECK_STATUS_TENANT_USERNAME` | 状态检查租户账号 | 可选 |
+| `CLOUD_CHECK_STATUS_TENANT_PASSWORD` | 状态检查租户密码 | 可选 |
+| `CLOUD_CHECK_STATUS_PERIOD_MIN` | 状态检查周期 (分钟) | 可选 |
+
+### 5.3 Edge 存储与队列
+
+| 配置项 | 说明 | 条件依赖 |
+|--------|------|----------|
+| `EDGES_STORAGE_HISTORY_STATUS` | 启用实时优先 | - |
+| `EDGES_STORAGE_MAX_READ_HISTORY_COUNT` | 历史数据每次上送条数 | - |
+| `EDGES_STORAGE_REALTIME_LAG_THRESHOLD_MS` | 实时数据延迟阈值 (ms) | 仅 in-memory 队列 |
+| `EDGES_STORAGE_KAFKA_BACKFILL_THRESHOLD_MS` | Kafka 回填历史间隔 (ms) | 仅 Kafka 队列 |
+
+### 5.4 遥测分离配置
+
+| 配置项 | 说明 | 条件依赖 |
+|--------|------|----------|
+| `TELEMETRY_SEPARATION_ENABLED` | 启用遥测读写分离 | - |
+| `TELEMETRY_GRPC_CLIENT_HOST` | 遥测 gRPC 主机地址 | 遥测分离开启时 |
+| `TB_QUEUE_KAFKA_TELEMETRY_TS_KV_CLOUD_EVENT_MAX_POLL_RECORDS` | 遥测分离拉取条数 | 遥测分离 + Kafka |
+| `TB_QUEUE_TELEMETRY_TS_KV_CLOUD_EVENT_PARTITIONS` | 遥测分离队列分区数 | 遥测分离 + Kafka |
+
+### 5.5 核心存储
+
+| 配置项 | 说明 | 类型 |
+|--------|------|------|
+| `DATABASE_TS_TYPE` | 历史数据存储类型 (sql/cassandra) | 必填 |
+| `DATABASE_TS_LATEST_TYPE` | 最新数据存储类型 (sql/cassandra/redis) | 必填 |
+| `TS_KV_TTL` | 系统数据过期时间 (秒) | 仅 Cassandra |
+| `SQL_TTL_TS_EXECUTION_INTERVAL` | 时序数据清理间隔 (ms) | 可选 |
+| `SQL_TTL_TS_TS_KEY_VALUE_TTL` | 时序数据保留时间 (秒) | 可选 |
+| `SQL_TTL_CLOUD_EVENTS_EXECUTION_INTERVAL` | 云事件清理间隔 (ms) | 可选 |
+| `SQL_TTL_CLOUD_EVENTS_TTL` | 云事件保留时间 (秒) | 可选 |
+
+### 5.6 PostgreSQL 配置
+
+| 配置项 | 说明 | 类型 |
+|--------|------|------|
+| `SPRING_DATASOURCE_URL` | PostgreSQL 连接 URL | 必填 |
+| `SPRING_DATASOURCE_USERNAME` | PostgreSQL 用户名 | 必填 |
+| `SPRING_DATASOURCE_PASSWORD` | PostgreSQL 密码 | 必填 |
+
+### 5.7 Cassandra 配置
+
+| 配置项 | 说明 | 条件依赖 |
+|--------|------|----------|
+| `CASSANDRA_URL` | Cassandra 节点地址 | 选择 Cassandra 时显示 |
+| `CASSANDRA_KEYSPACE_NAME` | Keyspace 名称 | 选择 Cassandra 时显示 |
+| `CASSANDRA_CLUSTER_NAME` | 集群名称 | 选择 Cassandra 时显示 |
+| `CASSANDRA_USERNAME` | Cassandra 用户名 | 选择 Cassandra 时显示 |
+| `CASSANDRA_PASSWORD` | Cassandra 密码 | 选择 Cassandra 时显示 |
+
+### 5.8 缓存配置 (Redis)
+
+| 配置项 | 说明 | 条件依赖 |
+|--------|------|----------|
+| `CACHE_TYPE` | 缓存类型 (caffeine/redis) | 必填 |
+| `REDIS_CONNECTION_TYPE` | Redis 连接模式 (standalone/cluster) | 选择 Redis 时显示 |
+| `REDIS_HOST` | Redis 主机地址 | standalone 模式 |
+| `REDIS_PORT` | Redis 端口 | standalone 模式 |
+| `REDIS_NODES` | Redis 集群节点列表 | cluster 模式 |
+| `REDIS_DB` | Redis 库索引 | standalone 模式 |
+| `REDIS_PASSWORD` | Redis 密码 | 可选 |
+
+### 5.9 规则引擎脚本
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `TBEL_MAX_TOTAL_ARGS_SIZE` | TBEL 最大参数大小 | 100000 |
+| `TBEL_MAX_RESULT_SIZE` | TBEL 最大结果大小 | 300000 |
+| `TBEL_MAX_SCRIPT_BODY_SIZE` | TBEL 最大脚本体大小 | 50000 |
+| `JS_MAX_TOTAL_ARGS_SIZE` | JS 最大参数大小 | 100000 |
+| `JS_MAX_RESULT_SIZE` | JS 最大结果大小 | 300000 |
+| `JS_MAX_SCRIPT_BODY_SIZE` | JS 最大脚本体大小 | 50000 |
+
+### 5.10 消息队列
+
+| 配置项 | 说明 | 条件依赖 |
+|--------|------|----------|
+| `TB_QUEUE_TYPE` | 队列类型 (kafka/in-memory) | 必填 |
+| `TB_KAFKA_SERVERS` | Kafka 服务器地址 | 仅 Kafka 队列 |
+| `TB_QUEUE_KAFKA_CLOUD_EVENT_MAX_POLL_RECORDS` | Cloud Event 队列拉取条数 | 仅 Kafka 队列 |
+
+### 5.11 MQTT 传输
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `NETTY_MAX_PAYLOAD_SIZE` | MQTT 最大载荷 (Bytes) | 65536 |
+| `MQTT_BIND_PORT`         | MQTT 监听端口         | 1883 |
+
+### 5.12 高级设置
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `SWAGGER_ENABLED` | 启用 Swagger 文档 | false |
+
+---
+
+## 6. 配置项参考 (Cloud 模式)
+
+以下是 ThingsBoard Cloud 部署模式下的标准配置项清单。Cloud 模式相比 Edge 模式，主要区别在于**没有 Edge 连接/状态检查/遥测分离相关配置**，但**增加了 MQTT 监听端口配置**。
+
+### 6.1 核心存储
+
+| 配置项 | 说明 | 类型 |
+|--------|------|------|
+| `DATABASE_TS_TYPE` | 历史数据存储类型 (sql/cassandra) | 必填 |
+| `DATABASE_TS_LATEST_TYPE` | 最新数据存储类型 (sql/cassandra/redis) | 必填 |
+| `TS_KV_TTL` | 系统数据过期时间 (秒) | 仅 Cassandra |
+
+### 6.2 PostgreSQL 配置
+
+| 配置项 | 说明 | 类型 |
+|--------|------|------|
+| `SPRING_DATASOURCE_URL` | PostgreSQL 连接 URL | 必填 |
+| `SPRING_DATASOURCE_USERNAME` | PostgreSQL 用户名 | 必填 |
+| `SPRING_DATASOURCE_PASSWORD` | PostgreSQL 密码 | 必填 |
+
+### 6.3 Cassandra 配置
+
+| 配置项 | 说明 | 条件依赖 |
+|--------|------|----------|
+| `CASSANDRA_URL` | Cassandra 节点地址 | 选择 Cassandra 时显示 |
+| `CASSANDRA_KEYSPACE_NAME` | Keyspace 名称 | 选择 Cassandra 时显示 |
+| `CASSANDRA_CLUSTER_NAME` | 集群名称 | 选择 Cassandra 时显示 |
+| `CASSANDRA_USERNAME` | Cassandra 用户名 | 选择 Cassandra 时显示 |
+| `CASSANDRA_PASSWORD` | Cassandra 密码 | 选择 Cassandra 时显示 |
+
+### 6.4 缓存配置 (Redis)
+
+| 配置项 | 说明 | 条件依赖 |
+|--------|------|----------|
+| `CACHE_TYPE` | 缓存类型 (caffeine/redis) | 必填 |
+| `REDIS_CONNECTION_TYPE` | Redis 连接模式 (standalone/cluster) | 选择 Redis 时显示 |
+| `REDIS_HOST` | Redis 主机地址 | standalone 模式 |
+| `REDIS_PORT` | Redis 端口 | standalone 模式 |
+| `REDIS_NODES` | Redis 集群节点列表 | cluster 模式 |
+| `REDIS_DB` | Redis 库索引 | standalone 模式 |
+| `REDIS_PASSWORD` | Redis 密码 | 可选 |
+
+### 6.5 规则引擎脚本
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `TBEL_MAX_TOTAL_ARGS_SIZE` | TBEL 最大参数大小 | 100000 |
+| `TBEL_MAX_RESULT_SIZE` | TBEL 最大结果大小 | 300000 |
+| `TBEL_MAX_SCRIPT_BODY_SIZE` | TBEL 最大脚本体大小 | 50000 |
+| `JS_MAX_TOTAL_ARGS_SIZE` | JS 最大参数大小 | 100000 |
+| `JS_MAX_RESULT_SIZE` | JS 最大结果大小 | 300000 |
+| `JS_MAX_SCRIPT_BODY_SIZE` | JS 最大脚本体大小 | 50000 |
+
+### 6.6 消息队列
+
+| 配置项 | 说明 | 条件依赖 |
+|--------|------|----------|
+| `TB_QUEUE_TYPE` | 队列类型 (kafka/in-memory) | 必填 |
+| `TB_KAFKA_SERVERS` | Kafka 服务器地址 | 仅 Kafka 队列 |
+
+### 6.7 MQTT 传输
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `MQTT_BIND_PORT` | MQTT 监听端口 | 1883 |
+| `NETTY_MAX_PAYLOAD_SIZE` | MQTT 最大载荷 (Bytes) | 65536 |
+
+### 6.8 高级设置
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `SWAGGER_ENABLED` | 启用 Swagger 文档 | false |
+
+---
+
+## 7. Cloud 与 Edge 配置差异对比
+
+| 功能模块 | Cloud | Edge |
+|----------|-------|------|
+| Edge 连接配置 | ❌ | ✅ |
+| Edge 状态检查 | ❌ | ✅ |
+| 遥测分离配置 | ❌ | ✅ |
+| Edge 存储与队列调优 | ❌ | ✅ |
+| SQL TTL 清理配置 | ❌ | ✅ |
+| MQTT 监听端口 | ✅ | ❌ |
+| 核心存储/数据库 | ✅ | ✅ |
+| 缓存配置 | ✅ | ✅ |
+| 消息队列 | ✅ | ✅ |
+| 规则引擎脚本 | ✅ | ✅ |
+
+---
+
+## 8. 总结
 
 **ThingsBoard Config Mate** 不是一个简单的文本编辑器，而是一个**配置注入器**。它屏蔽了 Docker 和 Spring Boot 配置文件的复杂性，让运维人员和开发者能够通过直观的 GUI，安全、高效地掌控 ThingsBoard 服务的启动行为。

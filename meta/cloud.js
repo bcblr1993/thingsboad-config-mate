@@ -28,10 +28,11 @@ module.exports = {
     },
     "TS_KV_TTL": {
         label: "系统数据过期时间 (TTL)",
-        comment: "单位: 秒。0 表示永不过期",
+        comment: "单位: 秒。0 表示永不过期 (仅 Cassandra)",
         type: "number",
         default: 0,
-        group: "核心存储"
+        group: "核心存储",
+        dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
 
     // === PostgreSQL 配置 ===
@@ -226,9 +227,9 @@ module.exports = {
     "TB_QUEUE_TYPE": {
         label: "队列类型 (Queue Type)",
         type: "select",
-        options: ["caffeine", "kafka", "in-memory", "pubsub", "aws-sqs", "rabbitmq"],
+        options: ["kafka", "in-memory"],
         group: "消息队列",
-        default: "caffeine",
+        default: "in-memory",
         required: true
     },
     "TB_KAFKA_SERVERS": {
