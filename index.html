@@ -1948,6 +1948,7 @@
                 }
 
                 // Force reflow
+                modal.style.display = 'flex'; // Reset display property overwritten by close
                 void modal.offsetWidth;
                 modal.classList.add('active');
             });
