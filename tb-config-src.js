@@ -830,6 +830,14 @@ function startServer() {
             return;
         }
 
+        // 版本号 API
+        if (url === '/api/version' && method === 'GET') {
+            const packageJson = require('./package.json');
+            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ version: packageJson.version }));
+            return;
+        }
+
         if (url === '/api/config' && method === 'GET') {
             const current = parseEnvFile();
             const responseData = {
