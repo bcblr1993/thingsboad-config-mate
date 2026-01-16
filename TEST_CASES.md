@@ -855,3 +855,36 @@
 | ✅ | 通过 |
 | ❌ | 失败 |
 | ⚠️ | 阻塞/跳过 |
+
+---
+
+## 测试用例汇总表
+
+| 测试模块 | 用例编号 | 测试内容 | 优先级 | 前置条件 |
+|----------|----------|----------|--------|----------|
+| 环境兼容性 | TC-ENV-001 | Ubuntu 22.04 LTS 环境测试 | P0 | Ubuntu 22.04 系统，Docker 20.10+，Node.js 18+ |
+| 环境兼容性 | TC-ENV-002 | CentOS 7.x 环境测试 | P0 | CentOS 7.x 系统，Docker 20.10+，Node.js 18+ |
+| 环境兼容性 | TC-ENV-003 | Chrome 浏览器兼容性测试 | P0 | Chrome 最新稳定版，工具已启动 |
+| 环境兼容性 | TC-ENV-004 | Edge 浏览器兼容性测试 | P0 | Edge 最新稳定版，工具已启动 |
+| 环境兼容性 | TC-ENV-005 | Docker Compose v2 兼容性测试 | P0 | 已安装 Docker Compose v2.x |
+| 环境兼容性 | TC-ENV-006 | Docker Compose v1 兼容性测试 | P1 | 已安装 Docker Compose v1.x |
+| 前置条件与初始化 | TC-INIT-001 | Edge 模式自动识别 | P0 | conf/tb-edge.yml 存在 |
+| 前置条件与初始化 | TC-INIT-002 | Cloud 模式自动识别 | P0 | conf/thingsboard.yml 存在 |
+| 前置条件与初始化 | TC-INIT-003 | 配置文件缺失阻断 | P0 | tb-edge.yml 和 thingsboard.yml 均不存在 |
+| 前置条件与初始化 | TC-INIT-004 | .env 自动生成 | P0 | .env 不存在，conf/tb-edge.yml 存在 |
+| 前置条件与初始化 | TC-INIT-005 | .env 缺失配置自动补充 | P1 | .env 存在但缺少部分配置项 |
+| 前置条件与初始化 | TC-INIT-006 | 安装向导显示与执行 | P0 | docker-compose-install.yml 存在 |
+| 可视化配置管理 | TC-CFG-001 | 配置分组展示 | P0 | Edge 模式，工具已启动 |
+| 可视化配置管理 | TC-CFG-002 | 条件依赖 - Kafka 配置显隐 | P0 | Edge 模式，工具已启动 |
+| 可视化配置管理 | TC-CFG-003 | 条件依赖 - Redis 配置显隐 | P0 | 工具已启动 |
+| 可视化配置管理 | TC-CFG-004 | 配置保存与持久化 | P0 | 工具已启动，页面正常加载 |
+| 可视化配置管理 | TC-CFG-005 | 源码模式编辑 | P1 | 工具已启动 |
+| 容器生命周期管理 | TC-CTR-001 | 服务状态检测 | P0 | Docker 已安装，工具已启动 |
+| 容器生命周期管理 | TC-CTR-002 | 服务启动/停止/重启 | P0 | Docker 已安装，工具已启动 |
+| 容器生命周期管理 | TC-CTR-003 | 确认弹窗取消后重新打开 | P0 | 工具已启动 |
+| 配置版本控制 | TC-VER-001 | 历史版本查看与回滚 | P0 | 已多次保存配置，存在历史备份 |
+| 运行时环境检测 | TC-RTD-001 | 运行时差异检测 | P0 | 服务已运行，本地与容器配置存在差异 |
+| 实时日志 | TC-LOG-001 | 实时日志查看 | P1 | 服务已运行 |
+| Edge 模式专项 | TC-EDGE-001 | Edge 连接配置 | P0 | Edge 模式，工具已启动 |
+| Edge 模式专项 | TC-EDGE-002 | Kafka 离线恢复策略配置 | P0 | Edge 模式，队列类型为 Kafka |
+| Cloud 模式专项 | TC-CLOUD-001 | Cloud 模式配置 | P0 | Cloud 模式，工具已启动 |
