@@ -347,6 +347,95 @@ TC-CLOUD-001,Cloud 模式专项/Cloud 配置,REQ-016 Cloud 模式专项功能,Cl
 4. 保存成功后显示成功提示
 5. .env 中相关配置已更新
 6. 缓存和队列配置切换正常",TC-CLOUD-002,P0,功能测试,系统测试阶段
+TC-ENV-002,环境兼容性/操作系统,REQ-001 支持主流 Linux 操作系统,Ubuntu 20.04 LTS 环境下工具正常启动运行,"1. Ubuntu 20.04 LTS 操作系统
+2. 已安装 Docker 20.10+
+3. 已安装 Node.js 18+
+4. 已安装 npm 或 yarn
+5. 网络连接正常","1. 进入项目目录 cd thingsboard-config-mate
+2. 执行 npm install 安装依赖
+3. 执行 node tb-config-src.js 启动工具
+4. 在浏览器中访问 http://localhost:3300
+5. 检查页面是否正常加载
+6. 测试基本功能（配置编辑、保存）","1. npm install 成功完成无报错
+2. 工具成功启动并监听 3300 端口
+3. 浏览器正常打开配置管理界面
+4. 页面显示配置分组和配置项
+5. 配置编辑和保存功能正常
+6. Docker 命令执行正常",TC-ENV-001;TC-ENV-003,P1,兼容性测试,系统测试阶段
+TC-ENV-003,环境兼容性/操作系统,REQ-001 支持主流 Linux 操作系统,Rocky Linux 8.x/9.x 环境下工具正常启动运行,"1. Rocky Linux 8.x 或 9.x 操作系统
+2. 已安装 Docker 20.10+
+3. 已安装 Node.js 18+
+4. 已安装 npm 或 yarn
+5. 网络连接正常","1. 进入项目目录 cd thingsboard-config-mate
+2. 执行 npm install 安装依赖
+3. 执行 node tb-config-src.js 启动工具
+4. 在浏览器中访问 http://localhost:3300
+5. 检查页面是否正常加载
+6. 测试基本功能（配置编辑、保存）","1. npm install 成功完成无报错
+2. 工具成功启动并监听 3300 端口
+3. 浏览器正常打开配置管理界面
+4. 页面显示配置分组和配置项
+5. 配置编辑和保存功能正常
+6. Docker 命令执行正常",TC-ENV-001;TC-ENV-002,P1,兼容性测试,系统测试阶段
+TC-BRW-001,环境兼容性/浏览器,REQ-002 浏览器兼容性,Firefox 浏览器下工具界面正常显示和交互,"1. Firefox 最新稳定版
+2. 工具已启动运行
+3. 可访问工具页面","1. 使用 Firefox 浏览器访问 http://localhost:3300
+2. 检查页面布局渲染
+3. 测试表单交互（输入、下拉、切换）
+4. 测试弹窗显示和关闭
+5. 测试实时日志 SSE 推送","1. 页面布局正确渲染无错位
+2. 表单交互功能正常
+3. 弹窗可正常显示和关闭
+4. SSE 日志推送正常
+5. 本地存储功能正常",TC-BRW-002,P1,兼容性测试,系统测试阶段
+TC-DCK-001,环境兼容性/Docker,REQ-003 Docker Compose 兼容性,Docker Compose v1 (docker-compose) 命令兼容,"1. 已安装 Docker Compose v1.x
+2. docker-compose 命令可用
+3. 工具已部署完成","1. 确认 docker-compose 命令可用
+2. 启动工具
+3. 在页面上执行启动/停止/重启操作
+4. 检查工具是否正确调用 docker-compose
+5. 验证容器操作成功","1. 工具自动检测使用 docker-compose 命令
+2. 启动操作调用 docker-compose up
+3. 停止操作调用 docker-compose down
+4. 容器操作成功执行
+5. 日志正常显示",TC-DCK-002,P1,兼容性测试,系统测试阶段
+TC-ENV-004,环境兼容性/操作系统,REQ-001 支持 Debian 系统,Debian 11/12 环境下工具正常启动运行,"1. Debian 11 或 12 操作系统
+2. 已安装 Docker 20.10+
+3. 已安装 Node.js 18+
+4. 网络连接正常","1. 进入项目目录
+2. 执行 npm install 安装依赖
+3. 执行 node tb-config-src.js 启动工具
+4. 在浏览器中访问 http://localhost:3300
+5. 测试基本功能","1. npm install 成功完成
+2. 工具成功启动
+3. 页面正常显示
+4. 配置功能正常
+5. Docker 命令正常",TC-ENV-001,P2,兼容性测试,系统测试阶段
+TC-ENV-005,环境兼容性/操作系统,REQ-001 支持 macOS 开发环境,macOS 14 开发环境下工具正常启动运行,"1. macOS 14 或更高版本
+2. 已安装 Docker Desktop
+3. 已安装 Node.js 18+
+4. 网络连接正常","1. 进入项目目录
+2. 执行 npm install 安装依赖
+3. 执行 node tb-config-src.js 启动工具
+4. 在浏览器中访问 http://localhost:3300
+5. 测试基本功能","1. npm install 成功完成
+2. 工具成功启动
+3. 页面正常显示
+4. 配置功能正常
+5. Docker Desktop 集成正常",TC-ENV-001,P2,兼容性测试,系统测试阶段
+TC-BRW-002,环境兼容性/浏览器,REQ-002 浏览器兼容性,Safari 浏览器下工具界面正常显示和交互,"1. Safari 17+ 版本
+2. 工具已启动运行
+3. 可访问工具页面","1. 使用 Safari 浏览器访问 http://localhost:3300
+2. 检查页面布局渲染
+3. 测试表单交互
+4. 测试弹窗显示和关闭
+5. 测试实时日志功能","1. 页面布局正确渲染
+2. 表单交互功能正常
+3. 弹窗可正常显示和关闭
+4. SSE 日志推送正常
+5. 本地存储功能正常",TC-BRW-001,P2,兼容性测试,系统测试阶段
+
+
 
 
 
