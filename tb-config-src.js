@@ -27,9 +27,17 @@ function getRunningPid() {
 }
 
 // --- CLI Commands ---
+// 处理版本号查询
+if (args.includes('-v') || args.includes('--version')) {
+    const packageJson = require('./package.json');
+    console.log(`ThingsBoard Config Mate v${packageJson.version}`);
+    process.exit(0);
+}
+
 if (args.includes('-h') || args.includes('--help')) {
+    const packageJson = require('./package.json');
     console.log(`
-ThingsBoard Config Mate (TB-CM) - 命令行使用指南
+ThingsBoard Config Mate (TB-CM) v${packageJson.version} - 命令行使用指南
 
 用法:
   tb-config-mate [命令] [选项]
@@ -41,8 +49,9 @@ ThingsBoard Config Mate (TB-CM) - 命令行使用指南
   status    查看后台服务的运行状态
 
 选项:
-  --port=N  指定服务运行的端口 (默认: 3300)
-  -h, --help 显示此帮助信息
+  --port=N     指定服务运行的端口 (默认: 3300)
+  -v, --version 显示版本号
+  -h, --help    显示此帮助信息
 
 示例:
   使用指定端口启动:
