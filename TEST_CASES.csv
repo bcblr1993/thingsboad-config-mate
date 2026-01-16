@@ -1,0 +1,97 @@
+用例编号,测试模块,测试用例,预期结果,优先级,前置条件,状态
+TC-ENV-001,操作系统兼容性,Ubuntu 22.04 LTS 环境测试,工具正常启动和运行,P0,Ubuntu 22.04 系统 + Docker 20.10+ + Node.js 18+,⬜
+TC-ENV-002,操作系统兼容性,Ubuntu 20.04 LTS 环境测试,工具正常启动和运行,P1,Ubuntu 20.04 系统 + Docker 20.10+ + Node.js 18+,⬜
+TC-ENV-003,操作系统兼容性,CentOS 7.x 环境测试,工具正常启动和运行,P0,CentOS 7.x 系统 + Docker 20.10+ + Node.js 18+,⬜
+TC-ENV-004,操作系统兼容性,Rocky Linux 8.x/9.x 环境测试,工具正常启动和运行,P1,Rocky Linux 8.x/9.x + Docker 20.10+ + Node.js 18+,⬜
+TC-ENV-005,操作系统兼容性,Debian 11/12 环境测试,工具正常启动和运行,P2,Debian 11/12 + Docker 20.10+ + Node.js 18+,⬜
+TC-ENV-006,操作系统兼容性,macOS 14 开发环境测试,工具正常启动和运行,P2,macOS 14 + Docker Desktop + Node.js 18+,⬜
+TC-BRW-001,浏览器兼容性,Chrome 浏览器兼容性测试,页面布局渲染正常/交互功能正常,P0,Chrome 最新稳定版,⬜
+TC-BRW-002,浏览器兼容性,Edge 浏览器兼容性测试,页面布局渲染正常/交互功能正常,P0,Edge 最新稳定版,⬜
+TC-BRW-003,浏览器兼容性,Firefox 浏览器兼容性测试,页面布局渲染正常/交互功能正常,P1,Firefox 最新稳定版,⬜
+TC-BRW-004,浏览器兼容性,Safari 浏览器兼容性测试,页面布局渲染正常/交互功能正常,P2,Safari 17+,⬜
+TC-DCK-001,Docker 环境,Docker Compose v2 兼容性测试,使用 docker compose 命令,P0,已安装 Docker Compose v2.x,⬜
+TC-DCK-002,Docker 环境,Docker Compose v1 兼容性测试,使用 docker-compose 命令,P1,已安装 Docker Compose v1.x,⬜
+TC-DCK-003,Docker 环境,容器日志获取测试,正常获取容器日志,P0,Docker 已安装且容器运行中,⬜
+TC-DCK-004,Docker 环境,容器环境变量检测,正常检测容器环境变量,P0,Docker 已安装且容器运行中,⬜
+TC-INIT-001,配置文件检测,存在 thingsboard.yml,自动识别为 Cloud 模式,P0,conf/thingsboard.yml 存在,⬜
+TC-INIT-002,配置文件检测,存在 tb-edge.yml,自动识别为 Edge 模式,P0,conf/tb-edge.yml 存在,⬜
+TC-INIT-003,配置文件检测,两个配置文件都不存在,显示阻断性错误提示配置文件缺失,P0,tb-edge.yml 和 thingsboard.yml 均不存在,⬜
+TC-INIT-004,配置文件检测,docker-compose.yml 不存在,显示阻断性错误提示文件缺失,P0,docker-compose.yml 不存在,⬜
+TC-INIT-005,配置文件检测,docker-compose.yml 未配置 env_file,显示阻断性错误提示需添加 env_file,P0,docker-compose.yml 未配置 env_file,⬜
+TC-INIT-006,.env 自动初始化,.env 文件不存在,工具自动从 YAML 提取默认值并创建,P0,.env 文件不存在,⬜
+TC-INIT-007,.env 自动初始化,.env 存在但缺少部分配置,工具自动补充缺失的配置项,P0,.env 存在但不完整,⬜
+TC-INIT-008,.env 自动初始化,.env 已完整,不做修改直接加载,P0,.env 已完整,⬜
+TC-INST-001,安装向导,存在 docker-compose-install.yml,页面显示「初始化安装」按钮,P0,docker-compose-install.yml 存在,⬜
+TC-INST-002,安装向导,不存在安装脚本,不显示安装按钮,P0,docker-compose-install.yml 不存在,⬜
+TC-INST-003,安装向导,点击「初始化安装」,弹出确认对话框,P0,docker-compose-install.yml 存在,⬜
+TC-INST-004,安装向导,确认安装,执行安装脚本并实时显示日志和进度,P0,docker-compose-install.yml 存在,⬜
+TC-INST-005,安装向导,系统已初始化,提示\"系统已初始化 (无需重复安装)\",P0,系统已完成初始化,⬜
+TC-CFG-001,配置分组与展示,加载 Edge 模式,显示 Edge 专属配置组,P0,Edge 模式,⬜
+TC-CFG-002,配置分组与展示,加载 Cloud 模式,不显示 Edge 专属配置组,P0,Cloud 模式,⬜
+TC-CFG-003,配置分组与展示,点击「全部展开」,所有配置组展开,P0,工具已启动,⬜
+TC-CFG-004,配置分组与展示,点击「全部折叠」,所有配置组折叠,P0,工具已启动,⬜
+TC-CFG-005,配置分组与展示,配置项分组正确,各配置项归入正确的分组,P0,工具已启动,⬜
+TC-DEP-001,条件依赖,队列类型选 Kafka,Kafka 相关配置项显示,P0,工具已启动,⬜
+TC-DEP-002,条件依赖,队列类型选 in-memory,Kafka 相关配置项隐藏,P0,工具已启动,⬜
+TC-DEP-003,条件依赖,缓存类型选 Redis,Redis 配置项显示,P0,工具已启动,⬜
+TC-DEP-004,条件依赖,缓存类型选 caffeine,Redis 配置项隐藏,P0,工具已启动,⬜
+TC-DEP-005,条件依赖,启用遥测分离,遥测分离相关配置项显示,P0,Edge 模式,⬜
+TC-DEP-006,条件依赖,禁用遥测分离,遥测分离相关配置项隐藏,P0,Edge 模式,⬜
+TC-DEP-007,条件依赖,存储类型选 Cassandra,Cassandra 配置项显示,P0,工具已启动,⬜
+TC-EDIT-001,配置值编辑,编辑文本类型配置,输入值正确保存到 .env,P0,工具已启动,⬜
+TC-EDIT-002,配置值编辑,编辑数字类型配置,仅允许输入数字并保存正确,P0,工具已启动,⬜
+TC-EDIT-003,配置值编辑,编辑下拉选择配置,选项切换后保存正确,P0,工具已启动,⬜
+TC-EDIT-004,配置值编辑,编辑密码类型配置,值正确保存并显示为密文,P0,工具已启动,⬜
+TC-EDIT-005,配置值编辑,点击密码眼睛图标,切换明文/密文显示,P0,工具已启动,⬜
+TC-SRC-001,源码模式,切换到源码模式,显示 .env 原始内容可直接编辑,P0,工具已启动,⬜
+TC-SRC-002,源码模式,源码模式保存,修改后保存内容写入 .env 文件,P0,工具已启动,⬜
+TC-SRC-003,源码模式,切换回 UI 模式,UI 正确反映源码模式的修改,P0,工具已启动,⬜
+TC-SRC-004,源码模式,未保存时切换模式,提示有未保存的修改,P0,有未保存修改,⬜
+TC-CTR-001,服务状态检测,服务正在运行,状态徽章显示绿色 Running 脉冲动画,P0,Docker 已安装且容器运行中,⬜
+TC-CTR-002,服务状态检测,服务已停止,状态徽章显示灰色 Stopped,P0,Docker 已安装且容器已停止,⬜
+TC-CTR-003,服务状态检测,Docker 未安装,显示错误提示,P0,Docker 未安装,⬜
+TC-CTR-004,服务控制,点击「停止服务」,弹出确认框确认后容器停止,P0,容器运行中,⬜
+TC-CTR-005,服务控制,点击「启动服务」,容器启动状态变为 Running,P0,容器已停止,⬜
+TC-CTR-006,服务控制,点击「重启服务」,容器重启应用最新配置,P0,容器运行中,⬜
+TC-CTR-007,服务控制,服务运行时按钮显示,显示「停止」和「重启」按钮,P0,容器运行中,⬜
+TC-CTR-008,服务控制,服务停止时按钮显示,仅显示「启动」按钮,P0,容器已停止,⬜
+TC-VER-001,自动备份,保存配置,生成备份文件到 .env_history/,P0,工具已启动,⬜
+TC-VER-002,自动备份,备份命名,文件名包含时间戳,P0,工具已启动,⬜
+TC-VER-003,自动备份,超过 5 个备份,自动删除最旧的备份 FIFO,P0,已有多个备份,⬜
+TC-VER-004,历史版本管理,点击「历史版本」按钮,弹出历史版本列表弹窗,P0,存在历史备份,⬜
+TC-VER-005,历史版本管理,选择某个版本,显示该版本与当前版本的 Diff 对比,P0,存在历史备份,⬜
+TC-VER-006,历史版本管理,点击「回滚」,.env 恢复为选中版本提示回滚成功,P0,存在历史备份,⬜
+TC-VER-007,历史版本管理,关闭弹窗后再次打开,弹窗能正常打开,P0,工具已启动,⬜
+TC-RTD-001,运行时环境检测,点击「运行环境检查」,弹出对比表格弹窗,P0,服务已运行,⬜
+TC-RTD-002,运行时环境检测,本地与容器值一致,显示绿色 Match 标识,P0,服务已运行,⬜
+TC-RTD-003,运行时环境检测,本地已修改未重启,显示黄色警告提示需重启,P0,本地有修改未重启,⬜
+TC-RTD-004,运行时环境检测,容器有本地没有,显示 Missing 标识,P0,服务已运行,⬜
+TC-RTD-005,运行时环境检测,关闭弹窗后再次打开,弹窗能正常打开,P0,工具已启动,⬜
+TC-LOG-001,实时日志,点击「查看日志」按钮,弹出日志查看窗口,P0,服务已运行,⬜
+TC-LOG-002,实时日志,服务启动/重启时,实时推送容器日志 SSE,P0,服务已运行,⬜
+TC-LOG-003,实时日志,默认「自动换行」开启,长日志正确换行,P0,服务已运行,⬜
+TC-LOG-004,实时日志,切换「自动换行」关闭,长日志不换行可横向滚动,P0,服务已运行,⬜
+TC-LOG-005,实时日志,点击「清空日志」,日志区域清空,P0,服务已运行,⬜
+TC-LOG-006,实时日志,点击「关闭」,日志窗口关闭,P0,服务已运行,⬜
+TC-DLG-001,弹窗交互,确认弹窗点击「取消」,弹窗关闭操作取消,P0,工具已启动,⬜
+TC-DLG-002,弹窗交互,取消后再次点击按钮,确认弹窗能再次正常弹出,P0,工具已启动,⬜
+TC-DLG-003,弹窗交互,历史弹窗关闭后再开,正常打开,P0,工具已启动,⬜
+TC-DLG-004,弹窗交互,Diff 弹窗关闭后再开,正常打开,P0,工具已启动,⬜
+TC-DLG-005,弹窗交互,运行环境弹窗关闭后再开,正常打开,P0,工具已启动,⬜
+TC-DLG-006,弹窗交互,安装弹窗关闭后再开,正常打开,P0,工具已启动,⬜
+TC-EDGE-001,Edge 连接配置,填写 CLOUD_ROUTING_KEY,保存后写入 .env,P0,Edge 模式,⬜
+TC-EDGE-002,Edge 连接配置,填写 CLOUD_ROUTING_SECRET,保存后写入 .env,P0,Edge 模式,⬜
+TC-EDGE-003,Edge 连接配置,填写 CLOUD_RPC_HOST,保存后写入 .env,P0,Edge 模式,⬜
+TC-EDGE-004,云边通信状态检查,配置项可见且可编辑,正常,P0,Edge 模式,⬜
+TC-EDGE-005,离线恢复策略,队列类型选 Kafka,显示 3 个 Kafka 拉取条数配置,P0,Edge 模式且队列为 Kafka,⬜
+TC-EDGE-006,离线恢复策略,队列类型选 in-memory,Kafka 配置隐藏,P0,Edge 模式,⬜
+TC-EDGE-007,遥测分离,启用遥测分离,gRPC/Kafka 相关配置显示,P0,Edge 模式,⬜
+TC-EDGE-008,遥测分离,禁用遥测分离,相关配置隐藏,P0,Edge 模式,⬜
+TC-CLOUD-001,Cloud 模式识别,加载 Cloud 模式,不显示 Edge 相关配置组,P0,Cloud 模式,⬜
+TC-CLOUD-002,MQTT 端口,配置 MQTT_BIND_PORT,保存后写入 .env,P0,Cloud 模式,⬜
+TC-CLOUD-003,数据库配置,PostgreSQL 连接配置,正常,P0,Cloud 模式,⬜
+TC-CLOUD-004,缓存配置,Redis/Caffeine 切换,正常,P0,Cloud 模式,⬜
+TC-CLOUD-005,消息队列,Kafka/in-memory 切换,正常,P0,Cloud 模式,⬜
+
+
+
