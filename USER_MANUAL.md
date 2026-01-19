@@ -2,17 +2,6 @@
 
 > 版本：v1.4.7 | 更新日期：2026-01-16
 
-## 目录
-
-- [简介](#简介)
-- [系统要求](#系统要求)
-- [快速开始](#快速开始)
-- [命令行参数](#命令行参数)
-- [功能说明](#功能说明)
-- [常见问题](#常见问题)
-
----
-
 ## 简介
 
 **ThingsBoard Config Mate (TB-CM)** 是一款专为 ThingsBoard Edge/Cloud 设计的可视化配置管理工具。它提供了友好的 Web 界面，让您无需手动编辑配置文件即可管理 ThingsBoard 的环境变量配置。
@@ -41,20 +30,13 @@
 
 ### 1. 下载可执行文件
 
-从 [GitHub Releases](https://github.com/bcblr1993/thingsboad-config-mate/releases) 下载对应平台的可执行文件：
+- tb-config-mate-linux
 
-- `tb-config-mate-linux` - Linux 版本
-- `tb-config-mate-macos` - macOS 版本
-- `tb-config-mate-win.exe` - Windows 版本
-
-### 2. 部署到 ThingsBoard 目录
+### 2. 部署到指定目录
 
 将可执行文件复制到 ThingsBoard Edge/Cloud 的安装目录（包含 `docker-compose.yml` 的目录）：
 
 ```bash
-# 下载（以 Linux 为例）
-wget https://github.com/bcblr1993/thingsboad-config-mate/releases/download/v1.4.7/tb-config-mate-linux
-
 # 添加执行权限
 chmod +x tb-config-mate-linux
 
@@ -67,10 +49,8 @@ mv tb-config-mate-linux tb-config-mate
 ```bash
 # 前台运行（查看日志）
 ./tb-config-mate
-
 # 后台运行
 ./tb-config-mate start
-
 # 指定端口
 ./tb-config-mate start --port=4000
 ```
@@ -181,21 +161,3 @@ mv tb-config-mate-linux tb-config-mate
 ### Q: 保存配置后容器未生效？
 
 修改 `.env` 后需要重启容器才能生效。点击「重启服务」按钮应用新配置。
-
-### Q: 如何查看更多日志？
-
-```bash
-# 前台运行查看完整日志
-./tb-config-mate
-```
-
----
-
-## 技术支持
-
-- **GitHub Issues**: [提交问题](https://github.com/bcblr1993/thingsboad-config-mate/issues)
-- **版本发布**: [Release 页面](https://github.com/bcblr1993/thingsboad-config-mate/releases)
-
----
-
-© 2026 ThingsBoard Config Mate
