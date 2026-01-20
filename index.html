@@ -2682,7 +2682,7 @@
         }
 
         async function restartServiceOnly(event) {
-            if (!await customConfirm('确定要重启服务吗？(仅重启容器，不应用新配置)', '重启服务', '#FDCB6E')) return;
+            if (!await customConfirm('确定要重启服务吗？重启将重新加载最新的配置。', '重启服务', '#FDCB6E')) return;
 
             const btn = event.target;
             const originalText = btn.innerText;
@@ -2708,6 +2708,44 @@
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
+                isActionPending = false;
+                setTimeout(checkStatus, 1000);
+            }
+        }
+
+        async function restartService() {
+            if (!await customConfirm('确定要重启服务以应用更改吗？', '重启服务', '#FDCB6E')) return;
+
+            const btn = document.getElementById('btn-restart-from-diff');
+            const originalText = btn ? btn.innerText : '立即重启服务';
+            if (btn) {
+                btn.innerText = '重启中...';
+                btn.disabled = true;
+            }
+            isActionPending = true;
+
+            try {
+                // Clear logs before restart to show fresh status
+                clearLogs();
+
+                const res = await fetch('/api/service-restart', { method: 'POST' });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showLogs(true); // Open logs in manual mode to monitor
+                    checkStatus();
+                    // Close the modal upon successful restart initiation
+                    closeRuntimeDiffModal();
+                } else {
+                    showToast('❌ 重启失败：\n' + data.output, 'error');
+                }
+            } catch (e) {
+                showToast('❌ 请求失败：' + e.message, 'error');
+            } finally {
+                if (btn) {
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                }
                 isActionPending = false;
                 setTimeout(checkStatus, 1000);
             }
