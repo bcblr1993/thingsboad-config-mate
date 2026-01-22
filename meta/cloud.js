@@ -26,14 +26,7 @@ module.exports = {
         group: "核心存储",
         required: true
     },
-    "TS_KV_TTL": {
-        label: "系统数据过期时间 (TTL)",
-        comment: "单位: 秒。0 表示永不过期 (仅 Cassandra)",
-        type: "number",
-        default: 0,
-        group: "核心存储",
-        dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
-    },
+
 
     // === PostgreSQL 配置 ===
     "SPRING_DATASOURCE_URL": {
@@ -57,6 +50,14 @@ module.exports = {
     },
 
     // === Cassandra 配置 ===
+    "TS_KV_TTL": {
+        label: "系统数据过期时间 (TTL)",
+        comment: "单位: 秒。0 表示永不过期 (仅 Cassandra)",
+        type: "number",
+        default: 0,
+        group: "Cassandra",
+        dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
+    },
     "CASSANDRA_URL": {
         label: "Cassandra 节点地址",
         comment: "host:port",

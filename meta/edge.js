@@ -59,6 +59,14 @@ module.exports = {
     },
 
     // === 云边通信状态检查 ===
+    "CLOUD_CHECK_STATUS_ENABLED": {
+        label: "启用通信状态检查",
+        comment: "该功能需保持开启状态",
+        type: "readonly",
+        default: "true",
+        group: "云边通信状态检查",
+        dependsOn: { key: "APPTYPE", value: "EDGE" }
+    },
     "CLOUD_CHECK_STATUS_BASE_URL": {
         label: "云边通信状态检查 Base URL",
         comment: "https://newcloud.sprixin.com/ 默认为公司云平台地址，外部私有化部署修改为私有化地址",
@@ -107,7 +115,12 @@ module.exports = {
         comment: "默认为: 50, 单位为条。仅在 EDGES_STORAGE_HISTORY_STATUS 为 true 时生效",
         type: "number",
         group: "离线恢复策略",
-        dependsOn: { key: "APPTYPE", value: "EDGE" },
+        dependsOn: {
+            and: [
+                { key: "APPTYPE", value: "EDGE" },
+                { key: "EDGES_STORAGE_HISTORY_STATUS", value: "true" }
+            ]
+        },
         default: 50
     },
     "EDGES_STORAGE_REALTIME_LAG_THRESHOLD_MS": {
@@ -118,7 +131,8 @@ module.exports = {
         dependsOn: {
             and: [
                 { key: "APPTYPE", value: "EDGE" },
-                { key: "TB_QUEUE_TYPE", value: "caffeine" }
+                { key: "TB_QUEUE_TYPE", value: "in-memory" },
+                { key: "EDGES_STORAGE_HISTORY_STATUS", value: "true" }
             ]
         },
         default: 180000
@@ -131,7 +145,8 @@ module.exports = {
         dependsOn: {
             and: [
                 { key: "APPTYPE", value: "EDGE" },
-                { key: "TB_QUEUE_TYPE", value: "kafka" }
+                { key: "TB_QUEUE_TYPE", value: "kafka" },
+                { key: "EDGES_STORAGE_HISTORY_STATUS", value: "true" }
             ]
         },
         default: 1000
@@ -144,7 +159,8 @@ module.exports = {
         dependsOn: {
             and: [
                 { key: "APPTYPE", value: "EDGE" },
-                { key: "TB_QUEUE_TYPE", value: "kafka" }
+                { key: "TB_QUEUE_TYPE", value: "kafka" },
+                { key: "EDGES_STORAGE_HISTORY_STATUS", value: "true" }
             ]
         },
         default: 100
@@ -157,7 +173,8 @@ module.exports = {
         dependsOn: {
             and: [
                 { key: "APPTYPE", value: "EDGE" },
-                { key: "TB_QUEUE_TYPE", value: "kafka" }
+                { key: "TB_QUEUE_TYPE", value: "kafka" },
+                { key: "EDGES_STORAGE_HISTORY_STATUS", value: "true" }
             ]
         },
         default: 200
@@ -230,46 +247,38 @@ module.exports = {
         label: "最新数据存储类型",
         comment: "ts_kv_latest 表最新数据存储，目前仅支持 sql 以及 cassandra 以及 redis 三种",
         type: "select",
-        options: ["sql", "cassandra", "redis"],
+        options: ["sql", "cassandra", "redis", "redis-cluster"],
         group: "核心存储",
         required: true
     },
-    "TS_KV_TTL": {
-        label: "系统数据过期时间 (TTL)",
-        comment: "单位: 秒。0 表示永不过期, 仅在历史存储为 cassandra 时生效",
-        type: "number",
-        default: 0,
-        group: "核心存储",
-        dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
-    },
+
     "SQL_TTL_TS_EXECUTION_INTERVAL": {
         label: "时序数据清理间隔 (ms)",
         comment: "默认 7200000 (2小时)",
         type: "number",
         default: 7200000,
-        group: "核心存储"
+        group: "核心存储",
+        dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
     },
     "SQL_TTL_TS_TS_KEY_VALUE_TTL": {
         label: "时序数据保留时间 (秒)",
         comment: "默认 0 (永久)，建议 2592000 (30天)",
         type: "number",
         default: 0,
-        group: "核心存储"
-    },
-    "SQL_TTL_CLOUD_EVENTS_EXECUTION_INTERVAL": {
-        label: "云事件清理间隔 (ms)",
-        type: "number",
-        default: 7200000,
-        group: "核心存储"
-    },
-    "SQL_TTL_CLOUD_EVENTS_TTL": {
-        label: "云事件保留时间 (秒)",
-        type: "number",
-        default: 259200,
-        group: "核心存储"
+        group: "核心存储",
+        dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
     },
 
+
     // === Cassandra 配置 ===
+    "TS_KV_TTL": {
+        label: "系统数据过期时间 (TTL)",
+        comment: "单位: 秒。0 表示永不过期, 仅在历史存储为 cassandra 时生效",
+        type: "number",
+        default: 0,
+        group: "Cassandra",
+        dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
+    },
     "CASSANDRA_URL": {
         label: "Cassandra 节点地址",
         comment: "host:port",
@@ -320,7 +329,7 @@ module.exports = {
         group: "缓存配置",
         default: "standalone",
         required: true,
-        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] }
+        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] }
     },
 
     // === Redis Standalone 单机模式 ===
@@ -332,7 +341,7 @@ module.exports = {
         required: true,
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "standalone" }
             ]
         }
@@ -345,7 +354,7 @@ module.exports = {
         required: true,
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "standalone" }
             ]
         }
@@ -360,7 +369,7 @@ module.exports = {
         required: true,
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "cluster" }
             ]
         }
@@ -371,7 +380,7 @@ module.exports = {
         label: "Redis 密码",
         type: "password",
         group: "缓存配置",
-        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] }
+        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] }
     },
     "REDIS_DB": {
         label: "Redis 库索引",
@@ -380,7 +389,7 @@ module.exports = {
         group: "缓存配置",
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "standalone" }
             ]
         }
@@ -452,6 +461,20 @@ module.exports = {
         group: "消息队列",
         required: true,
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
+    },
+    "SQL_TTL_CLOUD_EVENTS_EXECUTION_INTERVAL": {
+        label: "云事件清理间隔 (ms)",
+        type: "number",
+        default: 7200000,
+        group: "消息队列",
+        dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
+    },
+    "SQL_TTL_CLOUD_EVENTS_TTL": {
+        label: "云事件保留时间 (秒)",
+        type: "number",
+        default: 259200,
+        group: "消息队列",
+        dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
     },
 
     // === MQTT 传输 ===

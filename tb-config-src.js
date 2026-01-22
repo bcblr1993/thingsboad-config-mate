@@ -8,21 +8,22 @@ const args = process.argv.slice(2);
 const command = args[0] && !args[0].startsWith('--') ? args[0] : null;
 
 // --- Config ---
+// --- Config ---
 const portArg = args.find(arg => arg.startsWith('--port='));
 const PORT = portArg ? parseInt(portArg.split('=')[1]) : (process.env.PORT || 3300);
-const PID_FILE = path.join(process.cwd(), 'tb-config-mate.pid');
-const LOG_FILE = path.join(process.cwd(), 'tb-config-mate.log');
+const PID_FILE = path.join(process.cwd(), `tb-config-mate-${PORT}.pid`);
+const LOG_FILE = path.join(process.cwd(), `tb-config-mate-${PORT}.log`);
 const HISTORY_DIR = path.join(process.cwd(), '.env_history');
 
 // --- Helper: Check Status ---
-function getRunningPid() {
-    if (!fs.existsSync(PID_FILE)) return null;
+function getRunningPid(pidPath = PID_FILE) {
+    if (!fs.existsSync(pidPath)) return null;
     try {
-        const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8'));
+        const pid = parseInt(fs.readFileSync(pidPath, 'utf8'));
         process.kill(pid, 0); // Check if process exists
         return pid;
     } catch (e) {
-        return null;
+        return null; // Stale PID file or process not running
     }
 }
 
@@ -44,9 +45,9 @@ ThingsBoard Config Mate (TB-CM) v${packageJson.version} - 命令行使用指南
 
 命令:
   start     在后台启动配置服务 (默认端口 3300)
-  stop      停止正在运行的后台服务
+  stop      停止正在运行的后台服务 (需指定端口，默认停止 3300)
   restart   停止并重新启动后台服务
-  status    查看后台服务的运行状态
+  status    查看后台服务的运行状态 (未指定端口时显示所有实例)
 
 选项:
   --port=N     指定服务运行的端口 (默认: 3300)
@@ -55,20 +56,42 @@ ThingsBoard Config Mate (TB-CM) v${packageJson.version} - 命令行使用指南
 
 示例:
   使用指定端口启动:
-    ./tb-config-mate start --port=4000
+    ./tb-config-mate start --port=4005
   
-  查看当前状态:
+  查看状态:
     ./tb-config-mate status
+    ./tb-config-mate status --port=4005
     `);
     process.exit(0);
 }
 
 if (command === 'status') {
-    const pid = getRunningPid();
-    if (pid) {
-        console.log(`[Status] Service is RUNNING (PID: ${pid})`);
+    if (portArg) {
+        // Check specific port
+        const pid = getRunningPid();
+        if (pid) {
+            console.log(`[Status] Service (Port ${PORT}) is RUNNING (PID: ${pid})`);
+        } else {
+            console.log(`[Status] Service (Port ${PORT}) is STOPPED`);
+        }
     } else {
-        console.log('[Status] Service is STOPPED');
+        // Scan all pid files
+        const files = fs.readdirSync(process.cwd()).filter(f => f.startsWith('tb-config-mate-') && f.endsWith('.pid'));
+        if (files.length === 0) {
+            console.log('[Status] No running instances found.');
+        } else {
+            console.log('[Status] Found instances:');
+            files.forEach(f => {
+                const portMatch = f.match(/tb-config-mate-(\d+)\.pid/);
+                const p = portMatch ? portMatch[1] : 'Unknown';
+                const pid = getRunningPid(path.join(process.cwd(), f));
+                if (pid) {
+                    console.log(`  - Port ${p}: RUNNING (PID: ${pid})`);
+                } else {
+                    console.log(`  - Port ${p}: STOPPED (Stale PID file)`);
+                }
+            });
+        }
     }
     process.exit(0);
 }
@@ -78,13 +101,13 @@ if (command === 'stop') {
     if (pid) {
         try {
             process.kill(pid);
-            console.log(`[Success] Stopped service (PID: ${pid})`);
+            console.log(`[Success] Stopped service on Port ${PORT} (PID: ${pid})`);
             if (fs.existsSync(PID_FILE)) fs.unlinkSync(PID_FILE);
         } catch (e) {
             console.error(`[Error] Failed to stop: ${e.message}`);
         }
     } else {
-        console.log('[Info] Service is not running.');
+        console.log(`[Info] Service on Port ${PORT} is not running.`);
     }
     process.exit(0);
 }
@@ -94,7 +117,7 @@ if (command === 'restart') {
     if (pid) {
         try {
             process.kill(pid);
-            console.log(`[Success] Stopped service (PID: ${pid})`);
+            console.log(`[Success] Stopped service on Port ${PORT} (PID: ${pid})`);
             if (fs.existsSync(PID_FILE)) fs.unlinkSync(PID_FILE);
         } catch (e) {
             console.warn(`[Warn] Failed to stop previous instance: ${e.message}`);

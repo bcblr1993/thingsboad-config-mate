@@ -2092,8 +2092,45 @@
 
         function updateValue(key, val) {
             configValues[key] = val;
+
+            // Apply Custom Business Logic
+            applyBusinessLogic(key, val);
+
             checkAllDependencies(); // Re-evaluate whenever a value changes
             checkDirtyState();
+        }
+
+        function applyBusinessLogic(key, val) {
+            // 1. If History Storage is Cassandra -> Latest Storage MUST be Cassandra
+            if (key === 'DATABASE_TS_TYPE' && val === 'cassandra') {
+                updateFieldProgrammatically('DATABASE_TS_LATEST_TYPE', 'cassandra');
+            }
+
+            // 2. If Latest Storage is Redis -> Cache=Redis, Conn=Standalone
+            if (key === 'DATABASE_TS_LATEST_TYPE' && val === 'redis') {
+                updateFieldProgrammatically('CACHE_TYPE', 'redis');
+                updateFieldProgrammatically('REDIS_CONNECTION_TYPE', 'standalone');
+            }
+
+            // 3. If Latest Storage is Redis Cluster -> Cache=Redis, Conn=Cluster
+            if (key === 'DATABASE_TS_LATEST_TYPE' && val === 'redis-cluster') {
+                updateFieldProgrammatically('CACHE_TYPE', 'redis');
+                updateFieldProgrammatically('REDIS_CONNECTION_TYPE', 'cluster');
+            }
+        }
+
+        function updateFieldProgrammatically(targetKey, targetVal) {
+            // Update value in memory
+            configValues[targetKey] = targetVal;
+
+            // Update UI element if it exists
+            const card = document.getElementById('card-' + targetKey);
+            if (card) {
+                const input = card.querySelector('.field-input');
+                if (input) {
+                    input.value = targetVal;
+                }
+            }
         }
 
         function checkDirtyState() {
@@ -2444,6 +2481,12 @@
             }
         }
 
+        // Logs Buffer for Performance
+        let logBuffer = [];
+        let isFlushing = false;
+        const MAX_LOG_LINES = 1000;
+        const MAX_MSG_LENGTH = 2000; // Truncate very long single lines
+
         function connectLogsStream() {
             if (logsEventSource) {
                 logsEventSource.close();
@@ -2453,9 +2496,52 @@
 
             logsEventSource.onmessage = (event) => {
                 const data = JSON.parse(event.data);
-                const content = document.getElementById('logs-content');
-                const statusEl = document.getElementById('logs-status');
 
+                // Buffer the data instead of rendering immediately
+                logBuffer.push(data);
+                requestFlushLogs();
+            };
+
+            logsEventSource.onerror = (error) => {
+                console.error('SSE Error:', error);
+
+                // Show visual error in logs
+                const data = { type: 'error', message: '[连接错误] 实时日志连接中断，正在尝试重连...' };
+                logBuffer.push(data);
+                requestFlushLogs();
+
+                if (logsEventSource) {
+                    logsEventSource.close();
+                }
+                // Retry after delay
+                setTimeout(() => {
+                    if (document.getElementById('logs-modal').classList.contains('active')) {
+                        connectLogsStream();
+                    }
+                }, 3000);
+            };
+        }
+
+        function requestFlushLogs() {
+            if (isFlushing) return;
+            isFlushing = true;
+            requestAnimationFrame(flushLogs);
+        }
+
+        function flushLogs() {
+            const content = document.getElementById('logs-content');
+            const statusEl = document.getElementById('logs-status');
+
+            if (!content || logBuffer.length === 0) {
+                isFlushing = false;
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            // Process current buffer
+            const batch = logBuffer.splice(0, logBuffer.length);
+
+            batch.forEach(data => {
                 if (data.type === 'log' || data.type === 'error') {
                     const line = document.createElement('div');
                     line.className = 'log-line';
@@ -2464,25 +2550,30 @@
                     if (data.message.includes('Started ThingsBoard') && !startupDetected) {
                         line.classList.add('success');
                         startupDetected = true;
-                        statusEl.classList.add('success');
-                        statusEl.querySelector('span').textContent = '✓ 启动成功!';
-                        setTimeout(() => {
-                            statusEl.classList.remove('success');
-                            statusEl.querySelector('span').textContent = '实时监听中...';
-                        }, 5000);
+                        if (statusEl) {
+                            statusEl.classList.add('success');
+                            statusEl.querySelector('span').textContent = '✓ 启动成功!';
+                            setTimeout(() => {
+                                statusEl.classList.remove('success');
+                                statusEl.querySelector('span').textContent = '实时监听中...';
+                            }, 5000);
+                        }
                     }
 
                     if (data.type === 'error') {
                         line.classList.add('error');
                     }
 
-                    line.textContent = data.message;
-                    content.appendChild(line);
+                    // Truncate overly long messages to prevent rendering freeze
+                    let msg = data.message;
+                    if (msg.length > MAX_MSG_LENGTH) {
+                        msg = msg.substring(0, MAX_MSG_LENGTH) + ` ... [已截断, 原文长度: ${data.message.length} chars]`;
+                        line.title = "日志过长已截断";
+                    }
 
-                    // Auto-scroll to bottom
-                    content.scrollTop = content.scrollHeight;
+                    line.textContent = msg;
+                    fragment.appendChild(line);
                 } else if (data.type === 'close') {
-                    // Close the connection to stop auto-reconnect
                     if (logsEventSource) {
                         logsEventSource.close();
                         logsEventSource = null;
@@ -2492,19 +2583,28 @@
                     line.className = 'log-line';
                     line.style.color = '#888';
                     line.textContent = `[连接已关闭，退出代码: ${data.code}]`;
-                    content.appendChild(line);
+                    fragment.appendChild(line);
                 }
-            };
+            });
 
-            logsEventSource.onerror = (error) => {
-                console.error('SSE Error:', error);
-                const content = document.getElementById('logs-content');
-                const line = document.createElement('div');
-                line.className = 'log-line error';
-                line.textContent = '[连接错误，请检查服务状态]';
-                content.appendChild(line);
-            };
+            content.appendChild(fragment);
+
+            // Prune old logs to prevent DOM bloat
+            while (content.children.length > MAX_LOG_LINES) {
+                content.removeChild(content.firstChild);
+            }
+
+            // Auto-scroll to bottom
+            content.scrollTop = content.scrollHeight;
+
+            isFlushing = false;
+
+            // If buffer filled up while flushing, request another frame
+            if (logBuffer.length > 0) {
+                requestFlushLogs();
+            }
         }
+
 
         let isActionPending = false; // Global flag to prevent checkStatus updates during user actions
 
