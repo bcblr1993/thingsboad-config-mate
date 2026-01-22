@@ -462,6 +462,27 @@ module.exports = {
         required: true,
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
     },
+    "TB_QUEUE_KAFKA_CLOUD_EVENT_MAX_POLL_RECORDS": {
+        label: "Kafka: 云事件最大拉取数",
+        type: "number",
+        default: 100,
+        group: "消息队列",
+        dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
+    },
+    "TB_QUEUE_KAFKA_CLOUD_EVENT_TS_MAX_POLL_RECORDS": {
+        label: "Kafka: 云事件时序最大拉取数",
+        type: "number",
+        default: 200,
+        group: "消息队列",
+        dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
+    },
+    "TB_QUEUE_KAFKA_TELEMETRY_TS_KV_CLOUD_EVENT_MAX_POLL_RECORDS": {
+        label: "Kafka: 遥测云事件最大拉取数",
+        type: "number",
+        default: 200,
+        group: "消息队列",
+        dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
+    },
     "SQL_TTL_CLOUD_EVENTS_EXECUTION_INTERVAL": {
         label: "云事件清理间隔 (ms)",
         type: "number",

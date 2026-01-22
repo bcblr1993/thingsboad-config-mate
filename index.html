@@ -2117,6 +2117,15 @@
                 updateFieldProgrammatically('CACHE_TYPE', 'redis');
                 updateFieldProgrammatically('REDIS_CONNECTION_TYPE', 'cluster');
             }
+
+            // 4. Constraint: If TS Latest is Redis/RedisCluster, CACHE_TYPE CANNOT be caffeine
+            if (key === 'CACHE_TYPE' && val === 'caffeine') {
+                const tsLatest = configValues['DATABASE_TS_LATEST_TYPE'];
+                if (tsLatest === 'redis' || tsLatest === 'redis-cluster') {
+                    showToast('当最新数据存储为 Redis 时，必须使用 Redis 缓存', 'warning');
+                    updateFieldProgrammatically('CACHE_TYPE', 'redis');
+                }
+            }
         }
 
         function updateFieldProgrammatically(targetKey, targetVal) {

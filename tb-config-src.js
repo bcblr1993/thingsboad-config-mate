@@ -522,8 +522,22 @@ function tryInitFromYaml() {
             const missedExtraction = expectedKeys.filter(k => !newConfig[k] && !existingEnv[k]);
 
             if (missedExtraction.length > 0) {
-                console.log(`[Info] ⚠️  The following ${missedExtraction.length} keys were expected but NOT found in YAML or .env:`);
-                missedExtraction.forEach(k => console.log(`   - ${k}`));
+                console.log(`[Info] ⚠️  The following ${missedExtraction.length} keys were expected but NOT found in YAML or .env. Using defaults:`);
+                missedExtraction.forEach(k => {
+                    console.log(`   - ${k}`);
+                    const meta = CONFIG_META[k];
+                    // Priority 5: Default value from Metadata (Fallback)
+                    if (meta.default !== undefined) {
+                        missingKeys[k] = meta.default;
+                        missingCount++;
+                    } else {
+                        // If no default, maybe set empty? Or skip?
+                        // User request implies "extract all defined here to env".
+                        // Let's set it to empty string if no default, to ensure it exists.
+                        missingKeys[k] = '';
+                        missingCount++;
+                    }
+                });
             }
 
             if (missingCount > 0) {
