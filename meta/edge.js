@@ -102,8 +102,8 @@ module.exports = {
 
     // === 离线恢复策略调优 ===
     "EDGES_STORAGE_HISTORY_STATUS": {
-        label: "是否开启离线恢复后实时优先",
-        comment: "开启后，网络恢复时，优先上送实时数据",
+        label: "是否开启离线恢复后实时遥测数据优先功能",
+        comment: "开启后，网络恢复时，优先上送实时遥测数据",
         type: "select",
         options: ["true", "false"],
         group: "离线恢复策略",
@@ -276,6 +276,7 @@ module.exports = {
         comment: "单位: 秒。0 表示永不过期, 仅在历史存储为 cassandra 时生效",
         type: "number",
         default: 0,
+        min: 0,
         group: "Cassandra",
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
@@ -305,12 +306,14 @@ module.exports = {
         label: "Cassandra 用户名",
         type: "text",
         group: "Cassandra",
+        hidden: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
     "CASSANDRA_PASSWORD": {
         label: "Cassandra 密码",
         type: "password",
         group: "Cassandra",
+        hidden: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
 

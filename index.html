@@ -2072,7 +2072,9 @@
             } else if (meta.type === 'readonly') {
                 inputHtml = `<input type="text" class="field-input" value="${val}" disabled style="background:#eee; cursor:not-allowed; color:#666;">`;
             } else {
-                inputHtml = `<input type="${meta.type || 'text'}" class="field-input" value="${val}" onchange="updateValue('${key}', this.value)">`;
+                const minAttr = meta.min !== undefined ? `min="${meta.min}"` : '';
+                const maxAttr = meta.max !== undefined ? `max="${meta.max}"` : '';
+                inputHtml = `<input type="${meta.type || 'text'}" class="field-input" value="${val}" ${minAttr} ${maxAttr} onchange="updateValue('${key}', this.value)">`;
             }
 
             return `
