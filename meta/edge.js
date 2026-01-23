@@ -151,34 +151,8 @@ module.exports = {
         },
         default: 1000
     },
-    "TB_QUEUE_KAFKA_CLOUD_EVENT_MAX_POLL_RECORDS": {
-        label: "Cloud Event 每次上云条数 (Kafka)",
-        comment: "默认为: 100, 单位为条。当队列为 kafka 每次从边缘 kafka 拉取 cloud_event 多少数据上云",
-        type: "number",
-        group: "离线恢复策略",
-        dependsOn: {
-            and: [
-                { key: "APPTYPE", value: "EDGE" },
-                { key: "TB_QUEUE_TYPE", value: "kafka" },
-                { key: "EDGES_STORAGE_HISTORY_STATUS", value: "true" }
-            ]
-        },
-        default: 100
-    },
-    "TB_QUEUE_KAFKA_CLOUD_EVENT_TS_MAX_POLL_RECORDS": {
-        label: "时序数据每次上云条数 (Kafka)",
-        comment: "默认为: 200, 单位为条。当队列为 kafka 时 每次从边缘 kafka 拉取 ts_kv_cloud_evnet 多少数据上云",
-        type: "number",
-        group: "离线恢复策略",
-        dependsOn: {
-            and: [
-                { key: "APPTYPE", value: "EDGE" },
-                { key: "TB_QUEUE_TYPE", value: "kafka" },
-                { key: "EDGES_STORAGE_HISTORY_STATUS", value: "true" }
-            ]
-        },
-        default: 200
-    },
+
+
 
     // === 遥测分离配置 (Edge) ===
     "TELEMETRY_SEPARATION_ENABLED": {
@@ -203,20 +177,7 @@ module.exports = {
         },
         default: "localhost"
     },
-    "TB_QUEUE_KAFKA_TELEMETRY_TS_KV_CLOUD_EVENT_MAX_POLL_RECORDS": {
-        label: "遥测分离拉取条数",
-        comment: "默认为: 200, 单位为条。当开启遥测分离是 每个通道拉取多少 telemetry_ts_kv_cloud_event 上云",
-        type: "number",
-        group: "Edge 遥测分离",
-        dependsOn: {
-            and: [
-                { key: "APPTYPE", value: "EDGE" },
-                { key: "TELEMETRY_SEPARATION_ENABLED", value: "true" },
-                { key: "TB_QUEUE_TYPE", value: "kafka" }
-            ]
-        },
-        default: 200
-    },
+
     "TB_QUEUE_TELEMETRY_TS_KV_CLOUD_EVENT_PARTITIONS": {
         label: "遥测分离队列分区数",
         comment: "默认为: 2, 单位为个。仅在 TB_QUEUE_TYPE 为 kafka 且 TELEMETRY_SEPARATION_ENABLED 为 true 时生效",
@@ -300,6 +261,7 @@ module.exports = {
         type: "text",
         group: "Cassandra",
         required: true,
+        hidden: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
     "CASSANDRA_USERNAME": {
@@ -465,6 +427,21 @@ module.exports = {
         required: true,
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
     },
+
+    "SQL_TTL_CLOUD_EVENTS_EXECUTION_INTERVAL": {
+        label: "云事件清理间隔 (ms)",
+        type: "number",
+        default: 7200000,
+        group: "消息队列",
+        dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
+    },
+    "SQL_TTL_CLOUD_EVENTS_TTL": {
+        label: "云事件保留时间 (秒)",
+        type: "number",
+        default: 259200,
+        group: "消息队列",
+        dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
+    },
     "TB_QUEUE_KAFKA_CLOUD_EVENT_MAX_POLL_RECORDS": {
         label: "Kafka: 云事件最大拉取数",
         type: "number",
@@ -485,20 +462,6 @@ module.exports = {
         default: 200,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
-    },
-    "SQL_TTL_CLOUD_EVENTS_EXECUTION_INTERVAL": {
-        label: "云事件清理间隔 (ms)",
-        type: "number",
-        default: 7200000,
-        group: "消息队列",
-        dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
-    },
-    "SQL_TTL_CLOUD_EVENTS_TTL": {
-        label: "云事件保留时间 (秒)",
-        type: "number",
-        default: 259200,
-        group: "消息队列",
-        dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
     },
 
     // === MQTT 传输 ===

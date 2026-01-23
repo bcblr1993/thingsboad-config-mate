@@ -78,18 +78,21 @@ module.exports = {
         type: "text",
         group: "Cassandra",
         required: true,
+        hidden: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
     "CASSANDRA_USERNAME": {
         label: "Cassandra 用户名",
         type: "text",
         group: "Cassandra",
+        hidden: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
     "CASSANDRA_PASSWORD": {
         label: "Cassandra 密码",
         type: "password",
         group: "Cassandra",
+        hidden: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
 
