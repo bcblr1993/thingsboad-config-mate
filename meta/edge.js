@@ -102,7 +102,7 @@ module.exports = {
 
     // === 离线恢复策略调优 ===
     "EDGES_STORAGE_HISTORY_STATUS": {
-        label: "是否开启离线恢复后实时遥测数据优先功能",
+        label: "是否开启离线恢复后实时遥测数据优先功能【断点续传】",
         comment: "开启后，网络恢复时，优先上送实时遥测数据",
         type: "select",
         options: ["true", "false"],
@@ -125,7 +125,7 @@ module.exports = {
     },
     "EDGES_STORAGE_REALTIME_LAG_THRESHOLD_MS": {
         label: "实时数据延迟阈值 (ms)",
-        comment: "默认为: 180000, 单位为毫秒。仅在 TB_QUEUE_TYPE 不是 kafka 时生效",
+        comment: "用于判断实时数据空闲多久后回填一次历史数据，默认为: 180000, 单位为毫秒。仅在 TB_QUEUE_TYPE 不是 kafka 时生效。",
         type: "number",
         group: "离线恢复策略",
         dependsOn: {
@@ -139,7 +139,7 @@ module.exports = {
     },
     "EDGES_STORAGE_KAFKA_BACKFILL_THRESHOLD_MS": {
         label: "Kafka 回填历史间隔 (ms)",
-        comment: "默认为: 1000, 单位为毫秒。仅在 TB_QUEUE_TYPE 为 kafka 时生效",
+        comment: "用于判断 Kafka 数据空闲多久后回填一次历史数据，默认为: 1000, 单位为毫秒。仅在 TB_QUEUE_TYPE 为 kafka 时生效",
         type: "number",
         group: "离线恢复策略",
         dependsOn: {
@@ -157,7 +157,7 @@ module.exports = {
     // === 遥测分离配置 (Edge) ===
     "TELEMETRY_SEPARATION_ENABLED": {
         label: "使用启用遥测分离",
-        comment: "开启后遥测类型数据将使用独立 gRPC 通道传输",
+        comment: "开启后遥测类型数据将使用独立 gRPC 通道传输。注意： 此项超过 10w点/s 遥测数据上云时，需要开启此配置",
         type: "select",
         options: ["true", "false"],
         group: "Edge 遥测分离",
@@ -180,7 +180,7 @@ module.exports = {
 
     "TB_QUEUE_TELEMETRY_TS_KV_CLOUD_EVENT_PARTITIONS": {
         label: "遥测分离队列分区数",
-        comment: "默认为: 2, 单位为个。仅在 TB_QUEUE_TYPE 为 kafka 且 TELEMETRY_SEPARATION_ENABLED 为 true 时生效",
+        comment: "配置此项后，遥测数据将使用指定的队列分区数量上送遥测数据。默认为: 2, 单位为个。仅在 TB_QUEUE_TYPE 为 kafka 且 TELEMETRY_SEPARATION_ENABLED 为 true 时生效",
         type: "number",
         group: "Edge 遥测分离",
         dependsOn: {
@@ -212,9 +212,8 @@ module.exports = {
         group: "核心存储",
         required: true
     },
-
     "SQL_TTL_TS_EXECUTION_INTERVAL": {
-        label: "时序数据清理间隔 (ms)",
+        label: "上云事件 Cloud_Event 表清理检测间隔时间",
         comment: "默认 7200000 (2小时)",
         type: "number",
         default: 7200000,
@@ -222,7 +221,7 @@ module.exports = {
         dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
     },
     "SQL_TTL_TS_TS_KEY_VALUE_TTL": {
-        label: "时序数据保留时间 (秒)",
+        label: "上云事件 Cloud_Event 表保留时间",
         comment: "默认 0 (永久)，建议 2592000 (30天)",
         type: "number",
         default: 0,
@@ -455,25 +454,30 @@ module.exports = {
         dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
     },
     "TB_QUEUE_KAFKA_CLOUD_EVENT_MAX_POLL_RECORDS": {
-        label: "Kafka: 云事件最大拉取数",
+        label: "上云告警事件最大拉取数",
         type: "number",
         default: 100,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
     },
     "TB_QUEUE_KAFKA_CLOUD_EVENT_TS_MAX_POLL_RECORDS": {
-        label: "Kafka: 云事件时序最大拉取数",
+        label: "上云遥测事件最大拉取数",
         type: "number",
         default: 200,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
     },
     "TB_QUEUE_KAFKA_TELEMETRY_TS_KV_CLOUD_EVENT_MAX_POLL_RECORDS": {
-        label: "Kafka: 遥测云事件最大拉取数",
+        label: "开启遥测分离时，遥测分离的云事件最大拉取数",
         type: "number",
         default: 200,
         group: "消息队列",
-        dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
+        dependsOn: {
+            and: [
+                { key: "TB_QUEUE_TYPE", value: "kafka" },
+                { key: "TELEMETRY_SEPARATION_ENABLED", value: "true" }
+            ]
+        }
     },
 
     // === MQTT 传输 ===

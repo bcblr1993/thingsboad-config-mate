@@ -279,7 +279,7 @@
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
             gap: 12px;
-            align-items: start;
+            align-items: stretch;
         }
 
         @keyframes fadeInUp {
@@ -323,6 +323,29 @@
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card .form-row {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card .form-row>div:last-child {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .field-desc {
+            margin-top: auto;
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+            line-height: 1.4;
         }
 
         /* Left border accent for premium feel */
