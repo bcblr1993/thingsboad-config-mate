@@ -134,6 +134,8 @@ module.exports = {
         group: "缓存配置",
         default: 6379,
         required: true,
+        min: 1,
+        max: 65535,
         dependsOn: {
             and: [
                 { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] },
@@ -263,7 +265,9 @@ module.exports = {
         type: "number",
         group: "MQTT 传输",
         default: 1883,
-        required: true
+        required: true,
+        min: 1,
+        max: 65535
     },
     "NETTY_MAX_PAYLOAD_SIZE": {
         label: "MQTT: 最大载荷 (Bytes)",

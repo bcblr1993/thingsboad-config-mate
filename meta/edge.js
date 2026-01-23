@@ -34,23 +34,23 @@ module.exports = {
 
     // === Edge 连接配置 (基础) ===
     "CLOUD_ROUTING_KEY": {
-        label: "Edge 路由标识 (Routing Key)",
-        comment: "Edge 上云的唯一标识 (UUID),需要提前在平台创建边缘实例后获取该值",
+        label: "Edge 边缘键 (Routing Key)",
+        comment: "Edge 上云的边缘键,需要提前在平台创建边缘实例后获取该值",
         type: "text",
         group: "Edge 连接配置",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         required: true
     },
     "CLOUD_ROUTING_SECRET": {
-        label: "Edge 密钥 (Secret)",
-        comment: "Edge 上云的验证密钥,需要提前在平台创建边缘实例后获取该值",
+        label: "Edge 边缘密钥 (Secret)",
+        comment: "Edge 上云的边缘密钥,需要提前在平台创建边缘实例后获取该值",
         type: "password",
         group: "Edge 连接配置",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         required: true
     },
     "CLOUD_RPC_HOST": {
-        label: "边缘与云端通信 RPC 地址",
+        label: "Edge 边缘与云端通信 RPC 地址",
         comment: "默认为: newcloud.sprixin.com，外部私有化部署修改为私有化地址",
         type: "text",
         group: "Edge 连接配置",
@@ -316,6 +316,8 @@ module.exports = {
         group: "缓存配置",
         default: 6379,
         required: true,
+        min: 1,
+        max: 65535,
         dependsOn: {
             and: [
                 { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
@@ -487,7 +489,9 @@ module.exports = {
         type: "number",
         group: "MQTT 传输",
         default: 1883,
-        required: true
+        required: true,
+        min: 1,
+        max: 65535
     },
     "NETTY_MAX_PAYLOAD_SIZE": {
         label: "MQTT: 最大载荷 (Bytes)",
