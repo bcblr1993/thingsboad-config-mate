@@ -233,7 +233,7 @@ module.exports = {
 
     // === Cassandra 配置 ===
     "TS_KV_TTL": {
-        label: "系统数据过期时间 (TTL)",
+        label: "历史数据的存储时间",
         comment: "单位: 秒。0 表示永不过期, 仅在历史存储为 cassandra 时生效",
         type: "number",
         default: 0,
