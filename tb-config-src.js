@@ -1216,17 +1216,32 @@ function startServer() {
                 res.write('[INFO] 正在启动安装 (Start Install)...\n');
 
                 // Phase 2: Up
+                let hasInstallError = false;
+
                 activeChild = spawn(dockerComposeCmd, argsUp, { cwd: process.cwd() });
 
-                activeChild.stdout.on('data', d => res.write(d));
-                activeChild.stderr.on('data', d => res.write(d));
+                activeChild.stdout.on('data', d => {
+                    const str = d.toString();
+                    if (str.includes(' ERROR') || str.includes('ERROR ')) {
+                        hasInstallError = true;
+                    }
+                    res.write(d);
+                });
+                activeChild.stderr.on('data', d => {
+                    const str = d.toString();
+                    if (str.includes(' ERROR') || str.includes('ERROR ')) {
+                        hasInstallError = true;
+                    }
+                    res.write(d);
+                });
 
                 activeChild.on('close', (codeUp) => {
                     console.log(`[Info] Installation finished with code ${codeUp}`);
-                    if (codeUp === 0) {
-                        res.write('\n[SUCCESS] 安装初始化流程执行成功。\n');
+                    if (codeUp === 0 && !hasInstallError) {
+                        res.write('\n[SUCCESS] 安装完成。\n');
                     } else {
-                        res.write(`\n[ERROR] 安装初始化流程失败，退出代码：${codeUp}。\n`);
+                        const reason = hasInstallError ? '检测到错误日志' : `退出代码：${codeUp}`;
+                        res.write(`\n[ERROR] 安装初始化流程失败 (${reason})。\n`);
                     }
                     res.end();
                     activeChild = null;

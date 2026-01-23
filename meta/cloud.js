@@ -12,7 +12,7 @@ module.exports = {
     // === 核心存储 ===
     "DATABASE_TS_TYPE": {
         label: "历史数据存储类型",
-        comment: "选择时序数据的存储引擎 (sql 或 cassandra)",
+        comment: "选择时序数据的存储引擎 (sql 或 cassandra) 注意: sql 方式只能在 2.6w/s 点的项目使用，超过 2.6w/s 点的项目请使用 cassandra",
         type: "select",
         options: ["sql", "cassandra"],
         group: "核心存储",
@@ -20,9 +20,9 @@ module.exports = {
     },
     "DATABASE_TS_LATEST_TYPE": {
         label: "最新数据存储类型",
-        comment: "最新数据的存储引擎",
+        comment: "最新数据的存储引擎，注意: pg 方式只能在 2.6w/s 点的项目使用，redis 方式只能在 6w/s 项目使用，超过以上请使用 redis-cluster , 注意: cassandra 目前不推荐",
         type: "select",
-        options: ["sql", "cassandra", "redis"],
+        options: ["sql", "cassandra", "redis", "redis-cluster"],
         group: "核心存储",
         required: true
     },
@@ -51,23 +51,23 @@ module.exports = {
 
     // === Cassandra 配置 ===
     "TS_KV_TTL": {
-        label: "系统数据过期时间 (TTL)",
-        comment: "单位: 秒。0 表示永不过期 (仅 Cassandra)",
+        label: "历史数据的存储时间",
+        comment: "单位: 秒。0 表示永不过期 (仅在历史存储为 Cassandra 生效)",
         type: "number",
         default: 0,
         group: "Cassandra",
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
     "CASSANDRA_URL": {
-        label: "Cassandra 节点地址",
-        comment: "host:port",
+        label: "Cassandra 的节点地址",
+        comment: "如: host:port,host1:port1",
         type: "text",
         group: "Cassandra",
         required: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
     "CASSANDRA_KEYSPACE_NAME": {
-        label: "Keyspace 名称",
+        label: "如: Cassandra 中 Keyspace 名称",
         type: "text",
         group: "Cassandra",
         required: true,
@@ -111,7 +111,7 @@ module.exports = {
         group: "缓存配置",
         default: "standalone",
         required: true,
-        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] }
+        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] }
     },
 
     // === Redis Standalone 单机模式 ===
@@ -123,7 +123,7 @@ module.exports = {
         required: true,
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "standalone" }
             ]
         }
@@ -136,7 +136,7 @@ module.exports = {
         required: true,
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "standalone" }
             ]
         }
@@ -151,7 +151,7 @@ module.exports = {
         required: true,
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "cluster" }
             ]
         }
@@ -162,7 +162,7 @@ module.exports = {
         label: "Redis 密码",
         type: "password",
         group: "缓存配置",
-        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] }
+        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] }
     },
     "REDIS_DB": {
         label: "Redis 库索引",
@@ -171,7 +171,7 @@ module.exports = {
         group: "缓存配置",
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "standalone" }
             ]
         }
@@ -184,7 +184,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 100000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "TBEL_MAX_RESULT_SIZE": {
         label: "TBEL: 最大结果大小",
@@ -192,7 +194,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 300000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "TBEL_MAX_SCRIPT_BODY_SIZE": {
         label: "TBEL: 最大脚本体大小",
@@ -200,7 +204,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 50000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "JS_MAX_TOTAL_ARGS_SIZE": {
         label: "JS: 最大参数大小",
@@ -208,7 +214,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 100000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "JS_MAX_RESULT_SIZE": {
         label: "JS: 最大结果大小",
@@ -216,7 +224,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 300000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "JS_MAX_SCRIPT_BODY_SIZE": {
         label: "JS: 最大脚本体大小",
@@ -224,7 +234,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 50000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
 
     // === 消息队列 ===

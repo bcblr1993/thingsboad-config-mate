@@ -2074,7 +2074,9 @@
             } else {
                 const minAttr = meta.min !== undefined ? `min="${meta.min}"` : '';
                 const maxAttr = meta.max !== undefined ? `max="${meta.max}"` : '';
-                inputHtml = `<input type="${meta.type || 'text'}" class="field-input" value="${val}" ${minAttr} ${maxAttr} onchange="updateValue('${key}', this.value)">`;
+                inputHtml = `<input type="${meta.type || 'text'}" class="field-input" value="${val}" ${minAttr} ${maxAttr} 
+                    oninput="validateField('${key}', this)" 
+                    onchange="updateValue('${key}', this.value)">`;
             }
 
             return `
@@ -2086,10 +2088,32 @@
                     </div>
                      <div>
                         ${inputHtml}
+                        <div class="field-error" id="error-${key}" style="color: #ff4d4f; font-size: 12px; margin-top: 4px; display: none;"></div>
                         <div class="field-desc">${meta.comment || ''}</div>
                     </div>
                 </div>
             </div>`;
+        }
+
+        function validateField(key, input) {
+            const meta = configMeta[key];
+            const val = parseFloat(input.value);
+            const errorEl = document.getElementById('error-' + key);
+
+            if (!errorEl) return;
+
+            if (meta.min !== undefined && val < meta.min) {
+                errorEl.innerText = `值不能小于 ${meta.min}`;
+                errorEl.style.display = 'block';
+                input.style.borderColor = '#ff4d4f';
+            } else if (meta.max !== undefined && val > meta.max) {
+                errorEl.innerText = `值不能大于 ${meta.max}`;
+                errorEl.style.display = 'block';
+                input.style.borderColor = '#ff4d4f';
+            } else {
+                errorEl.style.display = 'none';
+                input.style.borderColor = '';
+            }
         }
 
         function updateValue(key, val) {
@@ -2386,22 +2410,39 @@
                     const val = configValues[key];
                     // Check for empty string, null, or undefined. 0 is valid for numbers.
                     if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) {
-                        errors.push(meta.label);
-                        // Highlight error
-                        const input = card.querySelector('.field-input');
-                        if (input) {
-                            input.style.borderColor = 'var(--danger)';
-                            input.style.backgroundColor = '#FFF0F0';
+                        errors.push(`${meta.label} (必填)`);
+                        highlightError(card);
+                        return; // Skip range check if empty
+                    }
+                }
 
-                            // Remove highlight on change
-                            input.addEventListener('input', function () {
-                                this.style.borderColor = '';
-                                this.style.backgroundColor = '';
-                            }, { once: true });
+                // Check min/max validation
+                if (meta.type === 'number') {
+                    const val = parseFloat(configValues[key]);
+                    if (!isNaN(val)) {
+                        if (meta.min !== undefined && val < meta.min) {
+                            errors.push(`${meta.label} (不能小于 ${meta.min})`);
+                            highlightError(card);
+                        } else if (meta.max !== undefined && val > meta.max) {
+                            errors.push(`${meta.label} (不能大于 ${meta.max})`);
+                            highlightError(card);
                         }
                     }
                 }
             });
+            return errors;
+
+            function highlightError(card) {
+                const input = card.querySelector('.field-input');
+                if (input) {
+                    input.style.borderColor = 'var(--danger)';
+                    input.style.backgroundColor = '#FFF0F0';
+                    input.addEventListener('input', function () {
+                        this.style.borderColor = '';
+                        this.style.backgroundColor = '';
+                    }, { once: true });
+                }
+            }
             return errors;
         }
 
@@ -2409,7 +2450,7 @@
             // Validation step
             const errors = validateConfig();
             if (errors.length > 0) {
-                showToast(`❌ 保存失败：以下必填项未填写：\n${errors.join(', ')}`, 'error');
+                showToast(`❌ 保存失败：配置校验未通过：\n${errors.join('\n')}`, 'error');
                 return;
             }
 

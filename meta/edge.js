@@ -198,7 +198,7 @@ module.exports = {
     // === 核心存储 ===
     "DATABASE_TS_TYPE": {
         label: "历史数据存储类型",
-        comment: "ts_kv 表历史数据存储，目前仅支持 sql 以及 cassandra 两种",
+        comment: "选择时序数据的存储引擎 (sql 或 cassandra) 注意: sql 方式只能在 2.6w/s 点的项目使用，超过 2.6w/s 点的项目请使用 cassandra",
         type: "select",
         options: ["sql", "cassandra"],
         group: "核心存储",
@@ -206,7 +206,7 @@ module.exports = {
     },
     "DATABASE_TS_LATEST_TYPE": {
         label: "最新数据存储类型",
-        comment: "ts_kv_latest 表最新数据存储，目前仅支持 sql 以及 cassandra 以及 redis 三种",
+        comment: "最新数据的存储引擎，注意: pg 方式只能在 2.6w/s 点的项目使用，redis 方式只能在 6w/s 项目使用，超过以上请使用 redis-cluster , 注意: cassandra 目前不推荐",
         type: "select",
         options: ["sql", "cassandra", "redis", "redis-cluster"],
         group: "核心存储",
@@ -367,7 +367,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 100000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "TBEL_MAX_RESULT_SIZE": {
         label: "TBEL: 最大结果大小",
@@ -375,7 +377,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 300000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "TBEL_MAX_SCRIPT_BODY_SIZE": {
         label: "TBEL: 最大脚本体大小",
@@ -383,7 +387,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 50000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "JS_MAX_TOTAL_ARGS_SIZE": {
         label: "JS: 最大参数大小",
@@ -391,7 +397,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 100000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "JS_MAX_RESULT_SIZE": {
         label: "JS: 最大结果大小",
@@ -399,7 +407,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 300000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
     "JS_MAX_SCRIPT_BODY_SIZE": {
         label: "JS: 最大脚本体大小",
@@ -407,7 +417,9 @@ module.exports = {
         type: "number",
         group: "规则引擎脚本",
         default: 50000,
-        required: true
+        required: true,
+        min: 1,
+        max: 9007199254740991
     },
 
     // === 消息队列 ===
