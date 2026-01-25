@@ -55,7 +55,8 @@ module.exports = {
         type: "text",
         group: "Edge 连接配置",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
-        default: "newcloud.sprixin.com"
+        default: "newcloud.sprixin.com",
+        required: true
     },
 
     // === 云边通信状态检查 ===
@@ -65,7 +66,8 @@ module.exports = {
         type: "readonly",
         default: "true",
         group: "云边通信状态检查",
-        dependsOn: { key: "APPTYPE", value: "EDGE" }
+        dependsOn: { key: "APPTYPE", value: "EDGE" },
+        required: true
     },
     "CLOUD_CHECK_STATUS_BASE_URL": {
         label: "云边通信状态检查 Base URL",
@@ -73,7 +75,8 @@ module.exports = {
         type: "text",
         group: "云边通信状态检查",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
-        default: "https://newcloud.sprixin.com/"
+        default: "https://newcloud.sprixin.com/",
+        required: true
     },
     "CLOUD_CHECK_STATUS_TENANT_USERNAME": {
         label: "状态检查租户账号",
@@ -81,7 +84,8 @@ module.exports = {
         type: "text",
         group: "云边通信状态检查",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
-        default: "cloud@sprixin.com"
+        default: "cloud@sprixin.com",
+        required: true
     },
     "CLOUD_CHECK_STATUS_TENANT_PASSWORD": {
         label: "状态检查租户密码",
@@ -89,7 +93,8 @@ module.exports = {
         type: "password",
         group: "云边通信状态检查",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
-        default: "eBrfmK0W5tFciz"
+        default: "eBrfmK0W5tFciz",
+        required: true
     },
     "CLOUD_CHECK_STATUS_PERIOD_MIN": {
         label: "状态检查周期 (分)",
@@ -97,13 +102,14 @@ module.exports = {
         type: "number",
         group: "云边通信状态检查",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
-        default: 10
+        default: 10,
+        required: true
     },
 
     // === 离线恢复策略调优 ===
     "EDGES_STORAGE_HISTORY_STATUS": {
-        label: "是否开启离线恢复后实时遥测数据优先功能【断点续传】",
-        comment: "开启后，网络恢复时，优先上送实时遥测数据",
+        label: "是否启用离线恢复后实时遥测数据优先功能【断点续传】",
+        comment: "启用该功能后，网络恢复时系统将采用“实时数据优先”策略：优先上送网络恢复后的最新数据，中断期间的历史数据以低优先级顺序补传。未启用该功能时，系统将按时间顺序补传中断期间的历史数据，直到数据同步至当前。注意: 未使用 kafka 时历史数据需在实时数据空闲时自动上送，使用 kafka 时根据 EDGES_STORAGE_KAFKA_BACKFILL_THRESHOLD_MS 参数指定的空闲时间上送",
         type: "select",
         options: ["true", "false"],
         group: "离线恢复策略",
@@ -111,8 +117,8 @@ module.exports = {
         default: "true"
     },
     "EDGES_STORAGE_MAX_READ_HISTORY_COUNT": {
-        label: "历史数据每次上送条数",
-        comment: "默认为: 50, 单位为条。仅在 EDGES_STORAGE_HISTORY_STATUS 为 true 时生效",
+        label: "历史数据上送条数",
+        comment: "启用离线恢复后实时遥测数据优先（断点续传）功能时，历史数据单次上送条数默认为 50 条，值越大恢复越快，但会增加内存和网络开销，过大可能影响实时数据以及系统稳定性，建议谨慎调整。最大不建议超过 1000",
         type: "number",
         group: "离线恢复策略",
         dependsOn: {
@@ -123,23 +129,10 @@ module.exports = {
         },
         default: 50
     },
-    "EDGES_STORAGE_REALTIME_LAG_THRESHOLD_MS": {
-        label: "实时数据延迟阈值 (ms)",
-        comment: "用于判断实时数据空闲多久后回填一次历史数据，默认为: 180000, 单位为毫秒。仅在 TB_QUEUE_TYPE 不是 kafka 时生效。",
-        type: "number",
-        group: "离线恢复策略",
-        dependsOn: {
-            and: [
-                { key: "APPTYPE", value: "EDGE" },
-                { key: "TB_QUEUE_TYPE", value: "in-memory" },
-                { key: "EDGES_STORAGE_HISTORY_STATUS", value: "true" }
-            ]
-        },
-        default: 180000
-    },
+
     "EDGES_STORAGE_KAFKA_BACKFILL_THRESHOLD_MS": {
-        label: "Kafka 回填历史间隔 (ms)",
-        comment: "用于判断 Kafka 数据空闲多久后回填一次历史数据，默认为: 1000, 单位为毫秒。仅在 TB_QUEUE_TYPE 为 kafka 时生效",
+        label: "历史数据上送策略",
+        comment: "仅在使用 kafka 时生效，当实时数据时间与回填时间的差值小于该阈值，表示实时数据较为繁忙，系统将暂停历史数据回填，反之触发历史数据回填。默认值为 1000 ms（1 秒）。",
         type: "number",
         group: "离线恢复策略",
         dependsOn: {
@@ -157,7 +150,7 @@ module.exports = {
     // === 遥测分离配置 (Edge) ===
     "TELEMETRY_SEPARATION_ENABLED": {
         label: "使用启用遥测分离",
-        comment: "开启后遥测类型数据将使用独立 gRPC 通道传输。注意： 此项超过 10w点/s 遥测数据上云时，需要开启此配置",
+        comment: "是否开启遥测分离该功能为面向大容量边缘数据上云场景的增强特性。启用后，遥测数据将通过独立通道进行上送，需确保云端已开放 7071 GRPC 端口。一般仅在遥测数据上云量超过 10 万点/秒 的场景下建议开启；对于常规项目或无大容量上云需求的场景，不建议启用该配置。",
         type: "select",
         options: ["true", "false"],
         group: "Edge 遥测分离",
@@ -180,7 +173,7 @@ module.exports = {
 
     "TB_QUEUE_TELEMETRY_TS_KV_CLOUD_EVENT_PARTITIONS": {
         label: "遥测分离队列分区数",
-        comment: "配置此项后，遥测数据将使用指定的队列分区数量上送遥测数据。默认为: 2, 单位为个。仅在 TB_QUEUE_TYPE 为 kafka 且 TELEMETRY_SEPARATION_ENABLED 为 true 时生效",
+        comment: "配置该参数后，遥测数据将按照指定的队列分区数量进行并行上送，默认值为 2。例如，在 10 万条/秒的数据量场景下，启用遥测分离配置并保持默认值 2 时，每个队列分区约承担 5 万条/秒的数据上送。该参数可根据现场实际负载情况进行动态调整，数值越大表示并行处理能力越强、可支持的数据量越大，但同时对服务器的 CPU、内存和网络资源要求也越高。",
         type: "number",
         group: "Edge 遥测分离",
         dependsOn: {
@@ -213,18 +206,18 @@ module.exports = {
         required: true
     },
     "SQL_TTL_TS_EXECUTION_INTERVAL": {
-        label: "上云事件 Cloud_Event 表清理检测间隔时间",
-        comment: "默认 7200000 (2小时)",
+        label: "PG 历史数据清理检测间隔时间",
+        comment: "该参数用于配置历史数据清理任务的执行周期，单位为毫秒，默认值为 7,200,000 ms（2 小时）。",
         type: "number",
         default: 7200000,
         group: "核心存储",
         dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
     },
     "SQL_TTL_TS_TS_KEY_VALUE_TTL": {
-        label: "上云事件 Cloud_Event 表保留时间",
-        comment: "默认 0 (永久)，建议 2592000 (30天)",
+        label: "PG 历史数据保留时间",
+        comment: "该参数用于配置历史数据的保留时间，单位为秒。  0 表示记录永不过期。默认值为: 259200 (3天)",
         type: "number",
-        default: 0,
+        default: 259200,
         group: "核心存储",
         dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
     },
@@ -232,8 +225,8 @@ module.exports = {
 
     // === Cassandra 配置 ===
     "TS_KV_TTL": {
-        label: "历史数据的存储时间",
-        comment: "单位: 秒。0 表示永不过期, 仅在历史存储为 cassandra 时生效",
+        label: "Cassandra 历史数据保留时间",
+        comment: "单位: 秒。0 表示永不过期",
         type: "number",
         default: 0,
         min: 0,
@@ -241,15 +234,16 @@ module.exports = {
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
     "CASSANDRA_URL": {
-        label: "Cassandra 节点地址",
-        comment: "host:port",
+        label: "Cassandra 集群节点的地址",
+        comment: "Cassandra 集群节点的地址，多个节点用逗号分隔。",
         type: "text",
         group: "Cassandra",
         required: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
     "CASSANDRA_KEYSPACE_NAME": {
-        label: "Keyspace 名称",
+        label: "Cassandra Keyspace 名称",
+        comment: "Cassandra Keyspace 名称, 默认为: thingsboard，使用其他名称请确保该名称已创建",
         type: "text",
         group: "Cassandra",
         required: true,
@@ -298,7 +292,8 @@ module.exports = {
 
     // === Redis Standalone 单机模式 ===
     "REDIS_HOST": {
-        label: "主机地址",
+        label: "Redis 主机地址",
+        comment: "Redis 主机地址",
         type: "text",
         group: "缓存配置",
         default: "127.0.0.1",
@@ -311,7 +306,8 @@ module.exports = {
         }
     },
     "REDIS_PORT": {
-        label: "端口",
+        label: "Redis 端口",
+        comment: "Redis 端口，默认值为 6379",
         type: "number",
         group: "缓存配置",
         default: 6379,
@@ -328,8 +324,8 @@ module.exports = {
 
     // === Redis Cluster 集群模式 ===
     "REDIS_NODES": {
-        label: "集群节点列表",
-        comment: "格式: host1:port1,host2:port2",
+        label: "Redis 集群节点列表",
+        comment: "Redis 集群节点列表，多个节点用逗号分隔，格式: host1:port1,host2:port2",
         type: "text",
         group: "缓存配置",
         required: true,
@@ -344,12 +340,14 @@ module.exports = {
     // === Redis 通用配置 ===
     "REDIS_PASSWORD": {
         label: "Redis 密码",
+        comment: "Redis 密码，为空则不使用密码",
         type: "password",
         group: "缓存配置",
         dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] }
     },
     "REDIS_DB": {
         label: "Redis 库索引",
+        comment: "Redis 库索引，默认为 0，范围为 0-15",
         type: "number",
         default: 0,
         group: "缓存配置",
@@ -426,6 +424,7 @@ module.exports = {
     // === 消息队列 ===
     "TB_QUEUE_TYPE": {
         label: "队列类型 (Queue Type)",
+        comment: "队列类型，in-memory 为内存队列，使用 in-memory 内存队列上云事件表使用 PG 进行存储，使用 kafka 为 Kafka 队列，使用 kafka 队列主题进行存储",
         type: "select",
         options: ["kafka", "in-memory"],
         group: "消息队列",
@@ -434,7 +433,7 @@ module.exports = {
     },
     "TB_KAFKA_SERVERS": {
         label: "Kafka 服务器地址",
-        comment: "host1:port1,host2:port2",
+        comment: "Kafka 服务器地址，多个地址用逗号分隔，格式: host1:port1,host2:port2",
         type: "text",
         group: "消息队列",
         required: true,
@@ -442,35 +441,40 @@ module.exports = {
     },
 
     "SQL_TTL_CLOUD_EVENTS_EXECUTION_INTERVAL": {
-        label: "云事件清理间隔 (ms)",
+        label: "PG 上云事件表清理检测间隔时间",
+        comment: "PG 上云事件表清理检测间隔时间，单位为毫秒。默认值为 7200000 毫秒，(2 小时)。注意: 仅在 TB_QUEUE_TYPE 为 in-memory 时生效",
         type: "number",
         default: 7200000,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
     },
     "SQL_TTL_CLOUD_EVENTS_TTL": {
-        label: "云事件保留时间 (秒)",
+        label: " PG 上云事件表保留时间",
+        comment: "PG 上云事件表保留时间，单位为秒。默认值为 259200 秒，(3 天)。注意: 仅在 TB_QUEUE_TYPE 为 in-memory 时生效",
         type: "number",
         default: 259200,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
     },
     "TB_QUEUE_KAFKA_CLOUD_EVENT_MAX_POLL_RECORDS": {
-        label: "上云告警事件最大拉取数",
+        label: "上云通用事件(Cloud_Event)最大拉取数",
+        comment: "上云通用事件(Cloud_Event)最大拉取数，单位为条。默认值为 100。注意: 仅在 TB_QUEUE_TYPE 为 kafka 时生效",
         type: "number",
         default: 100,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
     },
     "TB_QUEUE_KAFKA_CLOUD_EVENT_TS_MAX_POLL_RECORDS": {
-        label: "上云遥测事件最大拉取数",
+        label: "上云遥测事件(TS_KV_Cloud_Event)最大拉取数",
+        comment: "上云遥测事件(TS_KV_Cloud_Event)最大拉取数，单位为条。默认值为 200。注意: 仅在 TB_QUEUE_TYPE 为 kafka 时生效",
         type: "number",
         default: 200,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
     },
     "TB_QUEUE_KAFKA_TELEMETRY_TS_KV_CLOUD_EVENT_MAX_POLL_RECORDS": {
-        label: "开启遥测分离时，遥测分离的云事件最大拉取数",
+        label: "开启遥测分离时，遥测分离的上云事件最大拉取数",
+        comment: "开启遥测分离时，遥测分离上云事件(Telemetry_Ts_Kv_Cloud_Event)最大拉取数，单位为条。默认值为 200。注意: 仅在 TB_QUEUE_TYPE 为 kafka 时生效",
         type: "number",
         default: 200,
         group: "消息队列",
