@@ -224,15 +224,7 @@ module.exports = {
 
 
     // === Cassandra 配置 ===
-    "TS_KV_TTL": {
-        label: "Cassandra 历史数据保留时间",
-        comment: "单位: 秒。0 表示永不过期",
-        type: "number",
-        default: 0,
-        min: 0,
-        group: "Cassandra",
-        dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
-    },
+
     "CASSANDRA_URL": {
         label: "Cassandra 集群节点的地址",
         comment: "Cassandra 集群节点的地址，多个节点用逗号分隔。",
@@ -270,6 +262,15 @@ module.exports = {
         group: "Cassandra",
         hidden: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
+    },
+    "TS_KV_TTL": {
+        label: "Cassandra 历史数据保留时间",
+        comment: "单位: 秒。0 表示永不过期",
+        type: "number",
+        default: 0,
+        min: 0,
+        group: "Cassandra",
+        dependsOn: { key: ["DATABASE_TS_TYPE"], value: "cassandra" }
     },
 
     // === 缓存 (Redis) ===

@@ -26,6 +26,22 @@ module.exports = {
         group: "核心存储",
         required: true
     },
+    "SQL_TTL_TS_EXECUTION_INTERVAL": {
+        label: "PG 历史数据清理检测间隔时间",
+        comment: "该参数用于配置历史数据清理任务的执行周期，单位为毫秒，默认值为 86400000 ms（1天）。",
+        type: "number",
+        default: 86400000,
+        group: "核心存储",
+        dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
+    },
+    "SQL_TTL_TS_TS_KEY_VALUE_TTL": {
+        label: "PG 历史数据保留时间",
+        comment: "该参数用于配置历史数据的保留时间，单位为秒。0 表示记录永不过期。默认值为: 0",
+        type: "number",
+        default: 0,
+        group: "核心存储",
+        dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
+    },
 
 
     // === PostgreSQL 配置 ===
@@ -50,24 +66,18 @@ module.exports = {
     },
 
     // === Cassandra 配置 ===
-    "TS_KV_TTL": {
-        label: "历史数据的存储时间",
-        comment: "单位: 秒。0 表示永不过期 (仅在历史存储为 Cassandra 生效)",
-        type: "number",
-        default: 0,
-        group: "Cassandra",
-        dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
-    },
+
     "CASSANDRA_URL": {
-        label: "Cassandra 的节点地址",
-        comment: "如: host:port,host1:port1",
+        label: "Cassandra 集群节点的地址",
+        comment: "Cassandra 集群节点的地址，多个节点用逗号分隔。",
         type: "text",
         group: "Cassandra",
         required: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
     "CASSANDRA_KEYSPACE_NAME": {
-        label: "如: Cassandra 中 Keyspace 名称",
+        label: "Cassandra Keyspace 名称",
+        comment: "Cassandra Keyspace 名称, 默认为: thingsboard，使用其他名称请确保该名称已创建",
         type: "text",
         group: "Cassandra",
         required: true,
@@ -95,6 +105,15 @@ module.exports = {
         hidden: true,
         dependsOn: { key: ["DATABASE_TS_TYPE", "DATABASE_TS_LATEST_TYPE"], value: "cassandra" }
     },
+    "TS_KV_TTL": {
+        label: "Cassandra 历史数据保留时间",
+        comment: "单位: 秒。0 表示永不过期",
+        type: "number",
+        default: 0,
+        min: 0,
+        group: "Cassandra",
+        dependsOn: { key: ["DATABASE_TS_TYPE"], value: "cassandra" }
+    },
 
     // === 缓存 (Redis) ===
     "CACHE_TYPE": {
@@ -111,25 +130,27 @@ module.exports = {
         group: "缓存配置",
         default: "standalone",
         required: true,
-        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] }
+        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] }
     },
 
     // === Redis Standalone 单机模式 ===
     "REDIS_HOST": {
-        label: "主机地址",
+        label: "Redis 主机地址",
+        comment: "Redis 主机地址",
         type: "text",
         group: "缓存配置",
         default: "127.0.0.1",
         required: true,
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "standalone" }
             ]
         }
     },
     "REDIS_PORT": {
-        label: "端口",
+        label: "Redis 端口",
+        comment: "Redis 端口，默认值为 6379",
         type: "number",
         group: "缓存配置",
         default: 6379,
@@ -138,7 +159,7 @@ module.exports = {
         max: 65535,
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "standalone" }
             ]
         }
@@ -146,14 +167,14 @@ module.exports = {
 
     // === Redis Cluster 集群模式 ===
     "REDIS_NODES": {
-        label: "集群节点列表",
-        comment: "格式: host1:port1,host2:port2",
+        label: "Redis 集群节点列表",
+        comment: "Redis 集群节点列表，多个节点用逗号分隔，格式: host1:port1,host2:port2",
         type: "text",
         group: "缓存配置",
         required: true,
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "cluster" }
             ]
         }
@@ -162,18 +183,20 @@ module.exports = {
     // === Redis 通用配置 ===
     "REDIS_PASSWORD": {
         label: "Redis 密码",
+        comment: "Redis 密码，为空则不使用密码",
         type: "password",
         group: "缓存配置",
-        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] }
+        dependsOn: { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] }
     },
     "REDIS_DB": {
         label: "Redis 库索引",
+        comment: "Redis 库索引，默认为 0，范围为 0-15",
         type: "number",
         default: 0,
         group: "缓存配置",
         dependsOn: {
             and: [
-                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: ["redis", "redis-cluster"] }] },
+                { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
                 { key: "REDIS_CONNECTION_TYPE", value: "standalone" }
             ]
         }
