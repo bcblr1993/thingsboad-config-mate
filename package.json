@@ -1,6 +1,6 @@
 {
     "name": "tb-config-mate",
-    "version": "1.4.10",
+    "version": "1.4.11",
     "main": "tb-config-src.js",
     "bin": "tb-config-src.js",
     "pkg": {
