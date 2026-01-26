@@ -258,7 +258,8 @@
         /* Source Mode */
         .source-editor {
             width: 100%;
-            height: 100%;
+            flex: 1;
+            /* Use flex to fill available vertical space */
             padding: 20px;
             border: none;
             outline: none;
@@ -299,7 +300,6 @@
         .search-input:focus {
             border-color: var(--primary);
             background: #fff;
-            width: 240px;
             box-shadow: 0 0 0 3px rgba(42, 125, 236, 0.1);
         }
 
@@ -1854,12 +1854,13 @@
                 <div class="header-right">
                     <button class="btn-header" onclick="checkRuntimeSync()" title="检查运行配置同步状态"
                         style="margin-right: 8px;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" style="vertical-align: text-bottom; margin-right: 4px;">
                             <path d="M23 4v6h-6"></path>
                             <path d="M1 20v-6h6"></path>
                             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                         </svg>
+                        运行检查
                     </button>
                     <div class="header-controls">
                         <div class="search-box">
@@ -1892,49 +1893,49 @@
                             实时日志
                         </button>
                     </div>
-                </div>
-                <div class="status-group">
-                    <div id="header-app-type"></div>
-                    <div class="status-badge"><span class="status-dot"></span>Running</div>
+                    <div class="status-group">
+                        <div id="header-app-type"></div>
+                        <div class="status-badge"><span class="status-dot"></span>Running</div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    <div class="content" id="form-container"></div>
-    <textarea id="source-editor" class="source-editor" spellcheck="false"></textarea>
-    <div class="action-bar">
-        <!-- Left side controls -->
-        <div style="display:flex; gap:10px;">
-            <button id="btn-stop" class="btn" style="background:#D63031; color:white; border:none;"
-                onclick="stopService(event)">停止服务</button>
-            <button id="btn-restart-only" class="btn" style="background:#FDCB6E; color:#333; border:none;"
-                onclick="restartServiceOnly(event)">重启服务</button>
+        <div class="content" id="form-container"></div>
+        <textarea id="source-editor" class="source-editor" spellcheck="false"></textarea>
+        <div class="action-bar">
+            <!-- Left side controls -->
+            <div style="display:flex; gap:10px;">
+                <button id="btn-stop" class="btn" style="background:#D63031; color:white; border:none;"
+                    onclick="stopService(event)">停止服务</button>
+                <button id="btn-restart-only" class="btn" style="background:#FDCB6E; color:#333; border:none;"
+                    onclick="restartServiceOnly(event)">重启服务</button>
+            </div>
+
+            <!-- Right side controls -->
+            <div style="display:flex; gap:10px;">
+                <button id="btn-install-init" class="btn-install-init" onclick="checkInstallAndConfirm()">初始化安装</button>
+                <button id="btn-edit" class="btn" style="background:var(--primary); color:white; border:none;"
+                    onclick="setEditMode(true)">开启编辑</button>
+                <button id="btn-cancel-edit" class="btn"
+                    style="background:#636E72; color:white; border:none; display:none;"
+                    onclick="cancelEdit()">取消修改</button>
+
+
+
+                <button id="btn-save-only" class="btn btn-primary" style="display:none;"
+                    onclick="saveConfig()">仅保存配置</button>
+            </div>
         </div>
 
-        <!-- Right side controls -->
-        <div style="display:flex; gap:10px;">
-            <button id="btn-install-init" class="btn-install-init" onclick="checkInstallAndConfirm()">初始化安装</button>
-            <button id="btn-edit" class="btn" style="background:var(--primary); color:white; border:none;"
-                onclick="setEditMode(true)">开启编辑</button>
-            <button id="btn-cancel-edit" class="btn" style="background:#636E72; color:white; border:none; display:none;"
-                onclick="cancelEdit()">取消修改</button>
-
-
-
-            <button id="btn-save-only" class="btn btn-primary" style="display:none;"
-                onclick="saveConfig()">仅保存配置</button>
+        <div id="docker-compose-missing-alert" class="alert-banner">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            当前目录未检测到 <code>docker-compose.yml</code> 文件，无法执行启动、停止或日志等操作。
         </div>
-    </div>
-
-    <div id="docker-compose-missing-alert" class="alert-banner">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-        </svg>
-        当前目录未检测到 <code>docker-compose.yml</code> 文件，无法执行启动、停止或日志等操作。
-    </div>
     </div>
 
     <!-- History Modal -->
@@ -3473,7 +3474,7 @@
             console.log("Modal active class added, display set to flex");
 
             loadingDiv.style.display = 'none';
-            resultDiv.style.display = 'block';
+            resultDiv.style.display = 'flex';
             tbody.innerHTML = '';
 
             const diffs = data.diffs || [];
@@ -3534,7 +3535,7 @@
             setTimeout(() => {
                 modal.style.display = 'none';
                 document.getElementById('runtime-diff-result').style.display = 'none';
-                document.getElementById('runtime-diff-loading').style.display = 'block';
+                document.getElementById('runtime-diff-loading').style.display = 'flex';
             }, 200);
         }
 

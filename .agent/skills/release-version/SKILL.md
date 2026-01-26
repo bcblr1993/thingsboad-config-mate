@@ -26,21 +26,51 @@ description: 发布新版本 - 确保 package.json 版本号与 Git Tag 一致
 ```bash
 # 获取上一版本标签
 PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo $(git rev-list --max-parents=0 HEAD))
-echo "Changes since $PREV_TAG:"
+
+# 定义临时文件
+CHANGELOG_TMP=$(mktemp)
+
+# 生成版本标题和日期
+echo "## [$VERSION] - $(date +%Y-%m-%d)" > $CHANGELOG_TMP
+echo "" >> $CHANGELOG_TMP
 
 # 提取并分类提交信息
-echo "\n### ✨ 新增 (New)"
-git log ${PREV_TAG}..HEAD --grep="^feat" --pretty=format:"- %s (%h)"
+echo "### ✨ 新增 (New)" >> $CHANGELOG_TMP
+git log ${PREV_TAG}..HEAD --grep="^feat" --pretty=format:"- %s (%h)" >> $CHANGELOG_TMP
+echo "" >> $CHANGELOG_TMP
+echo "" >> $CHANGELOG_TMP
 
-echo "\n\n### 🐛 修复 (Fixed)"
-git log ${PREV_TAG}..HEAD --grep="^fix" --pretty=format:"- %s (%h)"
+echo "### 🐛 修复 (Fixed)" >> $CHANGELOG_TMP
+git log ${PREV_TAG}..HEAD --grep="^fix" --pretty=format:"- %s (%h)" >> $CHANGELOG_TMP
+echo "" >> $CHANGELOG_TMP
+echo "" >> $CHANGELOG_TMP
 
-echo "\n\n### 🔄 更新 (Updated)"
-git log ${PREV_TAG}..HEAD --grep="^chore\|^refactor\|^style\|^perf" --pretty=format:"- %s (%h)"
-echo "\n"
+echo "### 🔄 更新 (Updated)" >> $CHANGELOG_TMP
+git log ${PREV_TAG}..HEAD --grep="^chore\|^refactor\|^style\|^perf" --pretty=format:"- %s (%h)" >> $CHANGELOG_TMP
+echo "" >> $CHANGELOG_TMP
+echo "" >> $CHANGELOG_TMP
+
+# 读取现有 CHANGELOG 内容（跳过标题行，如果不需要保留顶部说明可直接拼接）
+# 这里假设 CHANGELOG.md 存在，我们将新内容插入到所有版本记录之前
+# 为了简单，我们将新内容 + 旧内容 写入临时文件，然后覆盖
+
+if [ -f "CHANGELOG.md" ]; then
+    # 保留文件头 (前6行通常是标题和说明)，然后插入新内容?
+    # 简单策略：直接拼接
+    cat CHANGELOG.md >> $CHANGELOG_TMP
+else
+    echo "# Changelog\n\n" > "CHANGELOG.md" 
+    cat CHANGELOG.md >> $CHANGELOG_TMP
+fi
+
+# 覆盖原文件
+mv $CHANGELOG_TMP CHANGELOG.md
+
+echo "✅ CHANGELOG.md has been updated."
+cat CHANGELOG.md | head -n 20
 ```
 
-> 复制上述输出内容，用于 Git Tag 注释或 Release 说明。
+> 请检查生成的 `CHANGELOG.md` 内容是否正确。
 
 ### 3. 更新 package.json
 
@@ -62,8 +92,9 @@ node tb-config-src.js -v
 ### 4. 提交版本更新
 
 ```bash
-git add package.json
-git commit -m "chore: 更新版本号至 vX.Y.Z"
+```bash
+git add package.json CHANGELOG.md
+git commit -m "chore: 发布版本 vX.Y.Z 并更新变更日志"
 git push origin main
 ```
 
