@@ -19,7 +19,30 @@ description: 发布新版本 - 确保 package.json 版本号与 Git Tag 一致
 
 询问用户目标版本号，格式为 `X.Y.Z`，例如 `1.4.8`
 
-### 2. 更新 package.json
+### 2. 生成变更日志 (Changelog)
+
+运行以下命令获取自上个版本以来的变更摘要：
+
+```bash
+# 获取上一版本标签
+PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo $(git rev-list --max-parents=0 HEAD))
+echo "Changes since $PREV_TAG:"
+
+# 提取并分类提交信息
+echo "\n### ✨ 新增 (New)"
+git log ${PREV_TAG}..HEAD --grep="^feat" --pretty=format:"- %s (%h)"
+
+echo "\n\n### 🐛 修复 (Fixed)"
+git log ${PREV_TAG}..HEAD --grep="^fix" --pretty=format:"- %s (%h)"
+
+echo "\n\n### 🔄 更新 (Updated)"
+git log ${PREV_TAG}..HEAD --grep="^chore\|^refactor\|^style\|^perf" --pretty=format:"- %s (%h)"
+echo "\n"
+```
+
+> 复制上述输出内容，用于 Git Tag 注释或 Release 说明。
+
+### 3. 更新 package.json
 
 ```bash
 # 修改 package.json 中的 version 字段

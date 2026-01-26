@@ -139,7 +139,102 @@
         .header-controls {
             display: flex;
             gap: 10px;
-            margin-right: 20px;
+            margin-right: 10px;
+            /* Reduced margin */
+            flex-wrap: wrap;
+            /* Allow controls to wrap */
+        }
+
+        .status-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Mobile specific adjustments (Stacked Layout) */
+        @media (max-width: 768px) {
+            .header-inner {
+                flex-direction: column;
+                align-items: flex-start;
+                height: auto;
+                padding: 15px;
+                gap: 12px;
+            }
+
+            .header-title {
+                width: 100%;
+                justify-content: space-between;
+                /* If sync button is inside, push it right? */
+                margin-bottom: 5px;
+            }
+
+            .header-right {
+                width: 100%;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+                margin: 0;
+            }
+
+            .header-controls {
+                width: 100%;
+                justify-content: flex-start;
+                flex-direction: column;
+                /* Force vertical stack */
+                margin: 0;
+                gap: 8px;
+            }
+
+            .header-controls .btn-header {
+                width: 100%;
+                /* Full width buttons */
+                text-align: center;
+                justify-content: center;
+                display: flex;
+                /* Ensure center alignment for icons */
+                align-items: center;
+            }
+
+            .header-controls .search-box {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+
+            .search-box {
+                width: 100%;
+                /* Full width search */
+            }
+
+            .search-input:focus {
+                width: 100%;
+                /* Keep full width */
+            }
+
+            .status-group {
+                width: 100%;
+                flex-direction: column;
+                /* Stack badges vertically */
+                align-items: center;
+                /* Center align */
+                gap: 8px;
+                margin-top: 5px;
+                border-top: 1px dashed rgba(0, 0, 0, 0.05);
+                padding-top: 8px;
+            }
+
+            .status-group>div,
+            .status-group .badge-cloud,
+            .status-group .badge-edge {
+                margin-right: 0 !important;
+                /* Remove spacing margin */
+                width: 100%;
+                /* Full width */
+                display: flex;
+                justify-content: center;
+                /* Center text */
+                text-align: center;
+                box-sizing: border-box;
+            }
         }
 
         .btn-header {
@@ -238,6 +333,50 @@
             align-items: center;
             gap: 6px;
             border: 1px solid #B2F5EA;
+            white-space: nowrap;
+            /* Prevent text wrapping */
+            flex-shrink: 0;
+            /* Prevent squashing */
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .header-inner {
+                padding: 10px 15px;
+                gap: 8px;
+            }
+
+            .header-title {
+                font-size: 16px;
+            }
+
+            .logo-icon {
+                width: 24px;
+                height: 24px;
+            }
+
+            .version-badge {
+                display: none;
+                /* Hide version on small screens if needed, or keep small */
+            }
+
+            .search-box {
+                width: 140px;
+                /* Smaller search box */
+            }
+
+            .search-input:focus {
+                width: 180px;
+            }
+
+            /* Stack controls if very small */
+            .header-controls {
+                margin-right: 5px;
+            }
+
+            .btn-header {
+                padding: 5px 8px;
+            }
         }
 
         .container {
@@ -552,6 +691,10 @@
             font-weight: 600;
             border: 1px solid #BBDEFB;
             margin-right: 10px;
+            white-space: nowrap;
+            /* Prevent text wrapping */
+            flex-shrink: 0;
+            /* Prevent squashing */
         }
 
         .badge-edge {
@@ -563,6 +706,10 @@
             font-weight: 600;
             border: 1px solid #FFE0B2;
             margin-right: 10px;
+            white-space: nowrap;
+            /* Prevent text wrapping */
+            flex-shrink: 0;
+            /* Prevent squashing */
         }
 
         @keyframes pulse {
@@ -1140,11 +1287,13 @@
         /* .modal, .modal-lg, .modal-content overrides removed */
 
         #confirm-modal {
-            z-index: 10001; /* Ensure confirm modal is on top of diff modal (9999) */
+            z-index: 10001;
+            /* Ensure confirm modal is on top of diff modal (9999) */
         }
 
         #btn-restart-from-diff {
-            background-color: #e6a23c; /* Special warning color */
+            background-color: #e6a23c;
+            /* Special warning color */
             border-color: #e6a23c;
             color: white;
             font-weight: 600;
@@ -1743,47 +1892,49 @@
                             实时日志
                         </button>
                     </div>
+                </div>
+                <div class="status-group">
                     <div id="header-app-type"></div>
                     <div class="status-badge"><span class="status-dot"></span>Running</div>
                 </div>
             </div>
         </div>
-        <div class="content" id="form-container"></div>
-        <textarea id="source-editor" class="source-editor" spellcheck="false"></textarea>
-        <div class="action-bar">
-            <!-- Left side controls -->
-            <div style="display:flex; gap:10px;">
-                <button id="btn-stop" class="btn" style="background:#D63031; color:white; border:none;"
-                    onclick="stopService(event)">停止服务</button>
-                <button id="btn-restart-only" class="btn" style="background:#FDCB6E; color:#333; border:none;"
-                    onclick="restartServiceOnly(event)">重启服务</button>
-            </div>
-
-            <!-- Right side controls -->
-            <div style="display:flex; gap:10px;">
-                <button id="btn-install-init" class="btn-install-init" onclick="checkInstallAndConfirm()">初始化安装</button>
-                <button id="btn-edit" class="btn" style="background:var(--primary); color:white; border:none;"
-                    onclick="setEditMode(true)">开启编辑</button>
-                <button id="btn-cancel-edit" class="btn"
-                    style="background:#636E72; color:white; border:none; display:none;"
-                    onclick="cancelEdit()">取消修改</button>
-
-
-
-                <button id="btn-save-only" class="btn btn-primary" style="display:none;"
-                    onclick="saveConfig()">仅保存配置</button>
-            </div>
+    </div>
+    <div class="content" id="form-container"></div>
+    <textarea id="source-editor" class="source-editor" spellcheck="false"></textarea>
+    <div class="action-bar">
+        <!-- Left side controls -->
+        <div style="display:flex; gap:10px;">
+            <button id="btn-stop" class="btn" style="background:#D63031; color:white; border:none;"
+                onclick="stopService(event)">停止服务</button>
+            <button id="btn-restart-only" class="btn" style="background:#FDCB6E; color:#333; border:none;"
+                onclick="restartServiceOnly(event)">重启服务</button>
         </div>
 
-        <div id="docker-compose-missing-alert" class="alert-banner">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-            </svg>
-            当前目录未检测到 <code>docker-compose.yml</code> 文件，无法执行启动、停止或日志等操作。
+        <!-- Right side controls -->
+        <div style="display:flex; gap:10px;">
+            <button id="btn-install-init" class="btn-install-init" onclick="checkInstallAndConfirm()">初始化安装</button>
+            <button id="btn-edit" class="btn" style="background:var(--primary); color:white; border:none;"
+                onclick="setEditMode(true)">开启编辑</button>
+            <button id="btn-cancel-edit" class="btn" style="background:#636E72; color:white; border:none; display:none;"
+                onclick="cancelEdit()">取消修改</button>
+
+
+
+            <button id="btn-save-only" class="btn btn-primary" style="display:none;"
+                onclick="saveConfig()">仅保存配置</button>
         </div>
+    </div>
+
+    <div id="docker-compose-missing-alert" class="alert-banner">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        当前目录未检测到 <code>docker-compose.yml</code> 文件，无法执行启动、停止或日志等操作。
+    </div>
     </div>
 
     <!-- History Modal -->
@@ -2093,7 +2244,7 @@
         function renderField(key) {
             const meta = configMeta[key];
             const val = configValues[key] || '';
-            const reqClass = meta.required ? 'required' : '';
+            const reqClass = 'required'; // Force all fields to be visually required per user request
 
             let inputHtml = '';
             if (meta.type === 'select') {
@@ -2140,6 +2291,14 @@
             const errorEl = document.getElementById('error-' + key);
 
             if (!errorEl) return;
+
+            // Check for empty
+            if (val === undefined || val === null || (typeof input.value === 'string' && input.value.trim() === '')) {
+                errorEl.innerText = `${meta.label} 不能为空`;
+                errorEl.style.display = 'block';
+                input.style.borderColor = '#ff4d4f';
+                return;
+            }
 
             if (meta.min !== undefined && val < meta.min) {
                 errorEl.innerText = `值不能小于 ${meta.min}`;
@@ -2445,14 +2604,13 @@
                 // Skip if card doesn't exist or is hidden by dependency/search
                 if (!card || card.classList.contains('hidden') || card.classList.contains('filtered-out')) return;
 
-                if (meta.required) {
-                    const val = configValues[key];
-                    // Check for empty string, null, or undefined. 0 is valid for numbers.
-                    if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) {
-                        errors.push(`${meta.label} (必填)`);
-                        highlightError(card);
-                        return; // Skip range check if empty
-                    }
+                // Enforce required for all visible fields
+                // Check for empty string, null, or undefined. 0 is valid for numbers.
+                const val = configValues[key];
+                if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) {
+                    errors.push(`${meta.label} (必填)`);
+                    highlightError(card);
+                    return; // Skip range check if empty
                 }
 
                 // Check min/max validation
@@ -2873,9 +3031,15 @@
         }
 
         async function restartServiceOnly(event) {
-            if (!await customConfirm('确定要重启服务吗？重启将重新加载最新的配置。', '重启服务', '#FDCB6E')) return;
-
             const btn = event.target;
+            const isStart = btn.innerText.includes('启动');
+            const msg = isStart ? '确定要启动服务吗？' : '确定要重启服务吗？重启将重新加载最新的配置。';
+            const title = isStart ? '启动服务' : '重启服务';
+            const color = isStart ? '#2ecc71' : '#FDCB6E'; // Green for Start, Orange for Restart
+
+            if (!await customConfirm(msg, title, color)) return;
+
+
             const originalText = btn.innerText;
             btn.innerText = '重启中...';
             btn.disabled = true;

@@ -11,8 +11,12 @@ const command = args[0] && !args[0].startsWith('--') ? args[0] : null;
 // --- Config ---
 const portArg = args.find(arg => arg.startsWith('--port='));
 const PORT = portArg ? parseInt(portArg.split('=')[1]) : (process.env.PORT || 3300);
-const PID_FILE = path.join(process.cwd(), `tb-config-mate-${PORT}.pid`);
-const LOG_FILE = path.join(process.cwd(), `tb-config-mate-${PORT}.log`);
+const RUNTIME_DIR = path.join(process.cwd(), '.config-mate');
+if (!fs.existsSync(RUNTIME_DIR)) {
+    try { fs.mkdirSync(RUNTIME_DIR, { recursive: true }); } catch (e) { }
+}
+const PID_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.pid`);
+const LOG_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.log`);
 const HISTORY_DIR = path.join(process.cwd(), '.env_history');
 
 // --- Helper: Check Status ---
@@ -25,6 +29,93 @@ function getRunningPid(pidPath = PID_FILE) {
     } catch (e) {
         return null; // Stale PID file or process not running
     }
+}
+
+// --- Log Rotation (Daemon Mode) ---
+function setupLogger() {
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_FILES = 5;
+
+    // Helper: Rotate files .log -> .log.1 -> .log.2 ...
+    function rotate() {
+        try {
+            if (fs.existsSync(LOG_FILE)) {
+                try {
+                    const stats = fs.statSync(LOG_FILE);
+                    if (stats.size < MAX_SIZE) return;
+                } catch (e) { return; } // File might be gone
+            } else {
+                return;
+            }
+
+            // Rotate existing backups
+            for (let i = MAX_FILES - 1; i >= 1; i--) {
+                const oldF = `${LOG_FILE}.${i}`;
+                const newF = `${LOG_FILE}.${i + 1}`;
+                if (fs.existsSync(oldF)) {
+                    try { fs.renameSync(oldF, newF); } catch (e) { }
+                }
+            }
+            // Rotate current
+            try { fs.renameSync(LOG_FILE, `${LOG_FILE}.1`); } catch (e) { }
+
+        } catch (e) {
+            // Last resort fallback
+        }
+    }
+
+    let logStream = null;
+
+    function openStream() {
+        // Check rotation before opening
+        rotate();
+        logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
+
+        // Handle stream errors
+        logStream.on('error', (err) => {
+            // If stream fails, we can't do much in background, maybe try reopen?
+        });
+    }
+
+    openStream();
+
+    function writeLog(args, level = 'INFO') {
+        const msg = args.map(a => (typeof a === 'string' ? a : (a instanceof Error ? a.stack : JSON.stringify(a)))).join(' ');
+        const ts = new Date().toISOString();
+        const line = `[${ts}] [${level}] ${msg}\n`;
+
+        if (logStream) {
+            // Check size periodically or on write?
+            // fs.statSync is expensive per log?
+            // Use bytesWritten relative?
+            // Simplest robust way: check bytesWritten + periodic stat?
+            // Let's rely on internal counter and occasional stat?
+            // Or just check fs.statSync? For a config tool, logs aren't high frequency.
+            // But let's be safe. Check bytesWritten.
+            if (logStream.bytesWritten > MAX_SIZE) {
+                logStream.end();
+                openStream();
+            }
+            logStream.write(line);
+        }
+    }
+
+    // Override console
+    console.log = (...args) => writeLog(args, 'INFO');
+    console.error = (...args) => writeLog(args, 'ERROR');
+    console.warn = (...args) => writeLog(args, 'WARN');
+    console.debug = (...args) => writeLog(args, 'DEBUG');
+
+    // Also catch unhandled exceptions to log file
+    process.on('uncaughtException', (err) => {
+        writeLog([err], 'FATAL');
+        process.exit(1);
+    });
+}
+
+// Enable rotation if running as daemon
+if (args.includes('--daemon')) {
+    setupLogger();
 }
 
 // --- CLI Commands ---
@@ -76,7 +167,7 @@ if (command === 'status') {
         }
     } else {
         // Scan all pid files
-        const files = fs.readdirSync(process.cwd()).filter(f => f.startsWith('tb-config-mate-') && f.endsWith('.pid'));
+        const files = fs.readdirSync(RUNTIME_DIR).filter(f => f.startsWith('tb-config-mate-') && f.endsWith('.pid'));
         if (files.length === 0) {
             console.log('[Status] No running instances found.');
         } else {
@@ -84,7 +175,7 @@ if (command === 'status') {
             files.forEach(f => {
                 const portMatch = f.match(/tb-config-mate-(\d+)\.pid/);
                 const p = portMatch ? portMatch[1] : 'Unknown';
-                const pid = getRunningPid(path.join(process.cwd(), f));
+                const pid = getRunningPid(path.join(RUNTIME_DIR, f));
                 if (pid) {
                     console.log(`  - Port ${p}: RUNNING (PID: ${pid})`);
                 } else {
@@ -141,11 +232,11 @@ if (command === 'start' || command === 'restart') {
     // In 'pkg', __filename resolves to the internal snapshot path (e.g. /snapshot/.../tb-config-src.js).
     // This allows the child process (which is the same binary) to know what script to execute,
     // avoiding both "missing argv[1]" errors and "invalid module" errors.
-    let spawnArgs = [__filename, ...childArgs];
+    let spawnArgs = [__filename, ...childArgs, '--daemon'];
 
     const child = spawn(spawnCmd, spawnArgs, {
         detached: true,
-        stdio: ['ignore', logFd, logFd],
+        stdio: 'ignore', // Let the child manage its own logging via --daemon
         cwd: process.cwd(),
         env: process.env
     });
@@ -296,16 +387,7 @@ if (args.includes('--over')) {
     // Regular Server Startup continue...
 }
 
-try {
-    fs.writeFileSync(PID_FILE, process.pid.toString());
 
-    const cleanup = () => { if (fs.existsSync(PID_FILE)) try { fs.unlinkSync(PID_FILE); } catch (e) { } };
-    process.on('exit', cleanup);
-    process.on('SIGINT', () => { cleanup(); process.exit(); });
-    process.on('SIGTERM', () => { cleanup(); process.exit(); });
-} catch (e) {
-    console.warn('[Warn] Failed to write PID:', e);
-}
 
 const ENV_FILE_PATH = path.join(process.cwd(), '.env');
 
@@ -1336,20 +1418,30 @@ function startServer() {
             // Handle process exit
             child.on('close', (code) => {
                 console.log(`[Info] Logs process exited with code ${code}`);
-                res.write(`data: ${JSON.stringify({ type: 'close', code })}\n\n`);
-                res.end();
+                clearInterval(heartbeat);
+                if (res.writable) {
+                    res.write(`data: ${JSON.stringify({ type: 'close', code })}\n\n`);
+                    res.end();
+                }
             });
 
             child.on('error', (err) => {
                 console.error('[Error] Failed to spawn logs process:', err.message);
-                res.write(`data: ${JSON.stringify({ type: 'error', message: `[错误] ${err.message}` })}\n\n`);
-                res.write(`data: ${JSON.stringify({ type: 'close', code: -1 })}\n\n`);
-                res.end();
+                clearInterval(heartbeat);
+                if (res.writable) {
+                    res.write(`data: ${JSON.stringify({ type: 'error', message: `[错误] ${err.message}` })}\n\n`);
+                    res.write(`data: ${JSON.stringify({ type: 'close', code: -1 })}\n\n`);
+                    res.end();
+                }
             });
 
             // Heartbeat to keep connection alive
             const heartbeat = setInterval(() => {
-                res.write(': heartbeat\n\n');
+                if (res.writable) {
+                    res.write(': heartbeat\n\n');
+                } else {
+                    clearInterval(heartbeat);
+                }
             }, 15000);
 
             // Clean up on client disconnect
@@ -1541,7 +1633,29 @@ function startServer() {
         res.end('Not Found');
     });
 
+    server.on('error', (e) => {
+        if (e.code === 'EADDRINUSE') {
+            console.error(`[Error] Port ${PORT} is already in use.`);
+            console.error(`Please stop the existing service running on port ${PORT} or use a different port.`);
+            process.exit(1);
+        } else {
+            console.error(`[Error] Server error:`, e);
+            process.exit(1);
+        }
+    });
+
     server.listen(PORT, () => {
+        // Write PID only after successful start
+        try {
+            fs.writeFileSync(PID_FILE, process.pid.toString());
+            const cleanup = () => { if (fs.existsSync(PID_FILE)) try { fs.unlinkSync(PID_FILE); } catch (e) { } };
+            process.on('exit', cleanup);
+            process.on('SIGINT', () => { cleanup(); process.exit(); });
+            process.on('SIGTERM', () => { cleanup(); process.exit(); });
+        } catch (e) {
+            console.warn('[Warn] Failed to write PID:', e);
+        }
+
         console.log(`[Info] Service running at http://localhost:${PORT}`);
         if (process.argv.includes('--dev')) {
             console.log('[Dev] Hot-reload mode: Browser auto-open skipped.');
