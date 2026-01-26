@@ -1139,6 +1139,24 @@
         /* Remove duplicate redundant styles and rely on unified system */
         /* .modal, .modal-lg, .modal-content overrides removed */
 
+        #confirm-modal {
+            z-index: 10001; /* Ensure confirm modal is on top of diff modal (9999) */
+        }
+
+        #btn-restart-from-diff {
+            background-color: #e6a23c; /* Special warning color */
+            border-color: #e6a23c;
+            color: white;
+            font-weight: 600;
+        }
+
+        #btn-restart-from-diff:hover {
+            background-color: #d98d1a;
+            border-color: #d98d1a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(230, 162, 60, 0.3);
+        }
+
         .diff-container {
             font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
             font-size: 13px;
