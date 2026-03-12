@@ -227,12 +227,10 @@ if (command === 'start' || command === 'restart') {
 
     const childArgs = args.filter(a => !['start', 'stop', 'restart', 'status'].includes(a));
 
-    let spawnCmd = process.execPath;
-    // Always pass the entry script path (__filename) to the child process.
+    // Always pass the entry script path (__filename) to the child process, unless running in pkg.
     // In 'pkg', __filename resolves to the internal snapshot path (e.g. /snapshot/.../tb-config-src.js).
-    // This allows the child process (which is the same binary) to know what script to execute,
-    // avoiding both "missing argv[1]" errors and "invalid module" errors.
-    let spawnArgs = [__filename, ...childArgs, '--daemon'];
+    // Using process.pkg to detect if we're in a packaged binary.
+    let spawnArgs = process.pkg ? [...childArgs, '--daemon'] : [__filename, ...childArgs, '--daemon'];
 
     const child = spawn(spawnCmd, spawnArgs, {
         detached: true,
