@@ -18,8 +18,11 @@
     },
     "scripts": {
         "start": "node tb-config-src.js",
+        "dev": "node tb-config-src.js --dev",
         "clean": "rm -rf dist node_modules/.cache",
-        "build": "npm run clean && pkg ."
+        "build": "npm run clean && pkg .",
+        "docker:build": "docker build -t tb-config-mate:latest .",
+        "docker:save": "mkdir -p images && docker save tb-config-mate:latest | gzip > images/tb-config-mate_latest.tar.gz"
     },
     "dependencies": {
         "js-yaml": "^4.1.1",

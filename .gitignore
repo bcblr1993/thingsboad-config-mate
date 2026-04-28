@@ -3,6 +3,7 @@ node_modules/
 .env_history
 # Environment variables
 .env
+.config-mate.env
 .env.local
 .env.development.local
 .env.test.local
@@ -34,3 +35,10 @@ coverage/
 .npm/
 *.tgz
 *.pid
+
+# Local deployment packages and downloaded source trees
+sprixin-iotcloud/
+sprixin-iotedge/
+iot-edge-monitor/
+design-preview/
+undefined
