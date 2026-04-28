@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { exec, spawn, execFile } = require('child_process');
 const os = require('os');
 const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
+const { createEnvStore } = require('./src/server/config/env-store');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { readRequestBody, writeJson } = require('./src/server/http');
 const { createCleanupService } = require('./src/server/services/cleanup');
@@ -43,6 +44,13 @@ const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = se
 const dockerRuntime = createDockerComposeRuntime({ appRoot: APP_ROOT });
 const serviceRuntime = createServiceRuntime({ docker: dockerRuntime, getServiceDefinition });
 const { getServiceStatus, runComposeAction } = serviceRuntime;
+const envStore = createEnvStore({
+    envFilePath: ENV_FILE_PATH,
+    historyDir: HISTORY_DIR,
+    configMeta: CONFIG_META,
+    logger: console
+});
+const { parseEnvFile, saveEnvFile } = envStore;
 const cleanupService = createCleanupService({
     appRoot: APP_ROOT,
     runtimeDir: RUNTIME_DIR,
@@ -747,157 +755,6 @@ function resolveSpringPlaceholder(val) {
     return val;
 }
 
-// --- 核心逻辑 ---
-
-// 读取并解析 .env
-function parseEnvFile() {
-    if (!fs.existsSync(ENV_FILE_PATH)) return {};
-    const content = fs.readFileSync(ENV_FILE_PATH, 'utf-8');
-    const result = {};
-    content.split('\n').forEach(line => {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#')) {
-            const parts = trimmed.split('=');
-            const key = parts[0].trim();
-            const val = parts.slice(1).join('=').trim();
-            result[key] = val;
-        }
-    });
-    return result;
-}
-
-// Check if dependsOn condition is satisfied
-function checkDependsOn(dependsOn, config) {
-    if (!dependsOn) return true; // No dependency
-
-    // Handle single condition: { key: "X", value: "Y" }
-    if (dependsOn.key && dependsOn.value !== undefined) {
-        const keys = Array.isArray(dependsOn.key) ? dependsOn.key : [dependsOn.key];
-        return keys.some(k => config[k] === dependsOn.value);
-    }
-
-    // Handle OR condition: { or: [...] }
-    if (dependsOn.or) {
-        return dependsOn.or.some(cond => checkDependsOn(cond, config));
-    }
-
-    // Handle AND condition: { and: [...] }
-    if (dependsOn.and) {
-        return dependsOn.and.every(cond => checkDependsOn(cond, config));
-    }
-
-    return true;
-}
-
-// Backup .env before saving
-function backupEnv() {
-    if (!fs.existsSync(ENV_FILE_PATH)) return;
-
-    if (!fs.existsSync(HISTORY_DIR)) {
-        fs.mkdirSync(HISTORY_DIR, { recursive: true });
-    }
-
-    const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').split('.')[0];
-    const backupFile = path.join(HISTORY_DIR, `.env.bak.${timestamp}`);
-
-    try {
-        fs.copyFileSync(ENV_FILE_PATH, backupFile);
-        console.log(`[Backup] Created: ${backupFile}`);
-        rotateBackups();
-    } catch (e) {
-        console.warn('[Warn] Failed to backup .env:', e.message);
-    }
-}
-
-// Keep only the latest 5 backups
-function rotateBackups() {
-    if (!fs.existsSync(HISTORY_DIR)) return;
-
-    const files = fs.readdirSync(HISTORY_DIR)
-        .filter(f => f.startsWith('.env.bak.'))
-        .map(f => ({
-            name: f,
-            path: path.join(HISTORY_DIR, f),
-            time: fs.statSync(path.join(HISTORY_DIR, f)).mtime.getTime()
-        }))
-        .sort((a, b) => b.time - a.time); // Newest first
-
-    if (files.length > 5) {
-        const toDelete = files.slice(5);
-        toDelete.forEach(file => {
-            try {
-                fs.unlinkSync(file.path);
-                console.log(`[Backup] Rotated/Deleted: ${file.name}`);
-            } catch (e) {
-                console.warn('[Warn] Failed to delete old backup:', e.message);
-            }
-        });
-    }
-}
-
-// 保存 .env (重组文件结构以美化)
-function saveEnvFile(newConfig) {
-    // Perform backup before overwriting
-    backupEnv();
-
-    let outputLines = [];
-    outputLines.push("# ==========================================");
-    outputLines.push("# ThingsBoard 配置文件 (自动生成)");
-    outputLines.push(`# 更新时间: ${new Date().toLocaleString()}`);
-    outputLines.push("# ==========================================");
-    outputLines.push("");
-
-    const processedKeys = new Set();
-    const config = { ...parseEnvFile(), ...newConfig };
-
-    // 1. 按元数据分组写入标准配置
-    const groups = {};
-    const currentAppType = config['APPTYPE'] || 'CLOUD'; // Default to CLOUD if unknown
-
-    Object.keys(CONFIG_META).forEach(key => {
-        const meta = CONFIG_META[key];
-
-        // Scope Filtering
-        const scope = meta.scope || 'common';
-        if (scope === 'cloud' && currentAppType !== 'CLOUD') return;
-        if (scope === 'edge' && currentAppType !== 'EDGE') return;
-
-        // DependsOn Filtering
-        if (!checkDependsOn(meta.dependsOn, config)) return;
-
-        if (!groups[meta.group]) groups[meta.group] = [];
-        groups[meta.group].push(key);
-    });
-
-    Object.keys(groups).forEach(groupName => {
-        outputLines.push(`# === ${groupName} ===`);
-        groups[groupName].forEach(key => {
-            const meta = CONFIG_META[key];
-            const value = config[key] !== undefined ? config[key] : "";
-            // 写入中文注释
-            if (meta.comment) {
-                outputLines.push(`# ${meta.label} (${meta.comment})`);
-            } else {
-                outputLines.push(`# ${meta.label}`);
-            }
-            outputLines.push(`${key}=${value}`);
-            processedKeys.add(key);
-        });
-        outputLines.push(""); // 分组空行
-    });
-
-    // 2. 写入未在元数据中定义的自定义配置
-    const customKeys = Object.keys(config).filter(k => !processedKeys.has(k));
-    if (customKeys.length > 0) {
-        outputLines.push("# === 自定义配置 (其他) ===");
-        customKeys.forEach(key => {
-            outputLines.push(`${key}=${config[key]}`);
-        });
-    }
-
-    fs.writeFileSync(ENV_FILE_PATH, outputLines.join('\n'));
-}
-
 // --- Auth & Deployment Helpers ---
 const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || '';
 const AUTH_REQUIRED = CONFIG_MATE_PASSWORD.trim().length > 0;
@@ -1502,26 +1359,7 @@ function startServer() {
 
         // API: Get History List
         if (pathname === '/api/history' && method === 'GET') {
-            if (!fs.existsSync(HISTORY_DIR)) {
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'success', data: [] }));
-                return;
-            }
-
-            const files = fs.readdirSync(HISTORY_DIR)
-                .filter(f => f.startsWith('.env.bak.'))
-                .map(f => {
-                    const stats = fs.statSync(path.join(HISTORY_DIR, f));
-                    return {
-                        filename: f,
-                        timestamp: stats.mtime.toISOString(),
-                        size: stats.size
-                    };
-                })
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ status: 'success', data: files }));
+            writeJson(res, 200, { status: 'success', data: envStore.listHistory() }, headers);
             return;
         }
 
@@ -1532,22 +1370,14 @@ function startServer() {
             req.on('end', () => {
                 try {
                     const { filename } = JSON.parse(body);
-                    const backupPath = path.join(HISTORY_DIR, filename);
-
-                    if (!fs.existsSync(backupPath)) {
-                        res.writeHead(404, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'error', message: 'Backup file not found' }));
+                    const result = envStore.restoreHistory(filename);
+                    if (!result.ok) {
+                        writeJson(res, result.statusCode || 500, { status: 'error', message: result.message }, headers);
                         return;
                     }
-
-                    fs.copyFileSync(backupPath, ENV_FILE_PATH);
-                    console.log(`[History] Restored .env from ${filename}`);
-
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'success', message: 'Restored successfully' }));
+                    writeJson(res, 200, { status: 'success', message: result.message }, headers);
                 } catch (e) {
-                    res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'error', message: e.message }));
+                    writeJson(res, 500, { status: 'error', message: e.message }, headers);
                 }
             });
             return;
@@ -1560,22 +1390,14 @@ function startServer() {
             req.on('end', () => {
                 try {
                     const { filename } = JSON.parse(body);
-                    // Security check: simple path traversal prevention
-                    const safeName = path.basename(filename);
-                    const backupPath = path.join(HISTORY_DIR, safeName);
-
-                    if (!fs.existsSync(backupPath)) {
-                        res.writeHead(404, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'error', message: 'File not found' }));
+                    const result = envStore.readHistoryContent(filename);
+                    if (!result.ok) {
+                        writeJson(res, result.statusCode || 500, { status: 'error', message: result.message }, headers);
                         return;
                     }
-
-                    const content = fs.readFileSync(backupPath, 'utf-8');
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'success', content }));
+                    writeJson(res, 200, { status: 'success', content: result.content }, headers);
                 } catch (e) {
-                    res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'error', message: e.message }));
+                    writeJson(res, 500, { status: 'error', message: e.message }, headers);
                 }
             });
             return;
@@ -1916,7 +1738,7 @@ function startServer() {
 
         if (pathname === '/api/env-raw' && method === 'GET') {
             try {
-                const content = fs.existsSync(ENV_FILE_PATH) ? fs.readFileSync(ENV_FILE_PATH, 'utf-8') : '';
+                const content = envStore.readRaw();
                 res.writeHead(200, { ...headers, 'Content-Type': 'text/plain; charset=utf-8' });
                 res.end(content);
             } catch (e) {
@@ -1931,7 +1753,7 @@ function startServer() {
             req.on('data', chunk => body += chunk.toString());
             req.on('end', () => {
                 try {
-                    fs.writeFileSync(ENV_FILE_PATH, body, 'utf-8');
+                    envStore.saveRaw(body);
                     res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ status: 'ok' }));
                 } catch (e) {
