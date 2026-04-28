@@ -2,11 +2,13 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { exec, spawn, execFile, execFileSync } = require('child_process');
+const { exec, spawn, execFile } = require('child_process');
 const os = require('os');
 const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
+const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { readRequestBody, writeJson } = require('./src/server/http');
 const { createServiceRegistry } = require('./src/server/services/registry');
+const { createServiceRuntime } = require('./src/server/services/runtime');
 
 const args = process.argv.slice(2);
 const command = args[0] && !args[0].startsWith('--') ? args[0] : null;
@@ -37,6 +39,9 @@ const AUDIT_LOG_FILE = path.join(RUNTIME_DIR, 'audit.log');
 const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
 const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
 const CLEANUP_SERVICE_DATA_DIRS = serviceRegistry.cleanupServiceDataDirs;
+const dockerRuntime = createDockerComposeRuntime({ appRoot: APP_ROOT });
+const serviceRuntime = createServiceRuntime({ docker: dockerRuntime, getServiceDefinition });
+const { getServiceStatus, runComposeAction } = serviceRuntime;
 
 // --- Helper: Check Status ---
 function getRunningPid(pidPath = PID_FILE) {
@@ -959,97 +964,6 @@ function getRequestActor(req) {
     };
 }
 
-function dockerReadyMessage() {
-    if (!dockerPath) return 'Docker CLI not found in Config Mate container.';
-    if (!dockerComposeCmd) return 'Docker Compose is not available.';
-    if (!fs.existsSync('/var/run/docker.sock') && os.platform() !== 'win32') {
-        return 'Docker socket /var/run/docker.sock is not mounted.';
-    }
-    return null;
-}
-
-function composeArgsFor(def, args) {
-    return [...dockerComposeCmdArgs, '-f', def.composeAbsPath, ...args];
-}
-
-function execDocker(cmd, args, options = {}) {
-    return new Promise(resolve => {
-        execFile(cmd, args, { cwd: APP_ROOT, ...options }, (error, stdout, stderr) => {
-            resolve({ error, stdout: stdout || '', stderr: stderr || '' });
-        });
-    });
-}
-
-async function getServiceStatus(def) {
-    if (!def) {
-        return { id: 'unknown', label: 'Unknown', status: 'missing', running: false, containerId: '', message: 'service definition missing' };
-    }
-    if (!def.exists) {
-        return { ...def, status: 'missing', running: false, containerId: '', message: 'compose file missing' };
-    }
-    const dockerIssue = dockerReadyMessage();
-    if (dockerIssue) {
-        return { ...def, status: 'unknown', running: false, containerId: '', message: dockerIssue };
-    }
-
-    const ps = await execDocker(dockerComposeCmd, composeArgsFor(def, ['ps', '-q', def.composeService]));
-    const containerId = ps.stdout.trim().split('\n').filter(Boolean)[0] || '';
-    if (!containerId && def.image) {
-        const image = await execDocker(dockerPath, ['image', 'inspect', def.image, '--format', '{{.Os}}/{{.Architecture}}']);
-        if (image.error) {
-            return { ...def, status: 'missing-image', running: false, containerId: '', message: def.missingImageMessage || `Image not found: ${def.image}` };
-        }
-        const platform = image.stdout.trim();
-        if (platform && platform !== 'linux/arm64') {
-            return { ...def, status: 'unsupported', running: false, containerId: '', message: `${def.image} is ${platform}, expected linux/arm64.` };
-        }
-    }
-    if (!containerId) {
-        return { ...def, status: 'stopped', running: false, containerId: '' };
-    }
-
-    const inspect = await execDocker(dockerPath, ['inspect', '-f', '{{.State.Running}}', containerId]);
-    const running = inspect.stdout.trim() === 'true';
-    return { ...def, status: running ? 'running' : 'stopped', running, containerId };
-}
-
-async function runComposeAction(id, action) {
-    const def = getServiceDefinition(id);
-    if (!def) return { status: 'error', message: 'Unknown service' };
-    if (!def.exists) return { status: 'error', message: `Compose file not found: ${def.composePath}` };
-
-    const dockerIssue = dockerReadyMessage();
-    if (dockerIssue) return { status: 'error', message: dockerIssue };
-
-    if (action !== 'down' && def.image) {
-        const image = await execDocker(dockerPath, ['image', 'inspect', def.image, '--format', '{{.Os}}/{{.Architecture}}']);
-        if (image.error) {
-            return { status: 'error', message: def.missingImageMessage || `Image not found: ${def.image}` };
-        }
-        const platform = image.stdout.trim();
-        if (platform && platform !== 'linux/arm64') {
-            return { status: 'error', message: `${def.image} is ${platform}, expected linux/arm64.` };
-        }
-    }
-
-    const commands = [];
-    if (action === 'up') commands.push(['up', '-d']);
-    else if (action === 'down') commands.push(['down']);
-    else if (action === 'restart') commands.push(['down'], ['up', '-d']);
-    else return { status: 'error', message: 'Unsupported action' };
-
-    let output = '';
-    for (const cmdArgs of commands) {
-        const result = await execDocker(dockerComposeCmd, composeArgsFor(def, cmdArgs));
-        output += result.stdout + result.stderr;
-        if (result.error) {
-            return { status: 'error', message: result.error.message, output };
-        }
-    }
-
-    return { status: 'success', output };
-}
-
 function toAppRootPath(relativePath) {
     const abs = path.resolve(APP_ROOT, relativePath);
     const root = path.resolve(APP_ROOT);
@@ -1209,7 +1123,7 @@ async function runCleanupService(serviceId, confirmServiceId, actor) {
         return { status: 'error', message: `Compose file not found: ${def.composePath}` };
     }
 
-    const dockerIssue = dockerReadyMessage();
+    const dockerIssue = dockerRuntime.readyMessage();
     if (dockerIssue) {
         appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
             reason: 'DOCKER_UNAVAILABLE',
@@ -1290,14 +1204,14 @@ async function runCleanupService(serviceId, confirmServiceId, actor) {
         fs.mkdirSync(backupDir, { recursive: true });
         writeCleanupManifest(manifestPath, manifest);
 
-        const down = await execDocker(dockerComposeCmd, composeArgsFor(def, ['down']));
+        const down = await dockerRuntime.exec(dockerRuntime.dockerComposeCmd, dockerRuntime.composeArgsFor(def, ['down']));
         output += down.stdout + down.stderr;
         if (down.error) throw new Error(down.error.message);
 
         const archived = safeMovePath(def.dataAbsPath, archivedDataPath);
         fs.mkdirSync(def.dataAbsPath, { recursive: true });
 
-        const up = await execDocker(dockerComposeCmd, composeArgsFor(def, ['up', '-d']));
+        const up = await dockerRuntime.exec(dockerRuntime.dockerComposeCmd, dockerRuntime.composeArgsFor(def, ['up', '-d']));
         output += up.stdout + up.stderr;
         if (up.error) throw new Error(up.error.message);
 
@@ -1708,70 +1622,6 @@ async function applyAppConfigChange(config) {
 
 // --- HTTP Server ---
 
-// Detect Docker binary path (without shell)
-let dockerPath = null;
-let dockerComposeCmd = null;
-let dockerComposeCmdArgs = [];
-
-const commonDockerPaths = [
-    process.env.DOCKER_BIN,
-    '/usr/bin/docker',
-    '/usr/local/bin/docker',
-    '/snap/bin/docker',
-    '/opt/docker/bin/docker',
-    'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe' // Windows
-].filter(Boolean);
-
-function detectDockerPath() {
-    // Try to find docker binary
-    for (const path of commonDockerPaths) {
-        try {
-            fs.accessSync(path, fs.constants.X_OK);
-            dockerPath = path;
-            console.log(`[Info] Found docker at: ${path}`);
-            break;
-        } catch (e) {
-            // Continue
-        }
-    }
-
-    if (!dockerPath) {
-        console.error('[Error] Docker not found in common paths');
-        console.error('[Info] Searched paths:', commonDockerPaths);
-        return;
-    }
-
-    // Test if it's new format (docker compose) or old format (docker-compose)
-    try {
-        execFileSync(dockerPath, ['compose', 'version'], { stdio: 'ignore' });
-        console.log('[Info] Using: docker compose (new format)');
-        dockerComposeCmd = dockerPath;
-        dockerComposeCmdArgs = ['compose'];
-        return;
-    } catch (error) {
-        // Fallback: try to find docker-compose
-        const dockerComposePaths = [
-            process.env.DOCKER_COMPOSE_BIN,
-            '/usr/bin/docker-compose',
-            '/usr/local/bin/docker-compose'
-        ].filter(Boolean);
-
-        for (const path of dockerComposePaths) {
-            try {
-                fs.accessSync(path, fs.constants.X_OK);
-                console.log('[Info] Using: docker-compose (legacy format)');
-                dockerComposeCmd = path;
-                dockerComposeCmdArgs = [];
-                return;
-            } catch (e) {
-                // Continue
-            }
-        }
-
-        console.error('[Error] Neither "docker compose" nor "docker-compose" is available!');
-    }
-}
-
 function serveStaticAsset(pathname, res, headers) {
     const assetRoot = path.resolve(__dirname, 'assets');
     const relativePath = decodeURIComponent(pathname.replace(/^\/assets\//, ''));
@@ -1852,8 +1702,8 @@ function startServer() {
                 appDir: APP_DIR,
                 appType: APP_TYPE,
                 docker: {
-                    available: !dockerReadyMessage(),
-                    message: dockerReadyMessage()
+                    available: !dockerRuntime.readyMessage(),
+                    message: dockerRuntime.readyMessage()
                 }
             }, headers);
             return;
@@ -2038,11 +1888,11 @@ function startServer() {
                 yamlPath: YAML_CONFIG_PATH,
                 authRequired: AUTH_REQUIRED,
                 docker: {
-                    cli: dockerPath,
-                    compose: dockerComposeCmd,
+                    cli: dockerRuntime.dockerPath,
+                    compose: dockerRuntime.dockerComposeCmd,
                     socketMounted: fs.existsSync('/var/run/docker.sock') || os.platform() === 'win32',
-                    available: !dockerReadyMessage(),
-                    message: dockerReadyMessage()
+                    available: !dockerRuntime.readyMessage(),
+                    message: dockerRuntime.readyMessage()
                 }
             }, headers);
             return;
@@ -2265,7 +2115,7 @@ function startServer() {
 
         // API: Execute Installation
         if (pathname === '/api/install' && method === 'POST') {
-            if (!dockerComposeCmd) {
+            if (!dockerRuntime.dockerComposeCmd) {
                 res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
                 return;
@@ -2285,8 +2135,8 @@ function startServer() {
                         return;
                     }
 
-                    const argsDown = [...dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'down'];
-                    const argsUp = [...dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'up'];
+                    const argsDown = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'down'];
+                    const argsUp = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'up'];
 
                     console.log(`[Info] Starting Installation (Mode: Down then Up): ${appDef.installComposePath}`);
 
@@ -2301,7 +2151,7 @@ function startServer() {
 
                     // Phase 1: Down
                     res.write('[INFO] 正在执行清理 (Clean up)...\n');
-                    activeChild = spawn(dockerComposeCmd, argsDown, { cwd: APP_ROOT });
+                    activeChild = spawn(dockerRuntime.dockerComposeCmd, argsDown, { cwd: APP_ROOT });
 
                     activeChild.stdout.on('data', d => res.write(d));
                     activeChild.stderr.on('data', d => res.write(d));
@@ -2318,7 +2168,7 @@ function startServer() {
                         // Phase 2: Up
                         let hasInstallError = false;
 
-                        activeChild = spawn(dockerComposeCmd, argsUp, { cwd: APP_ROOT });
+                        activeChild = spawn(dockerRuntime.dockerComposeCmd, argsUp, { cwd: APP_ROOT });
 
                         activeChild.stdout.on('data', d => {
                             const str = d.toString();
@@ -2391,7 +2241,7 @@ function startServer() {
         // SSE for Container Logs - Using callback mode like restart API
         const serviceLogsMatch = pathname.match(/^\/api\/services\/([^/]+)\/logs$/);
         if ((pathname === '/api/logs' || serviceLogsMatch) && method === 'GET') {
-            if (!dockerComposeCmd) {
+            if (!dockerRuntime.dockerComposeCmd) {
                 res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     status: 'error',
@@ -2418,10 +2268,10 @@ function startServer() {
                 return;
             }
 
-            const args = composeArgsFor(def, ['logs', '-f', '--tail=50', def.composeService]);
-            console.log(`[Info] Starting real-time logs: ${dockerComposeCmd} ${args.join(' ')}`);
+            const args = dockerRuntime.composeArgsFor(def, ['logs', '-f', '--tail=50', def.composeService]);
+            console.log(`[Info] Starting real-time logs: ${dockerRuntime.dockerComposeCmd} ${args.join(' ')}`);
 
-            const child = spawn(dockerComposeCmd, args, {
+            const child = spawn(dockerRuntime.dockerComposeCmd, args, {
                 cwd: APP_ROOT,
                 detached: process.platform !== 'win32',
                 stdio: ['ignore', 'pipe', 'pipe'] // Ignore stdin, pipe stdout/stderr
@@ -2634,7 +2484,7 @@ function startServer() {
 
         // API: Diff Runtime vs Local Config
         if (pathname === '/api/diff-runtime' && method === 'GET') {
-            if (!dockerComposeCmd) {
+            if (!dockerRuntime.dockerComposeCmd) {
                 res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
                 return;
@@ -2650,9 +2500,9 @@ function startServer() {
 
                 // 2. Resolve Container ID via Service Name
                 // Command: docker compose ps -q <serviceName>
-                const argsPs = composeArgsFor(def, ['ps', '-q', def.composeService]);
+                const argsPs = dockerRuntime.composeArgsFor(def, ['ps', '-q', def.composeService]);
 
-                execFile(dockerComposeCmd, argsPs, { cwd: APP_ROOT }, (errPs, stdoutPs) => {
+                execFile(dockerRuntime.dockerComposeCmd, argsPs, { cwd: APP_ROOT }, (errPs, stdoutPs) => {
                     if (errPs) {
                         res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ status: 'error', message: 'Failed to resolve container ID', details: errPs.message }));
@@ -2669,7 +2519,7 @@ function startServer() {
 
                     // 3. Fetch Runtime Env via docker inspect
                     // Note: We use 'docker' command directly.
-                    execFile(dockerPath, ['inspect', containerId], (errInspect, stdoutInspect) => {
+                    execFile(dockerRuntime.dockerPath, ['inspect', containerId], (errInspect, stdoutInspect) => {
                         if (errInspect) {
                             res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
                             res.end(JSON.stringify({ status: 'error', message: 'Failed to inspect container', details: errInspect.message }));
@@ -2822,5 +2672,5 @@ function openBrowser() {
 
 // Entry Point
 tryInitFromYaml();
-detectDockerPath();
+dockerRuntime.detect();
 startServer();

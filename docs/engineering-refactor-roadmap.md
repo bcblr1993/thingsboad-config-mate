@@ -18,8 +18,12 @@ Config Mate 后续会持续承担现场安装包配置、服务编排、日志�
 - `src/server/app-context.js` 统一处理 `APP_ROOT`、`APP_TYPE`、Cloud/Edge 识别。
 - `src/server/http.js` 统一处理 JSON 响应和请求体读取。
 - `src/server/services/registry.js` 统一维护 Docker 服务白名单和清理数据目录白名单。
+- `src/server/docker/compose.js` 统一处理 Docker CLI 探测、Compose v2/v1 兼容、Compose 参数和安全执行。
+- `src/server/services/runtime.js` 统一处理服务状态查询和启动/停止/重启动作。
 - `test/app-context.test.js` 覆盖现场目录识别规则。
 - `test/service-registry.test.js` 覆盖服务注册表 Cloud/Edge 过滤和路径解析。
+- `test/docker-compose.test.js` 覆盖 Docker Compose 探测和 fallback。
+- `test/service-runtime.test.js` 覆盖服务状态和动作编排。
 - `npm run check` 统一执行语法检查和单元测试。
 
 ## 推荐目录结构
@@ -33,9 +37,9 @@ Config Mate 后续会持续承担现场安装包配置、服务编排、日志�
 │   └── server/
 │       ├── app-context.js  # 安装包识别
 │       ├── http.js         # HTTP 工具
+│       ├── docker/         # Docker CLI/Compose 封装
 │       ├── services/       # 服务注册表、状态、动作
 │       ├── config/         # .env/YAML 读写、历史版本
-│       ├── docker/         # Docker CLI/Compose 封装
 │       ├── audit/          # 审计日志和备份 manifest
 │       └── routes/         # API 路由
 ├── test/                   # 单元测试
@@ -48,7 +52,7 @@ Config Mate 后续会持续承担现场安装包配置、服务编排、日志�
 
 ### 第二阶段：后端服务层拆分
 
-把 `tb-config-src.js` 中的 Docker Compose 调用、服务状态、日志 SSE、清理备份逻辑拆到独立模块。
+把 `tb-config-src.js` 中剩余的日志 SSE、清理备份逻辑拆到独立模块。
 
 验收标准：
 
