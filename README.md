@@ -16,6 +16,28 @@ ThingBoard Config Mate 是一个专为 ThingsBoard Docker 部署环境设计的�
 
 ## 🚀 快速开始
 
+### 容器化现场部署
+
+推荐将 Config Mate 作为独立容器运行，并挂载现场安装包根目录与 Docker Socket：
+
+```bash
+# 在 sprixin-iotcloud 或 sprixin-iotedge 根目录执行
+cat > .config-mate.env <<EOF
+DEPLOY_ROOT=$(pwd)
+CONFIG_MATE_PORT=3300
+CONFIG_MATE_PASSWORD=请替换为强口令
+EOF
+
+docker load -i images/tb-config-mate_latest.tar.gz
+docker compose --env-file .config-mate.env up -d config-mate
+```
+
+访问 `http://服务器IP:3300` 后可在 Web 控制台中管理 `postgres`、`redis`、`kafka`、`cassandra`、`netdata`、`wechat` 以及 `iotcloud/iotedge`。
+
+`APP_TYPE` 可选。标准安装包中存在 `services/iotcloud` 会自动识别为 Cloud，存在 `services/iotedge` 会自动识别为 Edge；如果业务 `.env` 中写了 `APP_TYPE` 或 `APPTYPE`，也会自动读取。
+
+> 注意：该模式会挂载 `/var/run/docker.sock`，Config Mate 容器具备宿主机 Docker 管理权限，请务必设置 `CONFIG_MATE_PASSWORD` 并仅在可信网络开放端口。
+
 ### 开发环境运行
 
 如果您本机已安装 Node.js (v18+)：

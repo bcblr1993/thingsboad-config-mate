@@ -1,16 +1,18 @@
-version: '3.8'
-
-
 services:
-    tb-config-mate:
-        image: tb-config-mate:latest
-        container_name: tb-config-mate
-        ports:
-            - "3400:3400"
-        volumes:
-            - /Users/chenxu/WebstormProjects/thingsboad-config-mate:/app
-        environment:
-            - TZ=Asia/Shanghai
-        env_file:
-            - .env
-        restart: always
+  config-mate:
+    image: tb-config-mate:latest
+    container_name: tb-config-mate
+    ports:
+      - "${CONFIG_MATE_PORT:-3300}:3300"
+    working_dir: "${DEPLOY_ROOT:?DEPLOY_ROOT is required}"
+    environment:
+      APP_ROOT: "${DEPLOY_ROOT:?DEPLOY_ROOT is required}"
+      APP_TYPE: "${APP_TYPE:-}"
+      CONFIG_MATE_PASSWORD: "${CONFIG_MATE_PASSWORD:?CONFIG_MATE_PASSWORD is required}"
+      PORT: "3300"
+      NO_BROWSER: "1"
+      TZ: Asia/Shanghai
+    volumes:
+      - "${DEPLOY_ROOT:?DEPLOY_ROOT is required}:${DEPLOY_ROOT:?DEPLOY_ROOT is required}"
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: always

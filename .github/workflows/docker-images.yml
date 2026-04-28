@@ -1,0 +1,67 @@
+name: Build Docker Images
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - 'codex/**'
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  docker-images:
+    name: Build ${{ matrix.platform.label }} image
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - label: linux-amd64
+            docker_platform: linux/amd64
+            artifact: tb-config-mate_linux_amd64.tar.gz
+          - label: linux-arm64
+            docker_platform: linux/arm64
+            artifact: tb-config-mate_linux_arm64.tar.gz
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image tar
+        run: |
+          mkdir -p dist/docker
+          docker buildx build \
+            --platform "${{ matrix.platform.docker_platform }}" \
+            --tag tb-config-mate:latest \
+            --output "type=docker,dest=dist/docker/${{ matrix.platform.label }}.tar" \
+            .
+          gzip -9 "dist/docker/${{ matrix.platform.label }}.tar"
+          mv "dist/docker/${{ matrix.platform.label }}.tar.gz" "dist/docker/${{ matrix.platform.artifact }}"
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact }}
+          path: dist/docker/${{ matrix.platform.artifact }}
+          if-no-files-found: error
+
+      - name: Upload image to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/docker/${{ matrix.platform.artifact }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
