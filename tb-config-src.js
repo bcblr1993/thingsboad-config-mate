@@ -1,10 +1,10 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const { exec, spawn, execFile } = require('child_process');
 const os = require('os');
 const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
+const { createAuthService } = require('./src/server/auth/session');
 const { createEnvStore } = require('./src/server/config/env-store');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { readRequestBody, writeJson } = require('./src/server/http');
@@ -42,6 +42,18 @@ const PID_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.pid`);
 const LOG_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.log`);
 const CLEANUP_BACKUP_ROOT = path.join(RUNTIME_DIR, 'backups');
 const AUDIT_LOG_FILE = path.join(RUNTIME_DIR, 'audit.log');
+const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || '';
+const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
+const AUTH_REQUIRED = authService.authRequired;
+const {
+    createSession,
+    destroySession,
+    getAuthToken,
+    getRequestActor,
+    getSession,
+    isAuthenticated,
+    normalizeOperatorName
+} = authService;
 const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
 const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
 const dockerRuntime = createDockerComposeRuntime({ appRoot: APP_ROOT });
@@ -780,89 +792,6 @@ function resolveSpringPlaceholder(val) {
     return val;
 }
 
-// --- Auth & Deployment Helpers ---
-const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || '';
-const AUTH_REQUIRED = CONFIG_MATE_PASSWORD.trim().length > 0;
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const sessions = new Map();
-function parseCookies(req) {
-    const header = req.headers.cookie || '';
-    const cookies = {};
-    header.split(';').forEach(part => {
-        const idx = part.indexOf('=');
-        if (idx === -1) return;
-        const key = part.slice(0, idx).trim();
-        const val = part.slice(idx + 1).trim();
-        cookies[key] = decodeURIComponent(val);
-    });
-    return cookies;
-}
-
-function getAuthToken(req) {
-    const auth = req.headers.authorization || '';
-    let token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (!token) token = parseCookies(req).config_mate_session;
-    return token;
-}
-
-function getSession(req) {
-    const token = getAuthToken(req);
-    if (!token || !sessions.has(token)) return null;
-
-    const session = sessions.get(token);
-    if (session.expiresAt < Date.now()) {
-        sessions.delete(token);
-        return null;
-    }
-    session.expiresAt = Date.now() + SESSION_TTL_MS;
-    return { ...session, token };
-}
-
-function isAuthenticated(req) {
-    if (!AUTH_REQUIRED) return true;
-    return !!getSession(req);
-}
-
-function getClientIp(req) {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string' && forwarded.trim()) {
-        return forwarded.split(',')[0].trim();
-    }
-    return req.socket?.remoteAddress || '';
-}
-
-function normalizeOperatorName(value) {
-    const text = String(value || '').trim();
-    return text.slice(0, 64);
-}
-
-function sanitizePathSegment(value) {
-    const text = normalizeOperatorName(value) || 'operator';
-    return text.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'operator';
-}
-
-function createSession(req, operator) {
-    const token = crypto.randomBytes(32).toString('hex');
-    const sessionId = token.slice(0, 10);
-    sessions.set(token, {
-        operator: normalizeOperatorName(operator) || 'operator',
-        sessionId,
-        loginAt: new Date().toISOString(),
-        ip: getClientIp(req),
-        expiresAt: Date.now() + SESSION_TTL_MS
-    });
-    return token;
-}
-
-function getRequestActor(req) {
-    const session = getSession(req);
-    return {
-        operator: session?.operator || 'anonymous',
-        sessionId: session?.sessionId || 'anonymous',
-        ip: session?.ip || getClientIp(req)
-    };
-}
-
 // --- HTTP Server ---
 
 function serveStaticAsset(pathname, res, headers) {
@@ -973,8 +902,7 @@ function startServer() {
                     }
                     if (!AUTH_REQUIRED || payload.password === CONFIG_MATE_PASSWORD) {
                         const token = createSession(req, operator);
-                        const session = sessions.get(token);
-                        writeJson(res, 200, { status: 'success', operator: session.operator }, {
+                        writeJson(res, 200, { status: 'success', operator: normalizeOperatorName(operator) || 'operator' }, {
                             ...headers,
                             'Set-Cookie': `config_mate_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`
                         });
@@ -990,7 +918,7 @@ function startServer() {
 
         if (pathname === '/api/logout' && method === 'POST') {
             const token = getAuthToken(req);
-            if (token) sessions.delete(token);
+            destroySession(token);
             writeJson(res, 200, { status: 'success' }, {
                 ...headers,
                 'Set-Cookie': 'config_mate_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'
