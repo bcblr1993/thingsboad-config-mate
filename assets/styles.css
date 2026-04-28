@@ -5792,3 +5792,28 @@ body {
         max-width: none;
     }
 }
+
+@media (max-width: 1180px) {
+    .service-grid {
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    }
+
+    .service-card {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+}
+
+@media (max-width: 560px) {
+    .service-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .service-card {
+        grid-template-columns: 1fr;
+    }
+
+    .service-actions,
+    .service-actions.has-cleanup {
+        width: 100%;
+    }
+}
