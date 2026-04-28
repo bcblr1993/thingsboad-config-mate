@@ -4,11 +4,13 @@ const path = require('path');
 const crypto = require('crypto');
 const { exec, spawn, execFile, execFileSync } = require('child_process');
 const os = require('os');
+const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
+const { readRequestBody, writeJson } = require('./src/server/http');
+const { createServiceRegistry } = require('./src/server/services/registry');
 
 const args = process.argv.slice(2);
 const command = args[0] && !args[0].startsWith('--') ? args[0] : null;
 
-// --- Config ---
 // --- Config ---
 const portArg = args.find(arg => arg.startsWith('--port='));
 const PORT = portArg ? parseInt(portArg.split('=')[1]) : (process.env.PORT || 3300);
@@ -32,123 +34,9 @@ const PID_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.pid`);
 const LOG_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.log`);
 const CLEANUP_BACKUP_ROOT = path.join(RUNTIME_DIR, 'backups');
 const AUDIT_LOG_FILE = path.join(RUNTIME_DIR, 'audit.log');
-
-function resolveAppRoot() {
-    return path.resolve(process.env.APP_ROOT || process.cwd());
-}
-
-function makeAppContext(root, appType, appDir, yamlPath, mode = 'package') {
-    return {
-        appRoot: root,
-        appType,
-        appId: appType === 'EDGE' ? 'iotedge' : 'iotcloud',
-        appDir,
-        yamlPath,
-        mode
-    };
-}
-
-function normalizeAppType(value) {
-    const normalized = (value || '').trim().toUpperCase();
-    return normalized === 'EDGE' || normalized === 'CLOUD' ? normalized : '';
-}
-
-function parseEnvFileAt(filePath) {
-    if (!filePath || !fs.existsSync(filePath)) return {};
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const result = {};
-    content.split('\n').forEach(line => {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) return;
-        const parts = trimmed.split('=');
-        const key = parts[0].trim();
-        let val = parts.slice(1).join('=').trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-            val = val.slice(1, -1);
-        }
-        result[key] = val;
-    });
-    return result;
-}
-
-function readAppTypeFromEnvFile(appDir) {
-    const env = parseEnvFileAt(path.join(appDir, '.env'));
-    return normalizeAppType(env.APP_TYPE || env.APPTYPE);
-}
-
-function resolveAppContext(root) {
-    const forcedType = normalizeAppType(process.env.APP_TYPE);
-
-    const rootEdgeDir = path.join(root, 'services', 'iotedge');
-    const rootCloudDir = path.join(root, 'services', 'iotcloud');
-    const nestedEdgeRoot = path.join(root, 'sprixin-iotedge');
-    const nestedCloudRoot = path.join(root, 'sprixin-iotcloud');
-
-    function serviceCandidate(type, appDir, yaml, candidateRoot = root, mode = 'package') {
-        return {
-            type,
-            appDir,
-            yaml,
-            root: candidateRoot,
-            mode,
-            dirExists: fs.existsSync(appDir),
-            yamlExists: fs.existsSync(yaml),
-            envType: readAppTypeFromEnvFile(appDir)
-        };
-    }
-
-    function chooseCandidate(candidates) {
-        const available = candidates.filter(c => c.dirExists || c.yamlExists);
-        if (available.length === 0) return null;
-        const forced = available.find(c => c.type === forcedType);
-        if (forced) return forced;
-        const envMatched = available.find(c => c.envType && c.envType === c.type);
-        if (envMatched) return envMatched;
-        return available.find(c => c.yamlExists) || available[0];
-    }
-
-    const directMatched = chooseCandidate([
-        serviceCandidate('CLOUD', rootCloudDir, path.join(rootCloudDir, 'conf', 'thingsboard.yml')),
-        serviceCandidate('EDGE', rootEdgeDir, path.join(rootEdgeDir, 'conf', 'tb-edge.yml'))
-    ]);
-    if (directMatched) {
-        return makeAppContext(directMatched.root, directMatched.type, directMatched.appDir, directMatched.yaml, directMatched.mode);
-    }
-
-    const nestedMatched = chooseCandidate([
-        serviceCandidate(
-            'CLOUD',
-            path.join(nestedCloudRoot, 'services', 'iotcloud'),
-            path.join(nestedCloudRoot, 'services', 'iotcloud', 'conf', 'thingsboard.yml'),
-            nestedCloudRoot
-        ),
-        serviceCandidate(
-            'EDGE',
-            path.join(nestedEdgeRoot, 'services', 'iotedge'),
-            path.join(nestedEdgeRoot, 'services', 'iotedge', 'conf', 'tb-edge.yml'),
-            nestedEdgeRoot
-        )
-    ]);
-    if (nestedMatched) {
-        return makeAppContext(nestedMatched.root, nestedMatched.type, nestedMatched.appDir, nestedMatched.yaml, nestedMatched.mode);
-    }
-
-    const legacyMatched = chooseCandidate([
-        serviceCandidate('CLOUD', root, path.join(root, 'conf', 'thingsboard.yml'), root, 'legacy'),
-        serviceCandidate('EDGE', root, path.join(root, 'conf', 'tb-edge.yml'), root, 'legacy')
-    ]);
-    if (legacyMatched) {
-        return makeAppContext(legacyMatched.root, legacyMatched.type, legacyMatched.appDir, legacyMatched.yaml, legacyMatched.mode);
-    }
-
-    const fallbackType = forcedType === 'EDGE' ? 'EDGE' : 'CLOUD';
-    const fallbackAppDir = fallbackType === 'EDGE' ? rootEdgeDir : rootCloudDir;
-    const fallbackYaml = fallbackType === 'EDGE'
-        ? path.join(fallbackAppDir, 'conf', 'tb-edge.yml')
-        : path.join(fallbackAppDir, 'conf', 'thingsboard.yml');
-
-    return makeAppContext(root, fallbackType, fs.existsSync(fallbackAppDir) ? fallbackAppDir : root, fallbackYaml, 'unknown');
-}
+const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
+const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
+const CLEANUP_SERVICE_DATA_DIRS = serviceRegistry.cleanupServiceDataDirs;
 
 // --- Helper: Check Status ---
 function getRunningPid(pidPath = PID_FILE) {
@@ -1071,124 +959,6 @@ function getRequestActor(req) {
     };
 }
 
-function writeJson(res, statusCode, data, headers = {}) {
-    res.writeHead(statusCode, { ...headers, 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify(data));
-}
-
-function readRequestBody(req) {
-    return new Promise((resolve, reject) => {
-        let body = '';
-        req.on('data', chunk => body += chunk.toString());
-        req.on('end', () => resolve(body));
-        req.on('error', reject);
-    });
-}
-
-function getPackageServiceId() {
-    return APP_TYPE === 'EDGE' ? 'iotedge' : 'iotcloud';
-}
-
-const SERVICE_DEFINITIONS = {
-    postgres: {
-        id: 'postgres',
-        label: 'PostgreSQL',
-        composePath: 'services/postgres/docker-compose.yml',
-        composeService: 'postgres',
-        order: 10,
-        optional: false
-    },
-    redis: {
-        id: 'redis',
-        label: 'Redis',
-        composePath: 'services/redis/docker-compose.yml',
-        composeService: 'redis',
-        order: 20,
-        optional: true
-    },
-    cassandra: {
-        id: 'cassandra',
-        label: 'Cassandra',
-        composePath: 'services/cassandra/docker-compose.yml',
-        composeService: 'cassandra',
-        order: 30,
-        optional: true
-    },
-    kafka: {
-        id: 'kafka',
-        label: 'Kafka',
-        composePath: 'services/kafka/docker-compose.yml',
-        composeService: 'kafka',
-        order: 40,
-        optional: true
-    },
-    netdata: {
-        id: 'netdata',
-        label: 'Netdata',
-        composePath: 'services/netdata/docker-compose.yml',
-        composeService: 'netdata',
-        order: 50,
-        optional: true
-    },
-    wechat: {
-        id: 'wechat',
-        label: '企业微信告警',
-        composePath: 'services/wechat-messenger-v2.1.0/docker-compose.yml',
-        composeService: 'wechat-messenger',
-        image: 'wechat-messenger:v2.1.0',
-        missingImageMessage: 'ARM64 包未包含 wechat-messenger:v2.1.0，请提供 ARM64 镜像或源码后再启动。',
-        order: 60,
-        optional: true
-    },
-    iotcloud: {
-        id: 'iotcloud',
-        label: 'IoT Cloud',
-        composePath: 'services/iotcloud/docker-compose.yml',
-        installComposePath: 'services/iotcloud/docker-compose-install.yml',
-        composeService: 'iotcloud',
-        appType: 'CLOUD',
-        order: 100,
-        optional: false
-    },
-    iotedge: {
-        id: 'iotedge',
-        label: 'IoT Edge',
-        composePath: 'services/iotedge/docker-compose.yml',
-        installComposePath: 'services/iotedge/docker-compose-install.yml',
-        composeService: 'iotedge',
-        appType: 'EDGE',
-        order: 100,
-        optional: false
-    }
-};
-
-const CLEANUP_SERVICE_DATA_DIRS = {
-    postgres: 'services/postgres/data',
-    redis: 'services/redis/data',
-    kafka: 'services/kafka/kafka_0_data',
-    cassandra: 'services/cassandra/cassandra_node1_data'
-};
-
-function getServiceDefinition(id) {
-    const def = SERVICE_DEFINITIONS[id];
-    if (!def) return null;
-    if (def.appType && def.appType !== APP_TYPE) return null;
-    const composeAbsPath = path.join(APP_ROOT, def.composePath);
-    return {
-        ...def,
-        composeAbsPath,
-        installComposeAbsPath: def.installComposePath ? path.join(APP_ROOT, def.installComposePath) : null,
-        exists: fs.existsSync(composeAbsPath)
-    };
-}
-
-function listServiceDefinitions() {
-    return Object.keys(SERVICE_DEFINITIONS)
-        .map(getServiceDefinition)
-        .filter(Boolean)
-        .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
-}
-
 function dockerReadyMessage() {
     if (!dockerPath) return 'Docker CLI not found in Config Mate container.';
     if (!dockerComposeCmd) return 'Docker Compose is not available.';
@@ -2002,6 +1772,42 @@ function detectDockerPath() {
     }
 }
 
+function serveStaticAsset(pathname, res, headers) {
+    const assetRoot = path.resolve(__dirname, 'assets');
+    const relativePath = decodeURIComponent(pathname.replace(/^\/assets\//, ''));
+    const assetPath = path.resolve(assetRoot, relativePath);
+
+    if (!assetPath.startsWith(assetRoot + path.sep)) {
+        writeJson(res, 403, { status: 'error', message: 'Forbidden' }, headers);
+        return;
+    }
+
+    if (!fs.existsSync(assetPath) || !fs.statSync(assetPath).isFile()) {
+        writeJson(res, 404, { status: 'error', message: 'Asset not found' }, headers);
+        return;
+    }
+
+    const ext = path.extname(assetPath).toLowerCase();
+    const contentTypes = {
+        '.css': 'text/css; charset=utf-8',
+        '.js': 'application/javascript; charset=utf-8',
+        '.svg': 'image/svg+xml',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp'
+    };
+
+    res.writeHead(200, {
+        ...headers,
+        'Content-Type': contentTypes[ext] || 'application/octet-stream',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
+    res.end(fs.readFileSync(assetPath));
+}
+
 function startServer() {
     const server = http.createServer((req, res) => {
         const { method } = req;
@@ -2031,6 +1837,11 @@ function startServer() {
                 'Expires': '0'
             });
             res.end(html);
+            return;
+        }
+
+        if (pathname.startsWith('/assets/') && method === 'GET') {
+            serveStaticAsset(pathname, res, headers);
             return;
         }
 
