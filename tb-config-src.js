@@ -7,6 +7,8 @@ const os = require('os');
 const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { readRequestBody, writeJson } = require('./src/server/http');
+const { createCleanupService } = require('./src/server/services/cleanup');
+const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
 
@@ -38,10 +40,27 @@ const CLEANUP_BACKUP_ROOT = path.join(RUNTIME_DIR, 'backups');
 const AUDIT_LOG_FILE = path.join(RUNTIME_DIR, 'audit.log');
 const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
 const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
-const CLEANUP_SERVICE_DATA_DIRS = serviceRegistry.cleanupServiceDataDirs;
 const dockerRuntime = createDockerComposeRuntime({ appRoot: APP_ROOT });
 const serviceRuntime = createServiceRuntime({ docker: dockerRuntime, getServiceDefinition });
 const { getServiceStatus, runComposeAction } = serviceRuntime;
+const cleanupService = createCleanupService({
+    appRoot: APP_ROOT,
+    runtimeDir: RUNTIME_DIR,
+    backupRoot: CLEANUP_BACKUP_ROOT,
+    auditLogFile: AUDIT_LOG_FILE,
+    cleanupServiceDataDirs: serviceRegistry.cleanupServiceDataDirs,
+    getServiceDefinition,
+    getPackageServiceId,
+    getServiceStatus,
+    docker: dockerRuntime
+});
+const { buildCleanupPlan, runCleanupService } = cleanupService;
+const logStreamService = createLogStreamService({
+    appRoot: APP_ROOT,
+    docker: dockerRuntime,
+    getServiceDefinition,
+    defaultServiceId: getPackageServiceId
+});
 
 // --- Helper: Check Status ---
 function getRunningPid(pidPath = PID_FILE) {
@@ -884,8 +903,6 @@ const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || '';
 const AUTH_REQUIRED = CONFIG_MATE_PASSWORD.trim().length > 0;
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const sessions = new Map();
-let activeCleanupService = null;
-
 function parseCookies(req) {
     const header = req.headers.cookie || '';
     const cookies = {};
@@ -962,319 +979,6 @@ function getRequestActor(req) {
         sessionId: session?.sessionId || 'anonymous',
         ip: session?.ip || getClientIp(req)
     };
-}
-
-function toAppRootPath(relativePath) {
-    const abs = path.resolve(APP_ROOT, relativePath);
-    const root = path.resolve(APP_ROOT);
-    const rel = path.relative(root, abs);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) {
-        throw new Error(`Unsafe path outside APP_ROOT: ${relativePath}`);
-    }
-    return abs;
-}
-
-function formatTimestampForPath(date = new Date()) {
-    const pad = value => String(value).padStart(2, '0');
-    return [
-        date.getFullYear(),
-        pad(date.getMonth() + 1),
-        pad(date.getDate())
-    ].join('') + '-' + [
-        pad(date.getHours()),
-        pad(date.getMinutes()),
-        pad(date.getSeconds())
-    ].join('');
-}
-
-function getCleanupDefinition(serviceId) {
-    const def = getServiceDefinition(serviceId);
-    const dataDir = CLEANUP_SERVICE_DATA_DIRS[serviceId];
-    if (!def || !dataDir) return null;
-    const dataAbsPath = toAppRootPath(dataDir);
-    const backupRoot = path.resolve(CLEANUP_BACKUP_ROOT);
-    const root = path.resolve(APP_ROOT);
-    const rel = path.relative(root, backupRoot);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) {
-        throw new Error('Cleanup backup root must be inside APP_ROOT');
-    }
-    return {
-        ...def,
-        dataDir,
-        dataAbsPath,
-        backupRoot
-    };
-}
-
-function buildCleanupBackupDir(serviceId, actor, date = new Date()) {
-    const segment = `${formatTimestampForPath(date)}-${serviceId}-${sanitizePathSegment(actor.operator)}`;
-    return path.join(CLEANUP_BACKUP_ROOT, segment);
-}
-
-function getUniqueBackupDir(preferredDir) {
-    if (!fs.existsSync(preferredDir)) return preferredDir;
-    for (let i = 2; i < 1000; i += 1) {
-        const candidate = `${preferredDir}-${i}`;
-        if (!fs.existsSync(candidate)) return candidate;
-    }
-    throw new Error('无法创建唯一备份目录，请检查备份目录是否异常。');
-}
-
-function buildCleanupPlan(serviceId, actor = { operator: 'operator' }) {
-    const def = getCleanupDefinition(serviceId);
-    if (!def) {
-        return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra。' };
-    }
-    if (!def.exists) return { status: 'error', message: `Compose file not found: ${def.composePath}` };
-
-    const backupDir = buildCleanupBackupDir(serviceId, actor);
-    return {
-        status: 'success',
-        service: { id: def.id, label: def.label },
-        appService: getPackageServiceId(),
-        dataDir: def.dataDir,
-        dataPath: def.dataAbsPath,
-        backupRoot: CLEANUP_BACKUP_ROOT,
-        backupDir,
-        composePath: def.composePath,
-        requiresAppStopped: true,
-        appServiceRunning: false,
-        warnings: [
-            '该操作会停止目标服务并归档当前数据目录。',
-            '业务服务正在运行时禁止清理，请先停止 IoT Cloud/IoT Edge。',
-            '清理后不会自动执行 ThingsBoard 初始化安装。'
-        ]
-    };
-}
-
-function appendAuditLog(entry) {
-    try {
-        fs.mkdirSync(RUNTIME_DIR, { recursive: true });
-        fs.appendFileSync(AUDIT_LOG_FILE, JSON.stringify(entry) + '\n');
-    } catch (e) {
-        console.error(`[Audit] Failed to write audit log: ${e.message}`);
-    }
-}
-
-function buildAuditEntry(status, serviceId, actor, fields = {}) {
-    return {
-        timestamp: new Date().toISOString(),
-        event: 'service_cleanup',
-        status,
-        serviceId,
-        operator: actor.operator,
-        sessionId: actor.sessionId,
-        ip: actor.ip,
-        ...fields
-    };
-}
-
-function summarizeServiceStatus(status) {
-    if (!status) return null;
-    return {
-        status: status.status || 'unknown',
-        running: !!status.running,
-        containerId: status.containerId || ''
-    };
-}
-
-function safeMovePath(source, destination) {
-    if (!fs.existsSync(source)) return false;
-    fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.renameSync(source, destination);
-    return true;
-}
-
-function writeCleanupManifest(manifestPath, manifest) {
-    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-}
-
-async function runCleanupService(serviceId, confirmServiceId, actor) {
-    const def = getCleanupDefinition(serviceId);
-    if (!def) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'UNSUPPORTED_SERVICE',
-            error: 'Unsupported cleanup service'
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=n/a backup=n/a status=failure error=UNSUPPORTED_SERVICE`);
-        return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra。' };
-    }
-    if (confirmServiceId !== serviceId) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'CONFIRMATION_MISMATCH',
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath,
-            error: `confirmServiceId mismatch: ${confirmServiceId || ''}`
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=failure error=CONFIRMATION_MISMATCH`);
-        return { status: 'error', code: 'CONFIRMATION_MISMATCH', message: `请输入 ${serviceId} 才能执行清理。` };
-    }
-    if (!def.exists) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'COMPOSE_MISSING',
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath,
-            error: `Compose file not found: ${def.composePath}`
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=failure error=COMPOSE_MISSING`);
-        return { status: 'error', message: `Compose file not found: ${def.composePath}` };
-    }
-
-    const dockerIssue = dockerRuntime.readyMessage();
-    if (dockerIssue) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'DOCKER_UNAVAILABLE',
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath,
-            error: dockerIssue
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=failure error=DOCKER_UNAVAILABLE`);
-        return { status: 'error', message: dockerIssue };
-    }
-    if (activeCleanupService) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'CLEANUP_RUNNING',
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath,
-            activeCleanupService
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=failure error=CLEANUP_RUNNING`);
-        return { status: 'error', code: 'CLEANUP_RUNNING', message: `已有清理任务正在执行：${activeCleanupService}` };
-    }
-
-    const appStatus = await getServiceStatus(getServiceDefinition(getPackageServiceId()));
-    if (appStatus.running) {
-        const blocked = buildAuditEntry('blocked', serviceId, actor, {
-            reason: 'APP_SERVICE_RUNNING',
-            appService: getPackageServiceId(),
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath
-        });
-        appendAuditLog(blocked);
-        console.log(`[Audit] Cleanup blocked operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=blocked reason=APP_SERVICE_RUNNING`);
-        return {
-            status: 'error',
-            code: 'APP_SERVICE_RUNNING',
-            message: `请先停止 ${getPackageServiceId()}，再清理 ${def.label} 数据。`
-        };
-    }
-
-    activeCleanupService = serviceId;
-    const startedAt = new Date();
-    const targetStatusBefore = await getServiceStatus(def);
-    const backupDir = getUniqueBackupDir(buildCleanupBackupDir(serviceId, actor, startedAt));
-    const archivedDataPath = path.join(backupDir, path.basename(def.dataAbsPath));
-    const manifestPath = path.join(backupDir, 'manifest.json');
-    const sourceExisted = fs.existsSync(def.dataAbsPath);
-    const manifest = {
-        serviceId,
-        serviceLabel: def.label,
-        operator: actor.operator,
-        sessionId: actor.sessionId,
-        ip: actor.ip,
-        startedAt: startedAt.toISOString(),
-        appRoot: APP_ROOT,
-        appService: getPackageServiceId(),
-        composePath: def.composePath,
-        sourcePath: def.dataAbsPath,
-        backupDir,
-        archivedDataPath,
-        sourceExisted,
-        targetStatusBefore: summarizeServiceStatus(targetStatusBefore),
-        result: 'pending'
-    };
-
-    appendAuditLog(buildAuditEntry('pending', serviceId, actor, {
-        sourcePath: def.dataAbsPath,
-        backupDir,
-        composePath: def.composePath,
-        sourceExisted,
-        targetStatusBefore: summarizeServiceStatus(targetStatusBefore)
-    }));
-    console.log(`[Audit] Cleanup pending operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=${backupDir} status=pending`);
-
-    let output = '';
-    try {
-        fs.mkdirSync(backupDir, { recursive: true });
-        writeCleanupManifest(manifestPath, manifest);
-
-        const down = await dockerRuntime.exec(dockerRuntime.dockerComposeCmd, dockerRuntime.composeArgsFor(def, ['down']));
-        output += down.stdout + down.stderr;
-        if (down.error) throw new Error(down.error.message);
-
-        const archived = safeMovePath(def.dataAbsPath, archivedDataPath);
-        fs.mkdirSync(def.dataAbsPath, { recursive: true });
-
-        const up = await dockerRuntime.exec(dockerRuntime.dockerComposeCmd, dockerRuntime.composeArgsFor(def, ['up', '-d']));
-        output += up.stdout + up.stderr;
-        if (up.error) throw new Error(up.error.message);
-
-        const targetStatusAfter = await getServiceStatus(def);
-        manifest.finishedAt = new Date().toISOString();
-        manifest.result = 'success';
-        manifest.archived = archived;
-        manifest.targetStatusAfter = summarizeServiceStatus(targetStatusAfter);
-        manifest.output = output.slice(-8000);
-        writeCleanupManifest(manifestPath, manifest);
-
-        appendAuditLog(buildAuditEntry('success', serviceId, actor, {
-            sourcePath: def.dataAbsPath,
-            backupDir,
-            archived,
-            composePath: def.composePath,
-            targetStatusAfter: summarizeServiceStatus(targetStatusAfter)
-        }));
-        console.log(`[Audit] Cleanup success operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=${backupDir} status=success`);
-
-        return {
-            status: 'success',
-            service: { id: def.id, label: def.label },
-            sourcePath: def.dataAbsPath,
-            backupDir,
-            archived,
-            manifestPath,
-            output
-        };
-    } catch (e) {
-        let targetStatusAfterFailure = null;
-        try {
-            targetStatusAfterFailure = await getServiceStatus(def);
-        } catch (statusError) {
-            targetStatusAfterFailure = { status: 'unknown', running: false, containerId: '', message: statusError.message };
-        }
-        manifest.finishedAt = new Date().toISOString();
-        manifest.result = 'failure';
-        manifest.error = e.message;
-        manifest.targetStatusAfter = summarizeServiceStatus(targetStatusAfterFailure);
-        manifest.output = output.slice(-8000);
-        try { writeCleanupManifest(manifestPath, manifest); } catch (manifestError) { console.error(`[Audit] Failed to update cleanup manifest: ${manifestError.message}`); }
-
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            sourcePath: def.dataAbsPath,
-            backupDir,
-            composePath: def.composePath,
-            error: e.message,
-            targetStatusAfter: summarizeServiceStatus(targetStatusAfterFailure)
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=${backupDir} status=failure error=${e.message}`);
-
-        return {
-            status: 'error',
-            message: e.message,
-            sourcePath: def.dataAbsPath,
-            backupDir,
-            manifestPath,
-            output
-        };
-    } finally {
-        activeCleanupService = null;
-    }
 }
 
 function normalizeComposeEnvironment(environment) {
@@ -2238,230 +1942,12 @@ function startServer() {
             return;
         }
 
-        // SSE for Container Logs - Using callback mode like restart API
         const serviceLogsMatch = pathname.match(/^\/api\/services\/([^/]+)\/logs$/);
         if ((pathname === '/api/logs' || serviceLogsMatch) && method === 'GET') {
-            if (!dockerRuntime.dockerComposeCmd) {
-                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'error',
-                    message: 'Docker Compose not available'
-                }));
-                return;
-            }
-
-            res.writeHead(200, {
-                'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive'
-            });
-
-            // Use spawn for real-time logs (streaming)
             const serviceId = serviceLogsMatch
                 ? serviceLogsMatch[1]
                 : (requestUrl.searchParams.get('service') || getPackageServiceId());
-            const def = getServiceDefinition(serviceId);
-            if (!def || !def.exists) {
-                res.write(`data: ${JSON.stringify({ type: 'error', message: `[错误] 服务不存在或 compose 文件缺失: ${serviceId}` })}\n\n`);
-                res.write(`data: ${JSON.stringify({ type: 'close', code: -1 })}\n\n`);
-                res.end();
-                return;
-            }
-
-            const args = dockerRuntime.composeArgsFor(def, ['logs', '-f', '--tail=50', def.composeService]);
-            console.log(`[Info] Starting real-time logs: ${dockerRuntime.dockerComposeCmd} ${args.join(' ')}`);
-
-            const child = spawn(dockerRuntime.dockerComposeCmd, args, {
-                cwd: APP_ROOT,
-                detached: process.platform !== 'win32',
-                stdio: ['ignore', 'pipe', 'pipe'] // Ignore stdin, pipe stdout/stderr
-            });
-
-            const MAX_PENDING_LOG_EVENTS = 1000;
-            const MAX_EVENTS_PER_FLUSH = 120;
-            const MAX_SSE_LINE_LENGTH = 4000;
-            const FLUSH_INTERVAL_MS = 200;
-
-            let closed = false;
-            let cleanupStarted = false;
-            let waitingForDrain = false;
-            let droppedLogEvents = 0;
-            let stdoutRemainder = '';
-            let stderrRemainder = '';
-            const pendingEvents = [];
-
-            function isResponseOpen() {
-                return !closed && !res.destroyed && !res.writableEnded;
-            }
-
-            function pauseUntilDrain() {
-                if (waitingForDrain || !isResponseOpen()) return;
-                waitingForDrain = true;
-                child.stdout.pause();
-                child.stderr.pause();
-                res.once('drain', () => {
-                    waitingForDrain = false;
-                    if (!isResponseOpen()) return;
-                    child.stdout.resume();
-                    child.stderr.resume();
-                    flushPendingEvents();
-                });
-            }
-
-            function writeSse(payload) {
-                if (!isResponseOpen()) return false;
-                const ok = res.write(`data: ${JSON.stringify(payload)}\n\n`);
-                if (!ok) pauseUntilDrain();
-                return ok;
-            }
-
-            function enqueueLogLine(line) {
-                if (!line) return;
-                let message = line;
-                if (message.length > MAX_SSE_LINE_LENGTH) {
-                    message = `${message.slice(0, MAX_SSE_LINE_LENGTH)} ... [server truncated, original length: ${line.length}]`;
-                }
-                if (pendingEvents.length >= MAX_PENDING_LOG_EVENTS) {
-                    const dropCount = pendingEvents.length - MAX_PENDING_LOG_EVENTS + 1;
-                    pendingEvents.splice(0, dropCount);
-                    droppedLogEvents += dropCount;
-                }
-                pendingEvents.push({ type: 'log', message });
-            }
-
-            function processLogChunk(chunk, streamName) {
-                const existing = streamName === 'stdout' ? stdoutRemainder : stderrRemainder;
-                const text = existing + chunk.toString('utf8');
-                const lines = text.split(/\r?\n/);
-                const remainder = lines.pop() || '';
-                if (streamName === 'stdout') stdoutRemainder = remainder;
-                else stderrRemainder = remainder;
-                lines.forEach(enqueueLogLine);
-            }
-
-            function flushRemainders() {
-                if (stdoutRemainder) {
-                    enqueueLogLine(stdoutRemainder);
-                    stdoutRemainder = '';
-                }
-                if (stderrRemainder) {
-                    enqueueLogLine(stderrRemainder);
-                    stderrRemainder = '';
-                }
-            }
-
-            function flushPendingEvents() {
-                if (!isResponseOpen()) return;
-                if (droppedLogEvents > 0) {
-                    const dropped = droppedLogEvents;
-                    droppedLogEvents = 0;
-                    if (!writeSse({ type: 'warn', message: `[日志过多] 已丢弃 ${dropped} 条旧日志，继续显示最新内容。` })) return;
-                }
-
-                let sent = 0;
-                while (pendingEvents.length > 0 && sent < MAX_EVENTS_PER_FLUSH) {
-                    const event = pendingEvents.shift();
-                    if (!writeSse(event)) {
-                        pendingEvents.unshift(event);
-                        return;
-                    }
-                    sent += 1;
-                }
-            }
-
-            const flushTimer = setInterval(flushPendingEvents, FLUSH_INTERVAL_MS);
-
-            function killLogsProcess() {
-                if (child.killed || child.exitCode !== null) return;
-                try {
-                    if (process.platform !== 'win32') {
-                        process.kill(-child.pid, 'SIGTERM');
-                    } else {
-                        child.kill('SIGTERM');
-                    }
-                } catch (e) {
-                    try { child.kill('SIGTERM'); } catch (_) { /* ignore */ }
-                }
-                setTimeout(() => {
-                    if (child.killed || child.exitCode !== null) return;
-                    try {
-                        if (process.platform !== 'win32') {
-                            process.kill(-child.pid, 'SIGKILL');
-                        } else {
-                            child.kill('SIGKILL');
-                        }
-                    } catch (_) {
-                        // The process may already be gone.
-                    }
-                }, 5000).unref?.();
-            }
-
-            function cleanupLogStream(reason, shouldKillChild = false) {
-                if (cleanupStarted) return;
-                cleanupStarted = true;
-                closed = true;
-                clearInterval(heartbeat);
-                clearInterval(flushTimer);
-                child.stdout.removeAllListeners('data');
-                child.stderr.removeAllListeners('data');
-                pendingEvents.length = 0;
-                if (shouldKillChild) {
-                    console.log(`[Info] Closing logs stream (${reason}), killing logs process...`);
-                    killLogsProcess();
-                }
-            }
-
-            // Stream stdout/stderr into a bounded queue. The interval above handles SSE writes.
-            child.stdout.on('data', (chunk) => processLogChunk(chunk, 'stdout'));
-            child.stderr.on('data', (chunk) => processLogChunk(chunk, 'stderr'));
-
-            // Handle process exit
-            child.on('close', (code) => {
-                console.log(`[Info] Logs process exited with code ${code}`);
-                cleanupStarted = true;
-                clearInterval(heartbeat);
-                clearInterval(flushTimer);
-                flushRemainders();
-                flushPendingEvents();
-                if (isResponseOpen()) {
-                    writeSse({ type: 'close', code });
-                    closed = true;
-                    res.end();
-                }
-            });
-
-            child.on('error', (err) => {
-                console.error('[Error] Failed to spawn logs process:', err.message);
-                cleanupStarted = true;
-                clearInterval(heartbeat);
-                clearInterval(flushTimer);
-                if (isResponseOpen()) {
-                    writeSse({ type: 'error', message: `[错误] ${err.message}` });
-                    writeSse({ type: 'close', code: -1 });
-                    closed = true;
-                    res.end();
-                }
-            });
-
-            // Heartbeat to keep connection alive
-            const heartbeat = setInterval(() => {
-                if (isResponseOpen()) {
-                    const ok = res.write(': heartbeat\n\n');
-                    if (!ok) pauseUntilDrain();
-                } else {
-                    clearInterval(heartbeat);
-                }
-            }, 15000);
-
-            // Clean up on client disconnect
-            req.on('close', () => {
-                cleanupLogStream('request closed', true);
-            });
-
-            res.on('close', () => {
-                cleanupLogStream('response closed', true);
-            });
-
+            logStreamService.streamLogs({ req, res, serviceId, headers });
             return;
         }
 
