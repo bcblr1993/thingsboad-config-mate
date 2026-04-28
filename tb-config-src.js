@@ -10,6 +10,7 @@ const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { readRequestBody, writeJson } = require('./src/server/http');
 const { createCleanupService } = require('./src/server/services/cleanup');
 const { createServiceComposeConfigBuilder } = require('./src/server/services/compose-config');
+const { createDeploymentPlanner } = require('./src/server/services/deployment-plan');
 const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
@@ -53,6 +54,22 @@ const envStore = createEnvStore({
     logger: console
 });
 const { parseEnvFile, saveEnvFile } = envStore;
+const deploymentPlanner = createDeploymentPlanner({
+    appType: APP_TYPE,
+    getPackageServiceId,
+    getServiceDefinition,
+    getServiceStatus,
+    runComposeAction,
+    configProvider: parseEnvFile
+});
+const {
+    applyAppConfigChange,
+    buildDeploymentPlan,
+    buildDeploymentPlanWithStatus,
+    checkRequiredDependencies,
+    dependencyBlockResult,
+    guardAppServiceDependencies
+} = deploymentPlanner;
 const cleanupService = createCleanupService({
     appRoot: APP_ROOT,
     runtimeDir: RUNTIME_DIR,
@@ -843,132 +860,6 @@ function getRequestActor(req) {
         operator: session?.operator || 'anonymous',
         sessionId: session?.sessionId || 'anonymous',
         ip: session?.ip || getClientIp(req)
-    };
-}
-
-function buildDeploymentPlan(config = parseEnvFile()) {
-    const required = new Set(['postgres']);
-    const warnings = [];
-
-    if (config.DATABASE_TS_TYPE === 'cassandra' || config.DATABASE_TS_LATEST_TYPE === 'cassandra') {
-        required.add('cassandra');
-    }
-
-    if (config.DATABASE_TS_LATEST_TYPE === 'redis-cluster' || config.REDIS_CONNECTION_TYPE === 'cluster') {
-        warnings.push('Redis Cluster 暂不自动初始化，请确认 ANNOUNCE_IP 和 REDIS_NODES 后手动执行高级流程。');
-    } else if (config.DATABASE_TS_LATEST_TYPE === 'redis' || config.CACHE_TYPE === 'redis') {
-        required.add('redis');
-    }
-
-    if (config.TB_QUEUE_TYPE === 'kafka') {
-        required.add('kafka');
-    }
-
-    required.add(getPackageServiceId());
-
-    const services = Array.from(required)
-        .map(getServiceDefinition)
-        .filter(Boolean)
-        .sort((a, b) => a.order - b.order);
-
-    return {
-        appType: APP_TYPE,
-        appService: getPackageServiceId(),
-        services: services.map(s => ({ id: s.id, label: s.label, order: s.order, exists: s.exists })),
-        warnings
-    };
-}
-
-async function buildDeploymentPlanWithStatus(config = parseEnvFile()) {
-    const plan = buildDeploymentPlan(config);
-    const statuses = await Promise.all(plan.services.map(s => getServiceStatus(getServiceDefinition(s.id))));
-    const appServiceId = getPackageServiceId();
-    const missing = statuses.filter(s => !s.running).map(s => s.id);
-    const missingDependencyIds = statuses
-        .filter(s => s.id !== appServiceId && !s.running)
-        .map(s => s.id);
-    return { ...plan, statuses, missingServices: missing, missingDependencyIds };
-}
-
-async function checkRequiredDependencies(config = parseEnvFile()) {
-    const plan = await buildDeploymentPlanWithStatus(config);
-    const appServiceId = getPackageServiceId();
-    const missingDependencies = (plan.statuses || [])
-        .filter(s => s.id !== appServiceId && !s.running)
-        .map(s => ({
-            id: s.id,
-            label: s.label || s.id,
-            status: s.status || 'unknown',
-            message: s.message || ''
-        }));
-
-    return {
-        ok: missingDependencies.length === 0,
-        plan,
-        missingDependencies,
-        missingDependencyIds: missingDependencies.map(s => s.id)
-    };
-}
-
-function dependencyBlockResult(actionText, dependencyCheck) {
-    const names = dependencyCheck.missingDependencies.map(s => s.label || s.id).join('、');
-    return {
-        status: 'error',
-        code: 'DEPENDENCIES_NOT_RUNNING',
-        message: `请先启动依赖服务：${names}，状态变为 running 后再${actionText}。`,
-        plan: dependencyCheck.plan,
-        missingDependencyIds: dependencyCheck.missingDependencyIds,
-        missingDependencies: dependencyCheck.missingDependencies
-    };
-}
-
-async function guardAppServiceDependencies(actionText, config = parseEnvFile()) {
-    const dependencyCheck = await checkRequiredDependencies(config);
-    if (!dependencyCheck.ok) {
-        return dependencyBlockResult(actionText, dependencyCheck);
-    }
-    return null;
-}
-
-async function applyAppConfigChange(config) {
-    const dependencyBlock = await guardAppServiceDependencies('重启当前业务服务', config);
-    if (dependencyBlock) return dependencyBlock;
-
-    const plan = buildDeploymentPlan(config);
-    const outputs = [];
-    const appServiceId = getPackageServiceId();
-    const appDef = getServiceDefinition(appServiceId);
-
-    if (!appDef || !appDef.exists) {
-        return { status: 'error', plan, output: `[ERROR] ${appServiceId}: compose file missing` };
-    }
-
-    const statuses = await Promise.all(plan.services.map(s => getServiceStatus(getServiceDefinition(s.id))));
-    const missingServices = statuses
-        .filter(s => s.exists && !s.running)
-        .map(s => s.id);
-    const missingDependencyIds = statuses
-        .filter(s => s.id !== appServiceId && s.exists && !s.running)
-        .map(s => s.id);
-
-    const result = await runComposeAction(appServiceId, 'restart');
-    outputs.push(`[${result.status.toUpperCase()}] ${appServiceId}: restart\n${result.output || result.message || ''}`);
-    if (result.status !== 'success') {
-        return {
-            status: 'error',
-            plan: { ...plan, statuses, missingServices, missingDependencyIds },
-            output: outputs.join('\n'),
-            restartedService: appServiceId,
-            skippedDependencies: missingDependencyIds
-        };
-    }
-
-    return {
-        status: 'success',
-        plan: { ...plan, statuses, missingServices, missingDependencyIds },
-        output: outputs.join('\n'),
-        restartedService: appServiceId,
-        skippedDependencies: missingDependencyIds
     };
 }
 
