@@ -87,6 +87,21 @@ function createDeploymentPlanner({
         };
     }
 
+    function appServiceBlockResult(actionText, dependencyCheck) {
+        const appServiceId = getPackageServiceId();
+        const appStatus = (dependencyCheck.plan.statuses || []).find(status => status.id === appServiceId);
+        const label = appStatus?.label || appServiceId;
+        return {
+            status: 'error',
+            code: 'APP_SERVICE_NOT_RUNNING',
+            message: `请先启动 ${label}，状态变为 running 后再${actionText}。`,
+            plan: dependencyCheck.plan,
+            appServiceId,
+            appServiceStatus: appStatus?.status || 'unknown',
+            appServiceRunning: false
+        };
+    }
+
     async function guardAppServiceDependencies(actionText, config = configProvider()) {
         const dependencyCheck = await checkRequiredDependencies(config);
         if (!dependencyCheck.ok) {
@@ -95,8 +110,23 @@ function createDeploymentPlanner({
         return null;
     }
 
+    async function guardAppServiceRunning(actionText, config = configProvider()) {
+        const dependencyCheck = await checkRequiredDependencies(config);
+        if (!dependencyCheck.ok) {
+            return dependencyBlockResult(actionText, dependencyCheck);
+        }
+
+        const appServiceId = getPackageServiceId();
+        const appStatus = (dependencyCheck.plan.statuses || []).find(status => status.id === appServiceId);
+        if (!appStatus?.running) {
+            return appServiceBlockResult(actionText, dependencyCheck);
+        }
+
+        return null;
+    }
+
     async function applyAppConfigChange(config = configProvider()) {
-        const dependencyBlock = await guardAppServiceDependencies('重启当前业务服务', config);
+        const dependencyBlock = await guardAppServiceRunning('重启当前业务服务', config);
         if (dependencyBlock) return dependencyBlock;
 
         const plan = buildDeploymentPlan(config);
@@ -143,6 +173,7 @@ function createDeploymentPlanner({
         checkRequiredDependencies,
         dependencyBlockResult,
         guardAppServiceDependencies,
+        guardAppServiceRunning,
         applyAppConfigChange
     };
 }

@@ -61,6 +61,33 @@ test('guardAppServiceDependencies blocks when required dependency is stopped', a
     assert.deepEqual(result.missingDependencyIds, ['redis']);
 });
 
+test('guardAppServiceRunning blocks when app service is stopped', async () => {
+    const planner = makePlanner({
+        config: {},
+        statuses: { iotcloud: false }
+    });
+
+    const result = await planner.guardAppServiceRunning('执行初始化安装');
+
+    assert.equal(result.code, 'APP_SERVICE_NOT_RUNNING');
+    assert.equal(result.appServiceId, 'iotcloud');
+    assert.equal(result.appServiceStatus, 'stopped');
+});
+
+test('applyAppConfigChange refuses to restart a stopped app service', async () => {
+    const actions = [];
+    const planner = makePlanner({
+        config: {},
+        statuses: { iotcloud: false },
+        actions
+    });
+
+    const result = await planner.applyAppConfigChange();
+
+    assert.equal(result.code, 'APP_SERVICE_NOT_RUNNING');
+    assert.deepEqual(actions, []);
+});
+
 test('applyAppConfigChange restarts only the app service', async () => {
     const actions = [];
     const planner = makePlanner({ config: {}, actions });

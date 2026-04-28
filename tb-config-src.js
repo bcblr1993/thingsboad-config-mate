@@ -80,7 +80,8 @@ const {
     buildDeploymentPlanWithStatus,
     checkRequiredDependencies,
     dependencyBlockResult,
-    guardAppServiceDependencies
+    guardAppServiceDependencies,
+    guardAppServiceRunning
 } = deploymentPlanner;
 const cleanupService = createCleanupService({
     appRoot: APP_ROOT,
@@ -1085,13 +1086,15 @@ function startServer() {
             const actionText = action === 'up' ? '启动当前业务服务' : '重启当前业务服务';
             const guardedAction = async () => {
                 if (serviceId === getPackageServiceId() && (action === 'up' || action === 'restart')) {
-                    const dependencyBlock = await guardAppServiceDependencies(actionText);
-                    if (dependencyBlock) return dependencyBlock;
+                    const block = action === 'restart'
+                        ? await guardAppServiceRunning(actionText)
+                        : await guardAppServiceDependencies(actionText);
+                    if (block) return block;
                 }
                 return runComposeAction(serviceId, action);
             };
             guardedAction()
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (result.code === 'DEPENDENCIES_NOT_RUNNING' ? 409 : 500), result, headers))
+                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
                 .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
             return;
         }
@@ -1112,14 +1115,14 @@ function startServer() {
             readRequestBody(req).then(async body => {
                 const payload = body ? JSON.parse(body) : {};
                 const config = payload.config || parseEnvFile();
-                const dependencyBlock = await guardAppServiceDependencies('保存并重启当前业务服务', config);
+                const dependencyBlock = await guardAppServiceRunning('保存并重启当前业务服务', config);
                 if (dependencyBlock) return dependencyBlock;
                 if (payload.save !== false && payload.config) {
                     saveEnvFile(config);
                 }
                 return applyAppConfigChange(config);
             }).then(result => {
-                writeJson(res, result.status === 'success' ? 200 : (result.code === 'DEPENDENCIES_NOT_RUNNING' ? 409 : 500), result, headers);
+                writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers);
             }).catch(e => {
                 writeJson(res, 500, { status: 'error', message: e.message }, headers);
             });
@@ -1127,9 +1130,9 @@ function startServer() {
         }
 
         if (pathname === '/api/restart' && method === 'POST') {
-            guardAppServiceDependencies('重启当前业务服务')
+            guardAppServiceRunning('重启当前业务服务')
                 .then(block => block || runComposeAction(getPackageServiceId(), 'restart'))
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (result.code === 'DEPENDENCIES_NOT_RUNNING' ? 409 : 500), result, headers))
+                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
                 .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
             return;
         }
@@ -1142,9 +1145,9 @@ function startServer() {
         }
 
         if (pathname === '/api/service-restart' && method === 'POST') {
-            guardAppServiceDependencies('重启当前业务服务')
+            guardAppServiceRunning('重启当前业务服务')
                 .then(block => block || runComposeAction(getPackageServiceId(), 'restart'))
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (result.code === 'DEPENDENCIES_NOT_RUNNING' ? 409 : 500), result, headers))
+                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
                 .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
             return;
         }
@@ -1264,10 +1267,10 @@ function startServer() {
                 return;
             }
 
-            checkRequiredDependencies()
-                .then(dependencyCheck => {
-                    if (!dependencyCheck.ok) {
-                        writeJson(res, 409, dependencyBlockResult('执行初始化安装', dependencyCheck), headers);
+            guardAppServiceRunning('执行初始化安装')
+                .then(block => {
+                    if (block) {
+                        writeJson(res, 409, block, headers);
                         return;
                     }
 
