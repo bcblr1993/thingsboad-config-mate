@@ -5382,6 +5382,96 @@ body {
     margin: 0 2px;
 }
 
+.deployment-diagnostics {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: #64748B;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.diagnostics-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #334155;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.diagnostics-dot,
+.diagnostic-chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.diagnostics-dot.ok,
+.diagnostic-chip.ok .diagnostic-chip-dot {
+    background: #10B981;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12);
+}
+
+.diagnostics-dot.warning,
+.diagnostic-chip.warning .diagnostic-chip-dot {
+    background: #F59E0B;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.12);
+}
+
+.diagnostics-dot.error,
+.diagnostics-dot.unknown,
+.diagnostic-chip.error .diagnostic-chip-dot,
+.diagnostic-chip.unknown .diagnostic-chip-dot {
+    background: #EF4444;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+}
+
+.diagnostics-list {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.diagnostic-chip {
+    min-height: 24px;
+    padding: 0 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border-radius: 999px;
+    border: 1px solid #D9E2EC;
+    background: #FFFFFF;
+    color: #475569;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.diagnostic-chip.ok {
+    border-color: #A7F3D0;
+    background: #F0FDF4;
+    color: #047857;
+}
+
+.diagnostic-chip.warning {
+    border-color: #FDE68A;
+    background: #FFFBEB;
+    color: #B45309;
+}
+
+.diagnostic-chip.error,
+.diagnostic-chip.unknown {
+    border-color: #FECACA;
+    background: #FEF2F2;
+    color: #B91C1C;
+}
+
 .overview-row {
     display: grid;
     grid-template-columns: 76px minmax(0, 1fr);

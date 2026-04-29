@@ -550,7 +550,37 @@ async function loadDeploymentInfo() {
         <span class="meta-separator">/</span>
         ${escapeHtml(dockerText)}
     `;
+    renderDeploymentDiagnostics(deploymentInfo.diagnostics);
     updateAppLayoutLabels();
+}
+
+function renderDeploymentDiagnostics(diagnostics) {
+    const el = document.getElementById('deployment-diagnostics');
+    if (!el) return;
+    const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
+    if (checks.length === 0) {
+        el.textContent = '环境检查暂不可用';
+        return;
+    }
+    const statusLabel = diagnostics.status === 'ok'
+        ? '检查通过'
+        : diagnostics.status === 'warning'
+            ? '存在提醒'
+            : '需要处理';
+    el.innerHTML = `
+        <div class="diagnostics-label">
+            <span class="diagnostics-dot ${escapeHtml(diagnostics.status || 'unknown')}"></span>
+            环境检查 · ${escapeHtml(statusLabel)}
+        </div>
+        <div class="diagnostics-list">
+            ${checks.map(check => `
+                <span class="diagnostic-chip ${escapeHtml(check.state || 'unknown')}" title="${escapeHtml(check.detail || '')}">
+                    <span class="diagnostic-chip-dot"></span>
+                    ${escapeHtml(check.label || check.id || '')}
+                </span>
+            `).join('')}
+        </div>
+    `;
 }
 
 function getAppDisplayName() {

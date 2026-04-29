@@ -103,6 +103,85 @@ const logStreamService = createLogStreamService({
 });
 let serviceComposeConfigBuilder = null;
 
+function buildDiagnosticItem(id, label, ok, detail, severity = 'error') {
+    return {
+        id,
+        label,
+        state: ok ? 'ok' : severity,
+        detail
+    };
+}
+
+function buildDeploymentDiagnostics() {
+    const dockerMessage = dockerRuntime.readyMessage();
+    const socketMounted = fs.existsSync('/var/run/docker.sock') || os.platform() === 'win32';
+    const serviceDefs = listServiceDefinitions();
+    const existingServices = serviceDefs.filter(service => service.exists);
+    const appDef = getServiceDefinition(getPackageServiceId());
+    const checks = [
+        buildDiagnosticItem(
+            'app-root',
+            '安装包目录',
+            fs.existsSync(APP_ROOT),
+            fs.existsSync(APP_ROOT) ? APP_ROOT : `目录不存在：${APP_ROOT}`
+        ),
+        buildDiagnosticItem(
+            'app-env',
+            '业务配置',
+            fs.existsSync(ENV_FILE_PATH),
+            fs.existsSync(ENV_FILE_PATH) ? ENV_FILE_PATH : `未找到 .env：${ENV_FILE_PATH}`
+        ),
+        buildDiagnosticItem(
+            'yaml-config',
+            'YAML 模板',
+            !!YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH),
+            YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH) ? YAML_CONFIG_PATH : '未找到 YAML 模板，首次补全配置可能不完整。',
+            'warning'
+        ),
+        buildDiagnosticItem(
+            'docker-socket',
+            'Docker Socket',
+            socketMounted,
+            socketMounted ? '/var/run/docker.sock 已挂载' : '未挂载 /var/run/docker.sock，无法控制宿主机 Docker。'
+        ),
+        buildDiagnosticItem(
+            'docker-compose',
+            'Docker Compose',
+            !dockerMessage,
+            dockerMessage || `${dockerRuntime.dockerComposeCmd || 'docker compose'} 可用`
+        ),
+        buildDiagnosticItem(
+            'app-compose',
+            '业务 Compose',
+            !!appDef?.exists,
+            appDef?.exists ? appDef.composePath : `未找到 ${appDef?.composePath || '业务 compose'}`
+        ),
+        buildDiagnosticItem(
+            'service-compose',
+            '服务 Compose',
+            existingServices.length > 0,
+            `${existingServices.length}/${serviceDefs.length} 个服务 compose 可用`,
+            'warning'
+        ),
+        buildDiagnosticItem(
+            'auth',
+            '登录保护',
+            AUTH_REQUIRED,
+            AUTH_REQUIRED ? '已启用管理口令' : '未配置 CONFIG_MATE_PASSWORD，高权限控制台未受保护。',
+            'warning'
+        )
+    ];
+    const counts = checks.reduce((acc, check) => {
+        acc[check.state] = (acc[check.state] || 0) + 1;
+        return acc;
+    }, { ok: 0, warning: 0, error: 0 });
+    return {
+        status: counts.error > 0 ? 'error' : (counts.warning > 0 ? 'warning' : 'ok'),
+        counts,
+        checks
+    };
+}
+
 // --- Helper: Check Status ---
 function getRunningPid(pidPath = PID_FILE) {
     if (!fs.existsSync(pidPath)) return null;
@@ -1030,7 +1109,8 @@ function startServer() {
                     socketMounted: fs.existsSync('/var/run/docker.sock') || os.platform() === 'win32',
                     available: !dockerRuntime.readyMessage(),
                     message: dockerRuntime.readyMessage()
-                }
+                },
+                diagnostics: buildDeploymentDiagnostics()
             }, headers);
             return;
         }
