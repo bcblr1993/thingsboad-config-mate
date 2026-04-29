@@ -14,6 +14,7 @@ const { createDeploymentPlanner } = require('./src/server/services/deployment-pl
 const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
+const { createServiceRoutes } = require('./src/server/routes/services');
 const { createSystemRoutes } = require('./src/server/routes/system');
 const CONFIG_META = require('./config-meta');
 
@@ -109,6 +110,7 @@ const systemRoutes = createSystemRoutes({
     buildDeploymentDiagnostics,
     getPackageServiceId
 });
+let serviceRoutes = null;
 let serviceComposeConfigBuilder = null;
 
 function buildDiagnosticItem(id, label, ok, detail, severity = 'error') {
@@ -575,6 +577,19 @@ serviceComposeConfigBuilder = createServiceComposeConfigBuilder({
     envProvider: parseEnvFile
 });
 const { buildServiceComposeConfig } = serviceComposeConfigBuilder;
+serviceRoutes = createServiceRoutes({
+    listServiceDefinitions,
+    getServiceDefinition,
+    getPackageServiceId,
+    getServiceStatus,
+    runComposeAction,
+    buildServiceComposeConfig,
+    buildCleanupPlan,
+    runCleanupService,
+    getRequestActor,
+    guardAppServiceDependencies,
+    guardAppServiceRunning
+});
 
 // --- Auto-Init Logic ---
 function tryInitFromYaml() {
@@ -1042,67 +1057,7 @@ function startServer() {
             return;
         }
 
-        if (pathname === '/api/services' && method === 'GET') {
-            Promise.all(listServiceDefinitions().map(getServiceStatus))
-                .then(services => writeJson(res, 200, { status: 'success', services }, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        const serviceConfigMatch = pathname.match(/^\/api\/services\/([^/]+)\/config$/);
-        if (serviceConfigMatch && method === 'GET') {
-            const result = buildServiceComposeConfig(serviceConfigMatch[1]);
-            writeJson(res, result.status === 'success' ? 200 : 404, result, headers);
-            return;
-        }
-
-        const serviceCleanupPlanMatch = pathname.match(/^\/api\/services\/([^/]+)\/cleanup-plan$/);
-        if (serviceCleanupPlanMatch && method === 'GET') {
-            const actor = getRequestActor(req);
-            const result = buildCleanupPlan(serviceCleanupPlanMatch[1], actor);
-            if (result.status === 'success') {
-                getServiceStatus(getServiceDefinition(getPackageServiceId()))
-                    .then(appStatus => {
-                        result.appServiceRunning = !!appStatus.running;
-                        result.appServiceStatus = appStatus.status || 'unknown';
-                        writeJson(res, 200, result, headers);
-                    })
-                    .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            } else {
-                writeJson(res, 404, result, headers);
-            }
-            return;
-        }
-
-        const serviceCleanupMatch = pathname.match(/^\/api\/services\/([^/]+)\/cleanup$/);
-        if (serviceCleanupMatch && method === 'POST') {
-            readRequestBody(req).then(body => {
-                const payload = body ? JSON.parse(body) : {};
-                return runCleanupService(serviceCleanupMatch[1], payload.confirmServiceId, getRequestActor(req));
-            }).then(result => {
-                const code = result.status === 'success' ? 200
-                    : (result.code === 'APP_SERVICE_RUNNING' || result.code === 'CLEANUP_RUNNING' ? 409 : 400);
-                writeJson(res, code, result, headers);
-            }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        const serviceActionMatch = pathname.match(/^\/api\/services\/([^/]+)\/(up|down|restart)$/);
-        if (serviceActionMatch && method === 'POST') {
-            const [, serviceId, action] = serviceActionMatch;
-            const actionText = action === 'up' ? '启动当前业务服务' : '重启当前业务服务';
-            const guardedAction = async () => {
-                if (serviceId === getPackageServiceId() && (action === 'up' || action === 'restart')) {
-                    const block = action === 'restart'
-                        ? await guardAppServiceRunning(actionText)
-                        : await guardAppServiceDependencies(actionText);
-                    if (block) return block;
-                }
-                return runComposeAction(serviceId, action);
-            };
-            guardedAction()
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+        if (serviceRoutes.handle(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
