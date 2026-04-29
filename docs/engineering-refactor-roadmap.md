@@ -24,6 +24,7 @@ Config Mate 后续会持续承担现场安装包配置、服务编排、日志�
 - `src/server/routes/services.js` 统一处理服务列表、服务配置、启停重启、清理计划和清理执行等服务路由。
 - `src/server/routes/config.js` 统一处理配置读取保存、历史版本、源码模式和运行时差异检查等配置路由。
 - `src/server/routes/install.js` 统一处理安装检查、compose 校验和初始化安装日志流等安装路由。
+- `src/server/routes/app.js` 统一处理部署计划、保存并重启、业务启停状态和日志入口等应用路由。
 - `src/server/config/yaml-init.js` 统一处理 YAML 初始化、占位符解析、缺失配置补全。
 - `test/app-context.test.js` 覆盖现场目录识别规则。
 - `test/service-registry.test.js` 覆盖服务注册表 Cloud/Edge 过滤和路径解析。
@@ -73,7 +74,8 @@ Config Mate 后续会持续承担现场安装包配置、服务编排、日志�
 - 已完成配置路由拆分：配置读取保存、历史版本、源码模式、运行时差异检查。
 - 已完成安装路由拆分：安装检查、compose 校验、初始化安装日志流。
 - 已完成 YAML 初始化逻辑下沉：YAML 提取、缺失配置补全、占位符解析。
-- 下一步整理剩余应用动作路由：plan/apply-plan/restart/stop/status/logs。
+- 已完成应用动作路由拆分：plan/apply-plan/restart/stop/status/logs。
+- 下一步进入前端模块化：API 客户端、服务面板、配置表单、日志、弹窗。
 
 ### 第三阶段：配置读写层拆分
 

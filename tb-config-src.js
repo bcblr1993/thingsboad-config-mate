@@ -8,13 +8,14 @@ const { createAuthService } = require('./src/server/auth/session');
 const { createEnvStore } = require('./src/server/config/env-store');
 const { createYamlInitializer } = require('./src/server/config/yaml-init');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
-const { readRequestBody, writeJson } = require('./src/server/http');
+const { writeJson } = require('./src/server/http');
 const { createCleanupService } = require('./src/server/services/cleanup');
 const { createServiceComposeConfigBuilder } = require('./src/server/services/compose-config');
 const { createDeploymentPlanner } = require('./src/server/services/deployment-plan');
 const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
+const { createAppRoutes } = require('./src/server/routes/app');
 const { createConfigRoutes } = require('./src/server/routes/config');
 const { createInstallRoutes } = require('./src/server/routes/install');
 const { createServiceRoutes } = require('./src/server/routes/services');
@@ -621,6 +622,18 @@ const yamlInitializer = createYamlInitializer({
     parseEnvFile,
     saveEnvFile
 });
+const appRoutes = createAppRoutes({
+    parseEnvFile,
+    saveEnvFile,
+    buildDeploymentPlanWithStatus,
+    guardAppServiceRunning,
+    applyAppConfigChange,
+    runComposeAction,
+    getPackageServiceId,
+    getServiceDefinition,
+    getServiceStatus,
+    logStreamService
+});
 
 // --- HTTP Server ---
 
@@ -718,86 +731,11 @@ function startServer() {
             return;
         }
 
-        if (pathname === '/api/plan' && method === 'POST') {
-            readRequestBody(req).then(body => {
-                const payload = body ? JSON.parse(body) : {};
-                return buildDeploymentPlanWithStatus(payload.config || parseEnvFile());
-            }).then(plan => {
-                writeJson(res, 200, { status: 'success', plan }, headers);
-            }).catch(e => {
-                writeJson(res, 500, { status: 'error', message: e.message }, headers);
-            });
-            return;
-        }
-
-        if (pathname === '/api/apply-plan' && method === 'POST') {
-            readRequestBody(req).then(async body => {
-                const payload = body ? JSON.parse(body) : {};
-                const config = payload.config || parseEnvFile();
-                const dependencyBlock = await guardAppServiceRunning('保存并重启当前业务服务', config);
-                if (dependencyBlock) return dependencyBlock;
-                if (payload.save !== false && payload.config) {
-                    saveEnvFile(config);
-                }
-                return applyAppConfigChange(config);
-            }).then(result => {
-                writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers);
-            }).catch(e => {
-                writeJson(res, 500, { status: 'error', message: e.message }, headers);
-            });
-            return;
-        }
-
-        if (pathname === '/api/restart' && method === 'POST') {
-            guardAppServiceRunning('重启当前业务服务')
-                .then(block => block || runComposeAction(getPackageServiceId(), 'restart'))
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        if (pathname === '/api/stop' && method === 'POST') {
-            runComposeAction(getPackageServiceId(), 'down')
-                .then(result => writeJson(res, result.status === 'success' ? 200 : 500, result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        if (pathname === '/api/service-restart' && method === 'POST') {
-            guardAppServiceRunning('重启当前业务服务')
-                .then(block => block || runComposeAction(getPackageServiceId(), 'restart'))
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
         if (installRoutes.handle(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
-        const serviceLogsMatch = pathname.match(/^\/api\/services\/([^/]+)\/logs$/);
-        if ((pathname === '/api/logs' || serviceLogsMatch) && method === 'GET') {
-            const serviceId = serviceLogsMatch
-                ? serviceLogsMatch[1]
-                : (requestUrl.searchParams.get('service') || getPackageServiceId());
-            logStreamService.streamLogs({ req, res, serviceId, headers });
-            return;
-        }
-
-        if (pathname === '/api/status' && method === 'GET') {
-            const def = getServiceDefinition(getPackageServiceId());
-            getServiceStatus(def)
-                .then(status => {
-                    const payload = {
-                        status: status.status,
-                        service: status.id,
-                        dockerComposeMissing: !status.exists,
-                        missingFiles: status.exists ? [] : [status.composePath],
-                        message: status.message
-                    };
-                    writeJson(res, 200, payload, headers);
-                })
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+        if (appRoutes.handle(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
