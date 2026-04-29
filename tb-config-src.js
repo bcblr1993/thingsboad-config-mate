@@ -1,7 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { exec, spawn, execFile } = require('child_process');
+const { exec, spawn } = require('child_process');
 const os = require('os');
 const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
 const { createAuthService } = require('./src/server/auth/session');
@@ -14,6 +14,7 @@ const { createDeploymentPlanner } = require('./src/server/services/deployment-pl
 const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
+const { createConfigRoutes } = require('./src/server/routes/config');
 const { createServiceRoutes } = require('./src/server/routes/services');
 const { createSystemRoutes } = require('./src/server/routes/system');
 const CONFIG_META = require('./config-meta');
@@ -577,6 +578,15 @@ serviceComposeConfigBuilder = createServiceComposeConfigBuilder({
     envProvider: parseEnvFile
 });
 const { buildServiceComposeConfig } = serviceComposeConfigBuilder;
+const configRoutes = createConfigRoutes({
+    configMeta: CONFIG_META,
+    envStore,
+    parseEnvFile,
+    saveEnvFile,
+    dockerRuntime,
+    getServiceDefinition,
+    getPackageServiceId
+});
 serviceRoutes = createServiceRoutes({
     listServiceDefinitions,
     getServiceDefinition,
@@ -983,77 +993,7 @@ function startServer() {
             return;
         }
 
-        if (pathname === '/api/config' && method === 'GET') {
-            const current = parseEnvFile();
-            const responseData = {
-                meta: CONFIG_META,
-                values: current
-            };
-            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(responseData));
-            return;
-        }
-
-        if (pathname === '/api/save' && method === 'POST') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => {
-                try {
-                    const newConfig = JSON.parse(body);
-                    saveEnvFile(newConfig);
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'ok' }));
-                } catch (e) {
-                    res.writeHead(500, headers);
-                    res.end(JSON.stringify({ status: 'error', message: e.message }));
-                }
-            });
-            return;
-        }
-
-        // API: Get History List
-        if (pathname === '/api/history' && method === 'GET') {
-            writeJson(res, 200, { status: 'success', data: envStore.listHistory() }, headers);
-            return;
-        }
-
-        // API: Restore History
-        if (pathname === '/api/history/restore' && method === 'POST') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => {
-                try {
-                    const { filename } = JSON.parse(body);
-                    const result = envStore.restoreHistory(filename);
-                    if (!result.ok) {
-                        writeJson(res, result.statusCode || 500, { status: 'error', message: result.message }, headers);
-                        return;
-                    }
-                    writeJson(res, 200, { status: 'success', message: result.message }, headers);
-                } catch (e) {
-                    writeJson(res, 500, { status: 'error', message: e.message }, headers);
-                }
-            });
-            return;
-        }
-
-        // API: Get History Content
-        if (pathname === '/api/history/content' && method === 'POST') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => {
-                try {
-                    const { filename } = JSON.parse(body);
-                    const result = envStore.readHistoryContent(filename);
-                    if (!result.ok) {
-                        writeJson(res, result.statusCode || 500, { status: 'error', message: result.message }, headers);
-                        return;
-                    }
-                    writeJson(res, 200, { status: 'success', content: result.content }, headers);
-                } catch (e) {
-                    writeJson(res, 500, { status: 'error', message: e.message }, headers);
-                }
-            });
+        if (configRoutes.handle(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
@@ -1311,34 +1251,6 @@ function startServer() {
             return;
         }
 
-        if (pathname === '/api/env-raw' && method === 'GET') {
-            try {
-                const content = envStore.readRaw();
-                res.writeHead(200, { ...headers, 'Content-Type': 'text/plain; charset=utf-8' });
-                res.end(content);
-            } catch (e) {
-                res.writeHead(500, headers);
-                res.end(JSON.stringify({ status: 'error', message: e.message }));
-            }
-            return;
-        }
-
-        if (pathname === '/api/save-raw' && method === 'POST') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => {
-                try {
-                    envStore.saveRaw(body);
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'ok' }));
-                } catch (e) {
-                    res.writeHead(500, headers);
-                    res.end(JSON.stringify({ status: 'error', message: e.message }));
-                }
-            });
-            return;
-        }
-
         const serviceLogsMatch = pathname.match(/^\/api\/services\/([^/]+)\/logs$/);
         if ((pathname === '/api/logs' || serviceLogsMatch) && method === 'GET') {
             const serviceId = serviceLogsMatch
@@ -1362,134 +1274,6 @@ function startServer() {
                     writeJson(res, 200, payload, headers);
                 })
                 .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        // API: Diff Runtime vs Local Config
-        if (pathname === '/api/diff-runtime' && method === 'GET') {
-            if (!dockerRuntime.dockerComposeCmd) {
-                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
-                return;
-            }
-
-            try {
-                const def = getServiceDefinition(getPackageServiceId());
-                if (!def || !def.exists) {
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'not_running', service: getPackageServiceId() }));
-                    return;
-                }
-
-                // 2. Resolve Container ID via Service Name
-                // Command: docker compose ps -q <serviceName>
-                const argsPs = dockerRuntime.composeArgsFor(def, ['ps', '-q', def.composeService]);
-
-                execFile(dockerRuntime.dockerComposeCmd, argsPs, { cwd: APP_ROOT }, (errPs, stdoutPs) => {
-                    if (errPs) {
-                        res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'error', message: 'Failed to resolve container ID', details: errPs.message }));
-                        return;
-                    }
-
-                    const containerId = stdoutPs.trim();
-
-                    if (!containerId) {
-                        res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'not_running', service: def.id }));
-                        return;
-                    }
-
-                    // 3. Fetch Runtime Env via docker inspect
-                    // Note: We use 'docker' command directly.
-                    execFile(dockerRuntime.dockerPath, ['inspect', containerId], (errInspect, stdoutInspect) => {
-                        if (errInspect) {
-                            res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ status: 'error', message: 'Failed to inspect container', details: errInspect.message }));
-                            return;
-                        }
-
-                        let runtimeEnvMap = {};
-                        try {
-                            const inspectData = JSON.parse(stdoutInspect);
-                            if (inspectData && inspectData[0] && inspectData[0].Config && inspectData[0].Config.Env) {
-                                inspectData[0].Config.Env.forEach(envStr => {
-                                    const parts = envStr.split('=');
-                                    const key = parts[0];
-                                    const val = parts.slice(1).join('=');
-                                    runtimeEnvMap[key] = val;
-                                });
-                            }
-                        } catch (e) {
-                            console.error('[Error] Failed to parse inspect output:', e);
-                        }
-
-                        // 4. Fetch Local Config
-                        const localEnvMap = {};
-
-                        // 4.1 Load .env for values
-                        const dotEnvConfig = parseEnvFile();
-
-                        // 4.2 Merge into localEnvMap
-                        // In this tool, the .env file IS the source of truth for variables we care about.
-                        // Variables in docker-compose.yml are either hardcoded or mapped to .env.
-                        // For the purpose of "Did I change my config?", comparing against .env is the most direct way.
-                        Object.assign(localEnvMap, dotEnvConfig);
-
-                        // 5. Compare
-                        // Compare - Only Key in Local config matters
-                        const diffs = [];
-                        // We only care about keys defined in Local Config (.env / compose)
-                        // If Runtime has extra keys (e.g. system default envs), we ignore them.
-                        const interestingKeys = Object.keys(localEnvMap);
-                        const ignoredPrefixes = ['PATH', 'JAVA_', 'LANG', 'LC_', 'HOME', 'LOG_DIR', 'LIB_DIR', 'CONFIG_PATH', 'APP_NAME', 'CONFIG_NAME', 'LOGGING_CONFIG', 'HOSTNAME', 'PWD', 'GPG_KEY'];
-
-                        interestingKeys.forEach(key => {
-                            if (ignoredPrefixes.some(prefix => key.startsWith(prefix))) return;
-
-                            let runtimeVal = runtimeEnvMap[key];
-                            let localVal = localEnvMap[key];
-
-                            // Logic:
-                            // 1. Local has it, Runtime doesn't -> DELETED (Action: Restart needed to apply)
-                            // 2. Local has it, Runtime has different -> MODIFIED (Action: Restart needed)
-                            // 3. Local has it, Runtime has same -> Synced (Ignored)
-
-                            if (runtimeVal !== localVal) {
-                                let state = 'MODIFIED';
-                                if (runtimeVal === undefined) state = 'DELETED';
-                                // Note: 'NEW' case (Runtime has it, Local doesn't) is effectively ignored by iterating interestingKeys only.
-
-                                // Special handling for empty strings if needed, but strict equality is usually fine for envs
-                                diffs.push({
-                                    key,
-                                    runtimeVal: runtimeVal === undefined ? '(missing)' : runtimeVal,
-                                    localVal: localVal === undefined ? '(missing)' : localVal,
-                                    state
-                                });
-                            }
-                        });
-
-                        // Sort: MODIFIED first
-                        diffs.sort((a, b) => {
-                            const score = (s) => s === 'MODIFIED' ? 0 : (s === 'NEW' ? 1 : 2);
-                            return score(a.state) - score(b.state);
-                        });
-
-                        res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({
-                            status: 'success',
-                            service: def.id,
-                            containerId: containerId,
-                            diffs: diffs
-                        }));
-                    });
-                });
-
-            } catch (e) {
-                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'error', message: 'Internal Server Error', details: e.message }));
-            }
             return;
         }
 
