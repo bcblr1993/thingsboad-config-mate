@@ -14,6 +14,7 @@ const { createDeploymentPlanner } = require('./src/server/services/deployment-pl
 const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
+const { createSystemRoutes } = require('./src/server/routes/system');
 const CONFIG_META = require('./config-meta');
 
 const args = process.argv.slice(2);
@@ -46,13 +47,8 @@ const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || '';
 const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
 const AUTH_REQUIRED = authService.authRequired;
 const {
-    createSession,
-    destroySession,
-    getAuthToken,
     getRequestActor,
-    getSession,
-    isAuthenticated,
-    normalizeOperatorName
+    isAuthenticated
 } = authService;
 const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
 const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
@@ -100,6 +96,18 @@ const logStreamService = createLogStreamService({
     docker: dockerRuntime,
     getServiceDefinition,
     defaultServiceId: getPackageServiceId
+});
+const systemRoutes = createSystemRoutes({
+    appRoot: APP_ROOT,
+    appDir: APP_DIR,
+    appType: APP_TYPE,
+    envFilePath: ENV_FILE_PATH,
+    yamlConfigPath: YAML_CONFIG_PATH,
+    authService,
+    configMatePassword: CONFIG_MATE_PASSWORD,
+    dockerRuntime,
+    buildDeploymentDiagnostics,
+    getPackageServiceId
 });
 let serviceComposeConfigBuilder = null;
 
@@ -947,75 +955,16 @@ function startServer() {
             return;
         }
 
-        if (pathname === '/api/health' && method === 'GET') {
-            writeJson(res, 200, {
-                status: 'ok',
-                appRoot: APP_ROOT,
-                appDir: APP_DIR,
-                appType: APP_TYPE,
-                docker: {
-                    available: !dockerRuntime.readyMessage(),
-                    message: dockerRuntime.readyMessage()
-                }
-            }, headers);
-            return;
-        }
-
-        if (pathname === '/api/auth/status' && method === 'GET') {
-            const session = getSession(req);
-            writeJson(res, 200, {
-                required: AUTH_REQUIRED,
-                authenticated: isAuthenticated(req),
-                operator: session?.operator || ''
-            }, headers);
-            return;
-        }
-
-        if (pathname === '/api/login' && method === 'POST') {
-            readRequestBody(req).then(body => {
-                try {
-                    const payload = JSON.parse(body || '{}');
-                    const operator = normalizeOperatorName(payload.operator);
-                    if (!operator) {
-                        writeJson(res, 400, { status: 'error', message: '请输入操作员名称' }, headers);
-                        return;
-                    }
-                    if (!AUTH_REQUIRED || payload.password === CONFIG_MATE_PASSWORD) {
-                        const token = createSession(req, operator);
-                        writeJson(res, 200, { status: 'success', operator: normalizeOperatorName(operator) || 'operator' }, {
-                            ...headers,
-                            'Set-Cookie': `config_mate_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`
-                        });
-                    } else {
-                        writeJson(res, 401, { status: 'error', message: '密码错误' }, headers);
-                    }
-                } catch (e) {
-                    writeJson(res, 400, { status: 'error', message: e.message }, headers);
-                }
-            });
-            return;
-        }
-
-        if (pathname === '/api/logout' && method === 'POST') {
-            const token = getAuthToken(req);
-            destroySession(token);
-            writeJson(res, 200, { status: 'success' }, {
-                ...headers,
-                'Set-Cookie': 'config_mate_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'
-            });
-            return;
-        }
-
-        // 版本号 API
-        if (pathname === '/api/version' && method === 'GET') {
-            const packageJson = require('./package.json');
-            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ version: packageJson.version }));
+        if (systemRoutes.handlePublic(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
         if (!isAuthenticated(req)) {
             writeJson(res, 401, { status: 'unauthorized', message: '请先登录 Config Mate' }, headers);
+            return;
+        }
+
+        if (systemRoutes.handleAuthenticated(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
@@ -1090,28 +1039,6 @@ function startServer() {
                     writeJson(res, 500, { status: 'error', message: e.message }, headers);
                 }
             });
-            return;
-        }
-
-        if (pathname === '/api/deployment' && method === 'GET') {
-            writeJson(res, 200, {
-                status: 'success',
-                appRoot: APP_ROOT,
-                appDir: APP_DIR,
-                appType: APP_TYPE,
-                appService: getPackageServiceId(),
-                envPath: ENV_FILE_PATH,
-                yamlPath: YAML_CONFIG_PATH,
-                authRequired: AUTH_REQUIRED,
-                docker: {
-                    cli: dockerRuntime.dockerPath,
-                    compose: dockerRuntime.dockerComposeCmd,
-                    socketMounted: fs.existsSync('/var/run/docker.sock') || os.platform() === 'win32',
-                    available: !dockerRuntime.readyMessage(),
-                    message: dockerRuntime.readyMessage()
-                },
-                diagnostics: buildDeploymentDiagnostics()
-            }, headers);
             return;
         }
 
