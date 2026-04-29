@@ -22,6 +22,8 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY tb-config-src.js config-meta.js index.html ./
+COPY assets ./assets
+COPY src ./src
 COPY meta ./meta
 
 ENV NODE_ENV=production \

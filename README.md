@@ -12,7 +12,7 @@ ThingBoard Config Mate 是一个专为 ThingsBoard Docker 部署环境设计的�
 * **🔌 双模式运行**：
   * **App Mode**：自动以独立窗口模式启动（类似桌面软件）。
   * **Web Mode**：支持浏览器远程访问，适合服务器部署。
-* **📦 无依赖单文件**：支持通过 `pkg` 打包为独立二进制文件，部署到现场服务器时无需安装 Node.js 环境。
+* **📦 离线部署**：支持通过 Docker 镜像离线包部署，也保留 `pkg` 二进制构建能力。
 
 ## 🚀 快速开始
 
@@ -97,10 +97,17 @@ docker compose --env-file .config-mate.env up -d config-mate
 4. **状态监控**：
     * 右上角的胶囊徽章会显示 `Running` (绿色) 或 `Stopped` (灰色)，每 5 秒自动刷新。
 
+## 📚 文档
+
+* [现场快速使用说明](docs/config-mate-user-quick-start.md)
+* [容器化部署说明](docs/config-mate-container-deployment.md)
+* [Compose 配置说明](docs/config-mate-compose-simple.md)
+* [工程化重构路线](docs/engineering-refactor-roadmap.md)
+
 ## 🛠️ 技术栈
 
 * **后端**：Node.js (原生 HTTP 模块, 无 Express 依赖以减小体积)
-* **前端**：HTML5, CSS3, Vanilla JS (无框架, 极致轻量)
+* **前端**：HTML5, CSS3, Vanilla JS
 * **打包**：Vercel Pkg
 
 ## 📝 注意事项

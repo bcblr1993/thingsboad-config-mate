@@ -6,7 +6,8 @@
     "pkg": {
         "assets": [
             "index.html",
-            "config-meta.js"
+            "config-meta.js",
+            "assets/**/*"
         ],
         "targets": [
             "node18-linux-x64",
@@ -19,6 +20,7 @@
     "scripts": {
         "start": "node tb-config-src.js",
         "dev": "node tb-config-src.js --dev",
+        "check": "node scripts/check.js",
         "clean": "rm -rf dist node_modules/.cache",
         "build": "npm run clean && pkg .",
         "docker:build": "docker build -t tb-config-mate:latest .",

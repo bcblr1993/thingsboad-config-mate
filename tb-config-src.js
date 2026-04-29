@@ -1,14 +1,24 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const { exec, spawn, execFile, execFileSync } = require('child_process');
+const { exec, spawn, execFile } = require('child_process');
 const os = require('os');
+const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
+const { createAuthService } = require('./src/server/auth/session');
+const { createEnvStore } = require('./src/server/config/env-store');
+const { createDockerComposeRuntime } = require('./src/server/docker/compose');
+const { readRequestBody, writeJson } = require('./src/server/http');
+const { createCleanupService } = require('./src/server/services/cleanup');
+const { createServiceComposeConfigBuilder } = require('./src/server/services/compose-config');
+const { createDeploymentPlanner } = require('./src/server/services/deployment-plan');
+const { createLogStreamService } = require('./src/server/services/log-stream');
+const { createServiceRegistry } = require('./src/server/services/registry');
+const { createServiceRuntime } = require('./src/server/services/runtime');
+const CONFIG_META = require('./config-meta');
 
 const args = process.argv.slice(2);
 const command = args[0] && !args[0].startsWith('--') ? args[0] : null;
 
-// --- Config ---
 // --- Config ---
 const portArg = args.find(arg => arg.startsWith('--port='));
 const PORT = portArg ? parseInt(portArg.split('=')[1]) : (process.env.PORT || 3300);
@@ -32,123 +42,66 @@ const PID_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.pid`);
 const LOG_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.log`);
 const CLEANUP_BACKUP_ROOT = path.join(RUNTIME_DIR, 'backups');
 const AUDIT_LOG_FILE = path.join(RUNTIME_DIR, 'audit.log');
-
-function resolveAppRoot() {
-    return path.resolve(process.env.APP_ROOT || process.cwd());
-}
-
-function makeAppContext(root, appType, appDir, yamlPath, mode = 'package') {
-    return {
-        appRoot: root,
-        appType,
-        appId: appType === 'EDGE' ? 'iotedge' : 'iotcloud',
-        appDir,
-        yamlPath,
-        mode
-    };
-}
-
-function normalizeAppType(value) {
-    const normalized = (value || '').trim().toUpperCase();
-    return normalized === 'EDGE' || normalized === 'CLOUD' ? normalized : '';
-}
-
-function parseEnvFileAt(filePath) {
-    if (!filePath || !fs.existsSync(filePath)) return {};
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const result = {};
-    content.split('\n').forEach(line => {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) return;
-        const parts = trimmed.split('=');
-        const key = parts[0].trim();
-        let val = parts.slice(1).join('=').trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-            val = val.slice(1, -1);
-        }
-        result[key] = val;
-    });
-    return result;
-}
-
-function readAppTypeFromEnvFile(appDir) {
-    const env = parseEnvFileAt(path.join(appDir, '.env'));
-    return normalizeAppType(env.APP_TYPE || env.APPTYPE);
-}
-
-function resolveAppContext(root) {
-    const forcedType = normalizeAppType(process.env.APP_TYPE);
-
-    const rootEdgeDir = path.join(root, 'services', 'iotedge');
-    const rootCloudDir = path.join(root, 'services', 'iotcloud');
-    const nestedEdgeRoot = path.join(root, 'sprixin-iotedge');
-    const nestedCloudRoot = path.join(root, 'sprixin-iotcloud');
-
-    function serviceCandidate(type, appDir, yaml, candidateRoot = root, mode = 'package') {
-        return {
-            type,
-            appDir,
-            yaml,
-            root: candidateRoot,
-            mode,
-            dirExists: fs.existsSync(appDir),
-            yamlExists: fs.existsSync(yaml),
-            envType: readAppTypeFromEnvFile(appDir)
-        };
-    }
-
-    function chooseCandidate(candidates) {
-        const available = candidates.filter(c => c.dirExists || c.yamlExists);
-        if (available.length === 0) return null;
-        const forced = available.find(c => c.type === forcedType);
-        if (forced) return forced;
-        const envMatched = available.find(c => c.envType && c.envType === c.type);
-        if (envMatched) return envMatched;
-        return available.find(c => c.yamlExists) || available[0];
-    }
-
-    const directMatched = chooseCandidate([
-        serviceCandidate('CLOUD', rootCloudDir, path.join(rootCloudDir, 'conf', 'thingsboard.yml')),
-        serviceCandidate('EDGE', rootEdgeDir, path.join(rootEdgeDir, 'conf', 'tb-edge.yml'))
-    ]);
-    if (directMatched) {
-        return makeAppContext(directMatched.root, directMatched.type, directMatched.appDir, directMatched.yaml, directMatched.mode);
-    }
-
-    const nestedMatched = chooseCandidate([
-        serviceCandidate(
-            'CLOUD',
-            path.join(nestedCloudRoot, 'services', 'iotcloud'),
-            path.join(nestedCloudRoot, 'services', 'iotcloud', 'conf', 'thingsboard.yml'),
-            nestedCloudRoot
-        ),
-        serviceCandidate(
-            'EDGE',
-            path.join(nestedEdgeRoot, 'services', 'iotedge'),
-            path.join(nestedEdgeRoot, 'services', 'iotedge', 'conf', 'tb-edge.yml'),
-            nestedEdgeRoot
-        )
-    ]);
-    if (nestedMatched) {
-        return makeAppContext(nestedMatched.root, nestedMatched.type, nestedMatched.appDir, nestedMatched.yaml, nestedMatched.mode);
-    }
-
-    const legacyMatched = chooseCandidate([
-        serviceCandidate('CLOUD', root, path.join(root, 'conf', 'thingsboard.yml'), root, 'legacy'),
-        serviceCandidate('EDGE', root, path.join(root, 'conf', 'tb-edge.yml'), root, 'legacy')
-    ]);
-    if (legacyMatched) {
-        return makeAppContext(legacyMatched.root, legacyMatched.type, legacyMatched.appDir, legacyMatched.yaml, legacyMatched.mode);
-    }
-
-    const fallbackType = forcedType === 'EDGE' ? 'EDGE' : 'CLOUD';
-    const fallbackAppDir = fallbackType === 'EDGE' ? rootEdgeDir : rootCloudDir;
-    const fallbackYaml = fallbackType === 'EDGE'
-        ? path.join(fallbackAppDir, 'conf', 'tb-edge.yml')
-        : path.join(fallbackAppDir, 'conf', 'thingsboard.yml');
-
-    return makeAppContext(root, fallbackType, fs.existsSync(fallbackAppDir) ? fallbackAppDir : root, fallbackYaml, 'unknown');
-}
+const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || '';
+const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
+const AUTH_REQUIRED = authService.authRequired;
+const {
+    createSession,
+    destroySession,
+    getAuthToken,
+    getRequestActor,
+    getSession,
+    isAuthenticated,
+    normalizeOperatorName
+} = authService;
+const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
+const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
+const dockerRuntime = createDockerComposeRuntime({ appRoot: APP_ROOT });
+const serviceRuntime = createServiceRuntime({ docker: dockerRuntime, getServiceDefinition });
+const { getServiceStatus, runComposeAction } = serviceRuntime;
+const envStore = createEnvStore({
+    envFilePath: ENV_FILE_PATH,
+    historyDir: HISTORY_DIR,
+    configMeta: CONFIG_META,
+    logger: console
+});
+const { parseEnvFile, saveEnvFile } = envStore;
+const deploymentPlanner = createDeploymentPlanner({
+    appType: APP_TYPE,
+    getPackageServiceId,
+    getServiceDefinition,
+    getServiceStatus,
+    runComposeAction,
+    configProvider: parseEnvFile
+});
+const {
+    applyAppConfigChange,
+    buildDeploymentPlan,
+    buildDeploymentPlanWithStatus,
+    checkRequiredDependencies,
+    dependencyBlockResult,
+    guardAppServiceDependencies,
+    guardAppServiceRunning
+} = deploymentPlanner;
+const cleanupService = createCleanupService({
+    appRoot: APP_ROOT,
+    runtimeDir: RUNTIME_DIR,
+    backupRoot: CLEANUP_BACKUP_ROOT,
+    auditLogFile: AUDIT_LOG_FILE,
+    cleanupServiceDataDirs: serviceRegistry.cleanupServiceDataDirs,
+    getServiceDefinition,
+    getPackageServiceId,
+    getServiceStatus,
+    docker: dockerRuntime
+});
+const { buildCleanupPlan, runCleanupService } = cleanupService;
+const logStreamService = createLogStreamService({
+    appRoot: APP_ROOT,
+    docker: dockerRuntime,
+    getServiceDefinition,
+    defaultServiceId: getPackageServiceId
+});
+let serviceComposeConfigBuilder = null;
 
 // --- Helper: Check Status ---
 function getRunningPid(pidPath = PID_FILE) {
@@ -519,8 +472,6 @@ if (args.includes('--over')) {
 
 
 
-// Import modularized components
-const CONFIG_META = require('./config-meta');
 // const { getHtml } = require('./ui-template'); // Removed
 
 // Try to lazy load js-yaml to avoid hard crash if missing (though we installed it)
@@ -530,6 +481,13 @@ try {
 } catch (e) {
     console.warn('[Warn] js-yaml not found. Auto-init from YAML disabled.');
 }
+serviceComposeConfigBuilder = createServiceComposeConfigBuilder({
+    yaml,
+    getServiceDefinition,
+    getPackageServiceId,
+    envProvider: parseEnvFile
+});
+const { buildServiceComposeConfig } = serviceComposeConfigBuilder;
 
 // --- Auto-Init Logic ---
 function tryInitFromYaml() {
@@ -835,1171 +793,42 @@ function resolveSpringPlaceholder(val) {
     return val;
 }
 
-// --- 核心逻辑 ---
-
-// 读取并解析 .env
-function parseEnvFile() {
-    if (!fs.existsSync(ENV_FILE_PATH)) return {};
-    const content = fs.readFileSync(ENV_FILE_PATH, 'utf-8');
-    const result = {};
-    content.split('\n').forEach(line => {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#')) {
-            const parts = trimmed.split('=');
-            const key = parts[0].trim();
-            const val = parts.slice(1).join('=').trim();
-            result[key] = val;
-        }
-    });
-    return result;
-}
-
-// Check if dependsOn condition is satisfied
-function checkDependsOn(dependsOn, config) {
-    if (!dependsOn) return true; // No dependency
-
-    // Handle single condition: { key: "X", value: "Y" }
-    if (dependsOn.key && dependsOn.value !== undefined) {
-        const keys = Array.isArray(dependsOn.key) ? dependsOn.key : [dependsOn.key];
-        return keys.some(k => config[k] === dependsOn.value);
-    }
-
-    // Handle OR condition: { or: [...] }
-    if (dependsOn.or) {
-        return dependsOn.or.some(cond => checkDependsOn(cond, config));
-    }
-
-    // Handle AND condition: { and: [...] }
-    if (dependsOn.and) {
-        return dependsOn.and.every(cond => checkDependsOn(cond, config));
-    }
-
-    return true;
-}
-
-// Backup .env before saving
-function backupEnv() {
-    if (!fs.existsSync(ENV_FILE_PATH)) return;
-
-    if (!fs.existsSync(HISTORY_DIR)) {
-        fs.mkdirSync(HISTORY_DIR, { recursive: true });
-    }
-
-    const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').split('.')[0];
-    const backupFile = path.join(HISTORY_DIR, `.env.bak.${timestamp}`);
-
-    try {
-        fs.copyFileSync(ENV_FILE_PATH, backupFile);
-        console.log(`[Backup] Created: ${backupFile}`);
-        rotateBackups();
-    } catch (e) {
-        console.warn('[Warn] Failed to backup .env:', e.message);
-    }
-}
-
-// Keep only the latest 5 backups
-function rotateBackups() {
-    if (!fs.existsSync(HISTORY_DIR)) return;
-
-    const files = fs.readdirSync(HISTORY_DIR)
-        .filter(f => f.startsWith('.env.bak.'))
-        .map(f => ({
-            name: f,
-            path: path.join(HISTORY_DIR, f),
-            time: fs.statSync(path.join(HISTORY_DIR, f)).mtime.getTime()
-        }))
-        .sort((a, b) => b.time - a.time); // Newest first
-
-    if (files.length > 5) {
-        const toDelete = files.slice(5);
-        toDelete.forEach(file => {
-            try {
-                fs.unlinkSync(file.path);
-                console.log(`[Backup] Rotated/Deleted: ${file.name}`);
-            } catch (e) {
-                console.warn('[Warn] Failed to delete old backup:', e.message);
-            }
-        });
-    }
-}
-
-// 保存 .env (重组文件结构以美化)
-function saveEnvFile(newConfig) {
-    // Perform backup before overwriting
-    backupEnv();
-
-    let outputLines = [];
-    outputLines.push("# ==========================================");
-    outputLines.push("# ThingsBoard 配置文件 (自动生成)");
-    outputLines.push(`# 更新时间: ${new Date().toLocaleString()}`);
-    outputLines.push("# ==========================================");
-    outputLines.push("");
-
-    const processedKeys = new Set();
-    const config = { ...parseEnvFile(), ...newConfig };
-
-    // 1. 按元数据分组写入标准配置
-    const groups = {};
-    const currentAppType = config['APPTYPE'] || 'CLOUD'; // Default to CLOUD if unknown
-
-    Object.keys(CONFIG_META).forEach(key => {
-        const meta = CONFIG_META[key];
-
-        // Scope Filtering
-        const scope = meta.scope || 'common';
-        if (scope === 'cloud' && currentAppType !== 'CLOUD') return;
-        if (scope === 'edge' && currentAppType !== 'EDGE') return;
-
-        // DependsOn Filtering
-        if (!checkDependsOn(meta.dependsOn, config)) return;
-
-        if (!groups[meta.group]) groups[meta.group] = [];
-        groups[meta.group].push(key);
-    });
-
-    Object.keys(groups).forEach(groupName => {
-        outputLines.push(`# === ${groupName} ===`);
-        groups[groupName].forEach(key => {
-            const meta = CONFIG_META[key];
-            const value = config[key] !== undefined ? config[key] : "";
-            // 写入中文注释
-            if (meta.comment) {
-                outputLines.push(`# ${meta.label} (${meta.comment})`);
-            } else {
-                outputLines.push(`# ${meta.label}`);
-            }
-            outputLines.push(`${key}=${value}`);
-            processedKeys.add(key);
-        });
-        outputLines.push(""); // 分组空行
-    });
-
-    // 2. 写入未在元数据中定义的自定义配置
-    const customKeys = Object.keys(config).filter(k => !processedKeys.has(k));
-    if (customKeys.length > 0) {
-        outputLines.push("# === 自定义配置 (其他) ===");
-        customKeys.forEach(key => {
-            outputLines.push(`${key}=${config[key]}`);
-        });
-    }
-
-    fs.writeFileSync(ENV_FILE_PATH, outputLines.join('\n'));
-}
-
-// --- Auth & Deployment Helpers ---
-const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || '';
-const AUTH_REQUIRED = CONFIG_MATE_PASSWORD.trim().length > 0;
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const sessions = new Map();
-let activeCleanupService = null;
-
-function parseCookies(req) {
-    const header = req.headers.cookie || '';
-    const cookies = {};
-    header.split(';').forEach(part => {
-        const idx = part.indexOf('=');
-        if (idx === -1) return;
-        const key = part.slice(0, idx).trim();
-        const val = part.slice(idx + 1).trim();
-        cookies[key] = decodeURIComponent(val);
-    });
-    return cookies;
-}
-
-function getAuthToken(req) {
-    const auth = req.headers.authorization || '';
-    let token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    if (!token) token = parseCookies(req).config_mate_session;
-    return token;
-}
-
-function getSession(req) {
-    const token = getAuthToken(req);
-    if (!token || !sessions.has(token)) return null;
-
-    const session = sessions.get(token);
-    if (session.expiresAt < Date.now()) {
-        sessions.delete(token);
-        return null;
-    }
-    session.expiresAt = Date.now() + SESSION_TTL_MS;
-    return { ...session, token };
-}
-
-function isAuthenticated(req) {
-    if (!AUTH_REQUIRED) return true;
-    return !!getSession(req);
-}
-
-function getClientIp(req) {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (typeof forwarded === 'string' && forwarded.trim()) {
-        return forwarded.split(',')[0].trim();
-    }
-    return req.socket?.remoteAddress || '';
-}
-
-function normalizeOperatorName(value) {
-    const text = String(value || '').trim();
-    return text.slice(0, 64);
-}
-
-function sanitizePathSegment(value) {
-    const text = normalizeOperatorName(value) || 'operator';
-    return text.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'operator';
-}
-
-function createSession(req, operator) {
-    const token = crypto.randomBytes(32).toString('hex');
-    const sessionId = token.slice(0, 10);
-    sessions.set(token, {
-        operator: normalizeOperatorName(operator) || 'operator',
-        sessionId,
-        loginAt: new Date().toISOString(),
-        ip: getClientIp(req),
-        expiresAt: Date.now() + SESSION_TTL_MS
-    });
-    return token;
-}
-
-function getRequestActor(req) {
-    const session = getSession(req);
-    return {
-        operator: session?.operator || 'anonymous',
-        sessionId: session?.sessionId || 'anonymous',
-        ip: session?.ip || getClientIp(req)
-    };
-}
-
-function writeJson(res, statusCode, data, headers = {}) {
-    res.writeHead(statusCode, { ...headers, 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify(data));
-}
-
-function readRequestBody(req) {
-    return new Promise((resolve, reject) => {
-        let body = '';
-        req.on('data', chunk => body += chunk.toString());
-        req.on('end', () => resolve(body));
-        req.on('error', reject);
-    });
-}
-
-function getPackageServiceId() {
-    return APP_TYPE === 'EDGE' ? 'iotedge' : 'iotcloud';
-}
-
-const SERVICE_DEFINITIONS = {
-    postgres: {
-        id: 'postgres',
-        label: 'PostgreSQL',
-        composePath: 'services/postgres/docker-compose.yml',
-        composeService: 'postgres',
-        order: 10,
-        optional: false
-    },
-    redis: {
-        id: 'redis',
-        label: 'Redis',
-        composePath: 'services/redis/docker-compose.yml',
-        composeService: 'redis',
-        order: 20,
-        optional: true
-    },
-    cassandra: {
-        id: 'cassandra',
-        label: 'Cassandra',
-        composePath: 'services/cassandra/docker-compose.yml',
-        composeService: 'cassandra',
-        order: 30,
-        optional: true
-    },
-    kafka: {
-        id: 'kafka',
-        label: 'Kafka',
-        composePath: 'services/kafka/docker-compose.yml',
-        composeService: 'kafka',
-        order: 40,
-        optional: true
-    },
-    netdata: {
-        id: 'netdata',
-        label: 'Netdata',
-        composePath: 'services/netdata/docker-compose.yml',
-        composeService: 'netdata',
-        order: 50,
-        optional: true
-    },
-    wechat: {
-        id: 'wechat',
-        label: '企业微信告警',
-        composePath: 'services/wechat-messenger-v2.1.0/docker-compose.yml',
-        composeService: 'wechat-messenger',
-        image: 'wechat-messenger:v2.1.0',
-        missingImageMessage: 'ARM64 包未包含 wechat-messenger:v2.1.0，请提供 ARM64 镜像或源码后再启动。',
-        order: 60,
-        optional: true
-    },
-    iotcloud: {
-        id: 'iotcloud',
-        label: 'IoT Cloud',
-        composePath: 'services/iotcloud/docker-compose.yml',
-        installComposePath: 'services/iotcloud/docker-compose-install.yml',
-        composeService: 'iotcloud',
-        appType: 'CLOUD',
-        order: 100,
-        optional: false
-    },
-    iotedge: {
-        id: 'iotedge',
-        label: 'IoT Edge',
-        composePath: 'services/iotedge/docker-compose.yml',
-        installComposePath: 'services/iotedge/docker-compose-install.yml',
-        composeService: 'iotedge',
-        appType: 'EDGE',
-        order: 100,
-        optional: false
-    }
-};
-
-const CLEANUP_SERVICE_DATA_DIRS = {
-    postgres: 'services/postgres/data',
-    redis: 'services/redis/data',
-    kafka: 'services/kafka/kafka_0_data',
-    cassandra: 'services/cassandra/cassandra_node1_data'
-};
-
-function getServiceDefinition(id) {
-    const def = SERVICE_DEFINITIONS[id];
-    if (!def) return null;
-    if (def.appType && def.appType !== APP_TYPE) return null;
-    const composeAbsPath = path.join(APP_ROOT, def.composePath);
-    return {
-        ...def,
-        composeAbsPath,
-        installComposeAbsPath: def.installComposePath ? path.join(APP_ROOT, def.installComposePath) : null,
-        exists: fs.existsSync(composeAbsPath)
-    };
-}
-
-function listServiceDefinitions() {
-    return Object.keys(SERVICE_DEFINITIONS)
-        .map(getServiceDefinition)
-        .filter(Boolean)
-        .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
-}
-
-function dockerReadyMessage() {
-    if (!dockerPath) return 'Docker CLI not found in Config Mate container.';
-    if (!dockerComposeCmd) return 'Docker Compose is not available.';
-    if (!fs.existsSync('/var/run/docker.sock') && os.platform() !== 'win32') {
-        return 'Docker socket /var/run/docker.sock is not mounted.';
-    }
-    return null;
-}
-
-function composeArgsFor(def, args) {
-    return [...dockerComposeCmdArgs, '-f', def.composeAbsPath, ...args];
-}
-
-function execDocker(cmd, args, options = {}) {
-    return new Promise(resolve => {
-        execFile(cmd, args, { cwd: APP_ROOT, ...options }, (error, stdout, stderr) => {
-            resolve({ error, stdout: stdout || '', stderr: stderr || '' });
-        });
-    });
-}
-
-async function getServiceStatus(def) {
-    if (!def) {
-        return { id: 'unknown', label: 'Unknown', status: 'missing', running: false, containerId: '', message: 'service definition missing' };
-    }
-    if (!def.exists) {
-        return { ...def, status: 'missing', running: false, containerId: '', message: 'compose file missing' };
-    }
-    const dockerIssue = dockerReadyMessage();
-    if (dockerIssue) {
-        return { ...def, status: 'unknown', running: false, containerId: '', message: dockerIssue };
-    }
-
-    const ps = await execDocker(dockerComposeCmd, composeArgsFor(def, ['ps', '-q', def.composeService]));
-    const containerId = ps.stdout.trim().split('\n').filter(Boolean)[0] || '';
-    if (!containerId && def.image) {
-        const image = await execDocker(dockerPath, ['image', 'inspect', def.image, '--format', '{{.Os}}/{{.Architecture}}']);
-        if (image.error) {
-            return { ...def, status: 'missing-image', running: false, containerId: '', message: def.missingImageMessage || `Image not found: ${def.image}` };
-        }
-        const platform = image.stdout.trim();
-        if (platform && platform !== 'linux/arm64') {
-            return { ...def, status: 'unsupported', running: false, containerId: '', message: `${def.image} is ${platform}, expected linux/arm64.` };
-        }
-    }
-    if (!containerId) {
-        return { ...def, status: 'stopped', running: false, containerId: '' };
-    }
-
-    const inspect = await execDocker(dockerPath, ['inspect', '-f', '{{.State.Running}}', containerId]);
-    const running = inspect.stdout.trim() === 'true';
-    return { ...def, status: running ? 'running' : 'stopped', running, containerId };
-}
-
-async function runComposeAction(id, action) {
-    const def = getServiceDefinition(id);
-    if (!def) return { status: 'error', message: 'Unknown service' };
-    if (!def.exists) return { status: 'error', message: `Compose file not found: ${def.composePath}` };
-
-    const dockerIssue = dockerReadyMessage();
-    if (dockerIssue) return { status: 'error', message: dockerIssue };
-
-    if (action !== 'down' && def.image) {
-        const image = await execDocker(dockerPath, ['image', 'inspect', def.image, '--format', '{{.Os}}/{{.Architecture}}']);
-        if (image.error) {
-            return { status: 'error', message: def.missingImageMessage || `Image not found: ${def.image}` };
-        }
-        const platform = image.stdout.trim();
-        if (platform && platform !== 'linux/arm64') {
-            return { status: 'error', message: `${def.image} is ${platform}, expected linux/arm64.` };
-        }
-    }
-
-    const commands = [];
-    if (action === 'up') commands.push(['up', '-d']);
-    else if (action === 'down') commands.push(['down']);
-    else if (action === 'restart') commands.push(['down'], ['up', '-d']);
-    else return { status: 'error', message: 'Unsupported action' };
-
-    let output = '';
-    for (const cmdArgs of commands) {
-        const result = await execDocker(dockerComposeCmd, composeArgsFor(def, cmdArgs));
-        output += result.stdout + result.stderr;
-        if (result.error) {
-            return { status: 'error', message: result.error.message, output };
-        }
-    }
-
-    return { status: 'success', output };
-}
-
-function toAppRootPath(relativePath) {
-    const abs = path.resolve(APP_ROOT, relativePath);
-    const root = path.resolve(APP_ROOT);
-    const rel = path.relative(root, abs);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) {
-        throw new Error(`Unsafe path outside APP_ROOT: ${relativePath}`);
-    }
-    return abs;
-}
-
-function formatTimestampForPath(date = new Date()) {
-    const pad = value => String(value).padStart(2, '0');
-    return [
-        date.getFullYear(),
-        pad(date.getMonth() + 1),
-        pad(date.getDate())
-    ].join('') + '-' + [
-        pad(date.getHours()),
-        pad(date.getMinutes()),
-        pad(date.getSeconds())
-    ].join('');
-}
-
-function getCleanupDefinition(serviceId) {
-    const def = getServiceDefinition(serviceId);
-    const dataDir = CLEANUP_SERVICE_DATA_DIRS[serviceId];
-    if (!def || !dataDir) return null;
-    const dataAbsPath = toAppRootPath(dataDir);
-    const backupRoot = path.resolve(CLEANUP_BACKUP_ROOT);
-    const root = path.resolve(APP_ROOT);
-    const rel = path.relative(root, backupRoot);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) {
-        throw new Error('Cleanup backup root must be inside APP_ROOT');
-    }
-    return {
-        ...def,
-        dataDir,
-        dataAbsPath,
-        backupRoot
-    };
-}
-
-function buildCleanupBackupDir(serviceId, actor, date = new Date()) {
-    const segment = `${formatTimestampForPath(date)}-${serviceId}-${sanitizePathSegment(actor.operator)}`;
-    return path.join(CLEANUP_BACKUP_ROOT, segment);
-}
-
-function getUniqueBackupDir(preferredDir) {
-    if (!fs.existsSync(preferredDir)) return preferredDir;
-    for (let i = 2; i < 1000; i += 1) {
-        const candidate = `${preferredDir}-${i}`;
-        if (!fs.existsSync(candidate)) return candidate;
-    }
-    throw new Error('无法创建唯一备份目录，请检查备份目录是否异常。');
-}
-
-function buildCleanupPlan(serviceId, actor = { operator: 'operator' }) {
-    const def = getCleanupDefinition(serviceId);
-    if (!def) {
-        return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra。' };
-    }
-    if (!def.exists) return { status: 'error', message: `Compose file not found: ${def.composePath}` };
-
-    const backupDir = buildCleanupBackupDir(serviceId, actor);
-    return {
-        status: 'success',
-        service: { id: def.id, label: def.label },
-        appService: getPackageServiceId(),
-        dataDir: def.dataDir,
-        dataPath: def.dataAbsPath,
-        backupRoot: CLEANUP_BACKUP_ROOT,
-        backupDir,
-        composePath: def.composePath,
-        requiresAppStopped: true,
-        appServiceRunning: false,
-        warnings: [
-            '该操作会停止目标服务并归档当前数据目录。',
-            '业务服务正在运行时禁止清理，请先停止 IoT Cloud/IoT Edge。',
-            '清理后不会自动执行 ThingsBoard 初始化安装。'
-        ]
-    };
-}
-
-function appendAuditLog(entry) {
-    try {
-        fs.mkdirSync(RUNTIME_DIR, { recursive: true });
-        fs.appendFileSync(AUDIT_LOG_FILE, JSON.stringify(entry) + '\n');
-    } catch (e) {
-        console.error(`[Audit] Failed to write audit log: ${e.message}`);
-    }
-}
-
-function buildAuditEntry(status, serviceId, actor, fields = {}) {
-    return {
-        timestamp: new Date().toISOString(),
-        event: 'service_cleanup',
-        status,
-        serviceId,
-        operator: actor.operator,
-        sessionId: actor.sessionId,
-        ip: actor.ip,
-        ...fields
-    };
-}
-
-function summarizeServiceStatus(status) {
-    if (!status) return null;
-    return {
-        status: status.status || 'unknown',
-        running: !!status.running,
-        containerId: status.containerId || ''
-    };
-}
-
-function safeMovePath(source, destination) {
-    if (!fs.existsSync(source)) return false;
-    fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.renameSync(source, destination);
-    return true;
-}
-
-function writeCleanupManifest(manifestPath, manifest) {
-    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-}
-
-async function runCleanupService(serviceId, confirmServiceId, actor) {
-    const def = getCleanupDefinition(serviceId);
-    if (!def) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'UNSUPPORTED_SERVICE',
-            error: 'Unsupported cleanup service'
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=n/a backup=n/a status=failure error=UNSUPPORTED_SERVICE`);
-        return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra。' };
-    }
-    if (confirmServiceId !== serviceId) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'CONFIRMATION_MISMATCH',
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath,
-            error: `confirmServiceId mismatch: ${confirmServiceId || ''}`
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=failure error=CONFIRMATION_MISMATCH`);
-        return { status: 'error', code: 'CONFIRMATION_MISMATCH', message: `请输入 ${serviceId} 才能执行清理。` };
-    }
-    if (!def.exists) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'COMPOSE_MISSING',
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath,
-            error: `Compose file not found: ${def.composePath}`
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=failure error=COMPOSE_MISSING`);
-        return { status: 'error', message: `Compose file not found: ${def.composePath}` };
-    }
-
-    const dockerIssue = dockerReadyMessage();
-    if (dockerIssue) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'DOCKER_UNAVAILABLE',
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath,
-            error: dockerIssue
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=failure error=DOCKER_UNAVAILABLE`);
-        return { status: 'error', message: dockerIssue };
-    }
-    if (activeCleanupService) {
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            reason: 'CLEANUP_RUNNING',
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath,
-            activeCleanupService
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=failure error=CLEANUP_RUNNING`);
-        return { status: 'error', code: 'CLEANUP_RUNNING', message: `已有清理任务正在执行：${activeCleanupService}` };
-    }
-
-    const appStatus = await getServiceStatus(getServiceDefinition(getPackageServiceId()));
-    if (appStatus.running) {
-        const blocked = buildAuditEntry('blocked', serviceId, actor, {
-            reason: 'APP_SERVICE_RUNNING',
-            appService: getPackageServiceId(),
-            sourcePath: def.dataAbsPath,
-            backupDir: '',
-            composePath: def.composePath
-        });
-        appendAuditLog(blocked);
-        console.log(`[Audit] Cleanup blocked operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=blocked reason=APP_SERVICE_RUNNING`);
-        return {
-            status: 'error',
-            code: 'APP_SERVICE_RUNNING',
-            message: `请先停止 ${getPackageServiceId()}，再清理 ${def.label} 数据。`
-        };
-    }
-
-    activeCleanupService = serviceId;
-    const startedAt = new Date();
-    const targetStatusBefore = await getServiceStatus(def);
-    const backupDir = getUniqueBackupDir(buildCleanupBackupDir(serviceId, actor, startedAt));
-    const archivedDataPath = path.join(backupDir, path.basename(def.dataAbsPath));
-    const manifestPath = path.join(backupDir, 'manifest.json');
-    const sourceExisted = fs.existsSync(def.dataAbsPath);
-    const manifest = {
-        serviceId,
-        serviceLabel: def.label,
-        operator: actor.operator,
-        sessionId: actor.sessionId,
-        ip: actor.ip,
-        startedAt: startedAt.toISOString(),
-        appRoot: APP_ROOT,
-        appService: getPackageServiceId(),
-        composePath: def.composePath,
-        sourcePath: def.dataAbsPath,
-        backupDir,
-        archivedDataPath,
-        sourceExisted,
-        targetStatusBefore: summarizeServiceStatus(targetStatusBefore),
-        result: 'pending'
-    };
-
-    appendAuditLog(buildAuditEntry('pending', serviceId, actor, {
-        sourcePath: def.dataAbsPath,
-        backupDir,
-        composePath: def.composePath,
-        sourceExisted,
-        targetStatusBefore: summarizeServiceStatus(targetStatusBefore)
-    }));
-    console.log(`[Audit] Cleanup pending operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=${backupDir} status=pending`);
-
-    let output = '';
-    try {
-        fs.mkdirSync(backupDir, { recursive: true });
-        writeCleanupManifest(manifestPath, manifest);
-
-        const down = await execDocker(dockerComposeCmd, composeArgsFor(def, ['down']));
-        output += down.stdout + down.stderr;
-        if (down.error) throw new Error(down.error.message);
-
-        const archived = safeMovePath(def.dataAbsPath, archivedDataPath);
-        fs.mkdirSync(def.dataAbsPath, { recursive: true });
-
-        const up = await execDocker(dockerComposeCmd, composeArgsFor(def, ['up', '-d']));
-        output += up.stdout + up.stderr;
-        if (up.error) throw new Error(up.error.message);
-
-        const targetStatusAfter = await getServiceStatus(def);
-        manifest.finishedAt = new Date().toISOString();
-        manifest.result = 'success';
-        manifest.archived = archived;
-        manifest.targetStatusAfter = summarizeServiceStatus(targetStatusAfter);
-        manifest.output = output.slice(-8000);
-        writeCleanupManifest(manifestPath, manifest);
-
-        appendAuditLog(buildAuditEntry('success', serviceId, actor, {
-            sourcePath: def.dataAbsPath,
-            backupDir,
-            archived,
-            composePath: def.composePath,
-            targetStatusAfter: summarizeServiceStatus(targetStatusAfter)
-        }));
-        console.log(`[Audit] Cleanup success operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=${backupDir} status=success`);
-
-        return {
-            status: 'success',
-            service: { id: def.id, label: def.label },
-            sourcePath: def.dataAbsPath,
-            backupDir,
-            archived,
-            manifestPath,
-            output
-        };
-    } catch (e) {
-        let targetStatusAfterFailure = null;
-        try {
-            targetStatusAfterFailure = await getServiceStatus(def);
-        } catch (statusError) {
-            targetStatusAfterFailure = { status: 'unknown', running: false, containerId: '', message: statusError.message };
-        }
-        manifest.finishedAt = new Date().toISOString();
-        manifest.result = 'failure';
-        manifest.error = e.message;
-        manifest.targetStatusAfter = summarizeServiceStatus(targetStatusAfterFailure);
-        manifest.output = output.slice(-8000);
-        try { writeCleanupManifest(manifestPath, manifest); } catch (manifestError) { console.error(`[Audit] Failed to update cleanup manifest: ${manifestError.message}`); }
-
-        appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
-            sourcePath: def.dataAbsPath,
-            backupDir,
-            composePath: def.composePath,
-            error: e.message,
-            targetStatusAfter: summarizeServiceStatus(targetStatusAfterFailure)
-        }));
-        console.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=${backupDir} status=failure error=${e.message}`);
-
-        return {
-            status: 'error',
-            message: e.message,
-            sourcePath: def.dataAbsPath,
-            backupDir,
-            manifestPath,
-            output
-        };
-    } finally {
-        activeCleanupService = null;
-    }
-}
-
-function normalizeComposeEnvironment(environment) {
-    const entries = [];
-    if (Array.isArray(environment)) {
-        environment.forEach(item => {
-            if (typeof item !== 'string') return;
-            const idx = item.indexOf('=');
-            if (idx === -1) entries.push({ key: item.trim(), value: '' });
-            else entries.push({ key: item.slice(0, idx).trim(), value: item.slice(idx + 1).trim() });
-        });
-    } else if (environment && typeof environment === 'object') {
-        Object.keys(environment).forEach(key => {
-            const raw = environment[key];
-            entries.push({ key, value: raw === null || raw === undefined ? '' : String(raw) });
-        });
-    }
-    return entries.filter(item => item.key);
-}
-
-function composeEntriesToMap(entries) {
-    return entries.reduce((acc, item) => {
-        acc[item.key] = item.value;
-        return acc;
-    }, {});
-}
-
-function normalizeComposeList(value) {
-    if (!value) return [];
-    if (Array.isArray(value)) {
-        return value.map(item => {
-            if (typeof item === 'string') return item;
-            try {
-                return JSON.stringify(item);
-            } catch (e) {
-                return String(item);
-            }
-        });
-    }
-    return [String(value)];
-}
-
-function normalizeComposeCommand(command) {
-    if (!command) return '';
-    if (Array.isArray(command)) return command.join(' ');
-    if (typeof command === 'object') {
-        try {
-            return JSON.stringify(command);
-        } catch (e) {
-            return String(command);
-        }
-    }
-    return String(command);
-}
-
-function extractRedisPassword(command) {
-    const value = normalizeComposeCommand(command);
-    if (!value) return '';
-    const match = value.match(/--requirepass(?:=|\s+)(?:"([^"]+)"|'([^']+)'|([^\s]+))/);
-    return match ? (match[1] || match[2] || match[3] || '') : '';
-}
-
-function isSensitiveComposeKey(key) {
-    if (/NUM_TOKENS/i.test(key)) return false;
-    return /(PASSWORD|PASS|SECRET|TOKEN|WEBHOOK|PRIVATE|ACCESS_KEY|AUTH)/i.test(key);
-}
-
-function configItem(key, value, sensitive = false) {
-    return {
-        key,
-        value: value === null || value === undefined ? '' : String(value),
-        sensitive: !!sensitive
-    };
-}
-
-function listItems(values) {
-    return normalizeComposeList(values).map(value => configItem('', value, false));
-}
-
-function appendPortAndVolumeSections(response, service) {
-    response.sections.push({ title: '端口', items: listItems(service.ports) });
-    response.sections.push({ title: '挂载', items: listItems(service.volumes) });
-}
-
-function buildLoggingItems(service) {
-    const logging = service?.logging;
-    if (!logging || typeof logging !== 'object') return [];
-    const items = [];
-    if (logging.driver) items.push(configItem('driver', logging.driver));
-    if (logging.options && typeof logging.options === 'object') {
-        Object.keys(logging.options).forEach(key => items.push(configItem(key, logging.options[key])));
-    }
-    return items;
-}
-
-function buildOtherItems(service) {
-    const items = [];
-    const command = normalizeComposeCommand(service.command);
-    if (command) items.push(configItem('command', command, isSensitiveComposeKey(command)));
-    if (service.restart) items.push(configItem('restart', service.restart));
-    normalizeComposeList(service.cap_add).forEach(value => items.push(configItem('cap_add', value)));
-    normalizeComposeList(service.security_opt).forEach(value => items.push(configItem('security_opt', value)));
-    buildLoggingItems(service).forEach(item => items.push(configItem(`logging.${item.key}`, item.value, item.sensitive)));
-    return items;
-}
-
-const HIDDEN_SERVICE_ENV_KEYS = {
-    kafka: new Set([
-        'KAFKA_ENABLE_KRAFT',
-        'KAFKA_CFG_NODE_ID',
-        'KAFKA_KRAFT_CLUSTER_ID',
-        'KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP',
-        'KAFKA_CFG_INTER_BROKER_LISTENER_NAME'
-    ])
-};
-
-function filterServiceEnvironmentEntries(serviceId, entries) {
-    const hidden = HIDDEN_SERVICE_ENV_KEYS[serviceId];
-    if (!hidden) return entries;
-    return entries.filter(item => !hidden.has(item.key));
-}
-
-function resolveComposeVariableString(value, env = parseEnvFile()) {
-    if (typeof value !== 'string') return value || '';
-    return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)(?:(:?[-?])([^}]*))?\}/g, (match, key, operator, fallback) => {
-        const hasEnvValue = Object.prototype.hasOwnProperty.call(env, key) && env[key] !== '';
-        if (hasEnvValue) return env[key];
-        if (process.env[key]) return process.env[key];
-        if (operator && operator.includes('-')) return fallback || '';
-        return match;
-    });
-}
-
-function buildServiceComposeConfig(serviceId) {
-    const def = getServiceDefinition(serviceId);
-    if (!def) return { status: 'error', message: 'Unknown service' };
-    if (!def.exists) return { status: 'error', message: `Compose file not found: ${def.composePath}` };
-    if (!yaml) return { status: 'error', message: 'YAML parser is not available' };
-
-    let doc;
-    try {
-        doc = yaml.load(fs.readFileSync(def.composeAbsPath, 'utf8')) || {};
-    } catch (e) {
-        return { status: 'error', message: `Failed to parse compose file: ${e.message}` };
-    }
-
-    const service = doc.services?.[def.composeService];
-    if (!service) {
-        return { status: 'error', message: `Service ${def.composeService} not found in ${def.composePath}` };
-    }
-
-    const envEntries = normalizeComposeEnvironment(service.environment);
-    const envMap = composeEntriesToMap(envEntries);
-    const summary = {
-        image: resolveComposeVariableString(service.image || ''),
-        containerName: service.container_name || '',
-        restart: service.restart || ''
-    };
-
-    const response = {
-        status: 'success',
-        service: { id: def.id, label: def.label },
-        composePath: def.composePath,
-        summary,
-        sections: []
-    };
-
-    if (def.id === getPackageServiceId()) {
-        response.sections.push({
-            title: '说明',
-            items: [
-                configItem('业务配置', '业务配置仍在当前主配置表单中维护'),
-                configItem('env_file', normalizeComposeList(service.env_file).join(', ') || '无'),
-                configItem('compose 摘要', '这里只读展示运行摘要，不提供 compose 编辑')
-            ]
-        });
-        response.sections.push({ title: '端口', items: listItems(service.ports) });
-        response.sections.push({ title: '挂载', items: listItems(service.volumes) });
-        response.sections.push({ title: '其他', items: buildOtherItems(service) });
-        return response;
-    }
-
-    if (def.id === 'postgres') {
-        response.sections.push({
-            title: '关键配置',
-            items: [
-                configItem('POSTGRES_USER', envMap.POSTGRES_USER || 'postgres'),
-                configItem('POSTGRES_PASSWORD', envMap.POSTGRES_PASSWORD || '', true),
-                configItem('POSTGRES_DB', envMap.POSTGRES_DB || '')
-            ]
-        });
-        appendPortAndVolumeSections(response, service);
-        return response;
-    }
-
-    if (def.id === 'redis') {
-        const password = extractRedisPassword(service.command) || envMap.REDIS_PASSWORD || '';
-        response.sections.push({
-            title: '关键配置',
-            items: [
-                configItem('REDIS_PASSWORD', password, true)
-            ]
-        });
-        appendPortAndVolumeSections(response, service);
-        return response;
-    }
-
-    const visibleEnvEntries = filterServiceEnvironmentEntries(def.id, envEntries);
-    const envItems = visibleEnvEntries.map(item => configItem(item.key, item.value, isSensitiveComposeKey(item.key)));
-    response.sections.push({
-        title: '环境变量',
-        items: envItems.length ? envItems : [configItem('环境变量', '无环境变量')]
-    });
-    response.sections.push({ title: '端口', items: listItems(service.ports) });
-    response.sections.push({ title: '挂载', items: listItems(service.volumes) });
-    response.sections.push({ title: '其他', items: buildOtherItems(service) });
-    return response;
-}
-
-function buildDeploymentPlan(config = parseEnvFile()) {
-    const required = new Set(['postgres']);
-    const warnings = [];
-
-    if (config.DATABASE_TS_TYPE === 'cassandra' || config.DATABASE_TS_LATEST_TYPE === 'cassandra') {
-        required.add('cassandra');
-    }
-
-    if (config.DATABASE_TS_LATEST_TYPE === 'redis-cluster' || config.REDIS_CONNECTION_TYPE === 'cluster') {
-        warnings.push('Redis Cluster 暂不自动初始化，请确认 ANNOUNCE_IP 和 REDIS_NODES 后手动执行高级流程。');
-    } else if (config.DATABASE_TS_LATEST_TYPE === 'redis' || config.CACHE_TYPE === 'redis') {
-        required.add('redis');
-    }
-
-    if (config.TB_QUEUE_TYPE === 'kafka') {
-        required.add('kafka');
-    }
-
-    required.add(getPackageServiceId());
-
-    const services = Array.from(required)
-        .map(getServiceDefinition)
-        .filter(Boolean)
-        .sort((a, b) => a.order - b.order);
-
-    return {
-        appType: APP_TYPE,
-        appService: getPackageServiceId(),
-        services: services.map(s => ({ id: s.id, label: s.label, order: s.order, exists: s.exists })),
-        warnings
-    };
-}
-
-async function buildDeploymentPlanWithStatus(config = parseEnvFile()) {
-    const plan = buildDeploymentPlan(config);
-    const statuses = await Promise.all(plan.services.map(s => getServiceStatus(getServiceDefinition(s.id))));
-    const appServiceId = getPackageServiceId();
-    const missing = statuses.filter(s => !s.running).map(s => s.id);
-    const missingDependencyIds = statuses
-        .filter(s => s.id !== appServiceId && !s.running)
-        .map(s => s.id);
-    return { ...plan, statuses, missingServices: missing, missingDependencyIds };
-}
-
-async function checkRequiredDependencies(config = parseEnvFile()) {
-    const plan = await buildDeploymentPlanWithStatus(config);
-    const appServiceId = getPackageServiceId();
-    const missingDependencies = (plan.statuses || [])
-        .filter(s => s.id !== appServiceId && !s.running)
-        .map(s => ({
-            id: s.id,
-            label: s.label || s.id,
-            status: s.status || 'unknown',
-            message: s.message || ''
-        }));
-
-    return {
-        ok: missingDependencies.length === 0,
-        plan,
-        missingDependencies,
-        missingDependencyIds: missingDependencies.map(s => s.id)
-    };
-}
-
-function dependencyBlockResult(actionText, dependencyCheck) {
-    const names = dependencyCheck.missingDependencies.map(s => s.label || s.id).join('、');
-    return {
-        status: 'error',
-        code: 'DEPENDENCIES_NOT_RUNNING',
-        message: `请先启动依赖服务：${names}，状态变为 running 后再${actionText}。`,
-        plan: dependencyCheck.plan,
-        missingDependencyIds: dependencyCheck.missingDependencyIds,
-        missingDependencies: dependencyCheck.missingDependencies
-    };
-}
-
-async function guardAppServiceDependencies(actionText, config = parseEnvFile()) {
-    const dependencyCheck = await checkRequiredDependencies(config);
-    if (!dependencyCheck.ok) {
-        return dependencyBlockResult(actionText, dependencyCheck);
-    }
-    return null;
-}
-
-async function applyAppConfigChange(config) {
-    const dependencyBlock = await guardAppServiceDependencies('重启当前业务服务', config);
-    if (dependencyBlock) return dependencyBlock;
-
-    const plan = buildDeploymentPlan(config);
-    const outputs = [];
-    const appServiceId = getPackageServiceId();
-    const appDef = getServiceDefinition(appServiceId);
-
-    if (!appDef || !appDef.exists) {
-        return { status: 'error', plan, output: `[ERROR] ${appServiceId}: compose file missing` };
-    }
-
-    const statuses = await Promise.all(plan.services.map(s => getServiceStatus(getServiceDefinition(s.id))));
-    const missingServices = statuses
-        .filter(s => s.exists && !s.running)
-        .map(s => s.id);
-    const missingDependencyIds = statuses
-        .filter(s => s.id !== appServiceId && s.exists && !s.running)
-        .map(s => s.id);
-
-    const result = await runComposeAction(appServiceId, 'restart');
-    outputs.push(`[${result.status.toUpperCase()}] ${appServiceId}: restart\n${result.output || result.message || ''}`);
-    if (result.status !== 'success') {
-        return {
-            status: 'error',
-            plan: { ...plan, statuses, missingServices, missingDependencyIds },
-            output: outputs.join('\n'),
-            restartedService: appServiceId,
-            skippedDependencies: missingDependencyIds
-        };
-    }
-
-    return {
-        status: 'success',
-        plan: { ...plan, statuses, missingServices, missingDependencyIds },
-        output: outputs.join('\n'),
-        restartedService: appServiceId,
-        skippedDependencies: missingDependencyIds
-    };
-}
-
 // --- HTTP Server ---
 
-// Detect Docker binary path (without shell)
-let dockerPath = null;
-let dockerComposeCmd = null;
-let dockerComposeCmdArgs = [];
+function serveStaticAsset(pathname, res, headers) {
+    const assetRoot = path.resolve(__dirname, 'assets');
+    const relativePath = decodeURIComponent(pathname.replace(/^\/assets\//, ''));
+    const assetPath = path.resolve(assetRoot, relativePath);
 
-const commonDockerPaths = [
-    process.env.DOCKER_BIN,
-    '/usr/bin/docker',
-    '/usr/local/bin/docker',
-    '/snap/bin/docker',
-    '/opt/docker/bin/docker',
-    'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe' // Windows
-].filter(Boolean);
-
-function detectDockerPath() {
-    // Try to find docker binary
-    for (const path of commonDockerPaths) {
-        try {
-            fs.accessSync(path, fs.constants.X_OK);
-            dockerPath = path;
-            console.log(`[Info] Found docker at: ${path}`);
-            break;
-        } catch (e) {
-            // Continue
-        }
-    }
-
-    if (!dockerPath) {
-        console.error('[Error] Docker not found in common paths');
-        console.error('[Info] Searched paths:', commonDockerPaths);
+    if (!assetPath.startsWith(assetRoot + path.sep)) {
+        writeJson(res, 403, { status: 'error', message: 'Forbidden' }, headers);
         return;
     }
 
-    // Test if it's new format (docker compose) or old format (docker-compose)
-    try {
-        execFileSync(dockerPath, ['compose', 'version'], { stdio: 'ignore' });
-        console.log('[Info] Using: docker compose (new format)');
-        dockerComposeCmd = dockerPath;
-        dockerComposeCmdArgs = ['compose'];
+    if (!fs.existsSync(assetPath) || !fs.statSync(assetPath).isFile()) {
+        writeJson(res, 404, { status: 'error', message: 'Asset not found' }, headers);
         return;
-    } catch (error) {
-        // Fallback: try to find docker-compose
-        const dockerComposePaths = [
-            process.env.DOCKER_COMPOSE_BIN,
-            '/usr/bin/docker-compose',
-            '/usr/local/bin/docker-compose'
-        ].filter(Boolean);
-
-        for (const path of dockerComposePaths) {
-            try {
-                fs.accessSync(path, fs.constants.X_OK);
-                console.log('[Info] Using: docker-compose (legacy format)');
-                dockerComposeCmd = path;
-                dockerComposeCmdArgs = [];
-                return;
-            } catch (e) {
-                // Continue
-            }
-        }
-
-        console.error('[Error] Neither "docker compose" nor "docker-compose" is available!');
     }
+
+    const ext = path.extname(assetPath).toLowerCase();
+    const contentTypes = {
+        '.css': 'text/css; charset=utf-8',
+        '.js': 'application/javascript; charset=utf-8',
+        '.svg': 'image/svg+xml',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp'
+    };
+
+    res.writeHead(200, {
+        ...headers,
+        'Content-Type': contentTypes[ext] || 'application/octet-stream',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
+    res.end(fs.readFileSync(assetPath));
 }
 
 function startServer() {
@@ -2034,6 +863,11 @@ function startServer() {
             return;
         }
 
+        if (pathname.startsWith('/assets/') && method === 'GET') {
+            serveStaticAsset(pathname, res, headers);
+            return;
+        }
+
         if (pathname === '/api/health' && method === 'GET') {
             writeJson(res, 200, {
                 status: 'ok',
@@ -2041,8 +875,8 @@ function startServer() {
                 appDir: APP_DIR,
                 appType: APP_TYPE,
                 docker: {
-                    available: !dockerReadyMessage(),
-                    message: dockerReadyMessage()
+                    available: !dockerRuntime.readyMessage(),
+                    message: dockerRuntime.readyMessage()
                 }
             }, headers);
             return;
@@ -2069,8 +903,7 @@ function startServer() {
                     }
                     if (!AUTH_REQUIRED || payload.password === CONFIG_MATE_PASSWORD) {
                         const token = createSession(req, operator);
-                        const session = sessions.get(token);
-                        writeJson(res, 200, { status: 'success', operator: session.operator }, {
+                        writeJson(res, 200, { status: 'success', operator: normalizeOperatorName(operator) || 'operator' }, {
                             ...headers,
                             'Set-Cookie': `config_mate_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`
                         });
@@ -2086,7 +919,7 @@ function startServer() {
 
         if (pathname === '/api/logout' && method === 'POST') {
             const token = getAuthToken(req);
-            if (token) sessions.delete(token);
+            destroySession(token);
             writeJson(res, 200, { status: 'success' }, {
                 ...headers,
                 'Set-Cookie': 'config_mate_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'
@@ -2137,26 +970,7 @@ function startServer() {
 
         // API: Get History List
         if (pathname === '/api/history' && method === 'GET') {
-            if (!fs.existsSync(HISTORY_DIR)) {
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'success', data: [] }));
-                return;
-            }
-
-            const files = fs.readdirSync(HISTORY_DIR)
-                .filter(f => f.startsWith('.env.bak.'))
-                .map(f => {
-                    const stats = fs.statSync(path.join(HISTORY_DIR, f));
-                    return {
-                        filename: f,
-                        timestamp: stats.mtime.toISOString(),
-                        size: stats.size
-                    };
-                })
-                .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ status: 'success', data: files }));
+            writeJson(res, 200, { status: 'success', data: envStore.listHistory() }, headers);
             return;
         }
 
@@ -2167,22 +981,14 @@ function startServer() {
             req.on('end', () => {
                 try {
                     const { filename } = JSON.parse(body);
-                    const backupPath = path.join(HISTORY_DIR, filename);
-
-                    if (!fs.existsSync(backupPath)) {
-                        res.writeHead(404, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'error', message: 'Backup file not found' }));
+                    const result = envStore.restoreHistory(filename);
+                    if (!result.ok) {
+                        writeJson(res, result.statusCode || 500, { status: 'error', message: result.message }, headers);
                         return;
                     }
-
-                    fs.copyFileSync(backupPath, ENV_FILE_PATH);
-                    console.log(`[History] Restored .env from ${filename}`);
-
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'success', message: 'Restored successfully' }));
+                    writeJson(res, 200, { status: 'success', message: result.message }, headers);
                 } catch (e) {
-                    res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'error', message: e.message }));
+                    writeJson(res, 500, { status: 'error', message: e.message }, headers);
                 }
             });
             return;
@@ -2195,22 +1001,14 @@ function startServer() {
             req.on('end', () => {
                 try {
                     const { filename } = JSON.parse(body);
-                    // Security check: simple path traversal prevention
-                    const safeName = path.basename(filename);
-                    const backupPath = path.join(HISTORY_DIR, safeName);
-
-                    if (!fs.existsSync(backupPath)) {
-                        res.writeHead(404, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'error', message: 'File not found' }));
+                    const result = envStore.readHistoryContent(filename);
+                    if (!result.ok) {
+                        writeJson(res, result.statusCode || 500, { status: 'error', message: result.message }, headers);
                         return;
                     }
-
-                    const content = fs.readFileSync(backupPath, 'utf-8');
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'success', content }));
+                    writeJson(res, 200, { status: 'success', content: result.content }, headers);
                 } catch (e) {
-                    res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'error', message: e.message }));
+                    writeJson(res, 500, { status: 'error', message: e.message }, headers);
                 }
             });
             return;
@@ -2227,11 +1025,11 @@ function startServer() {
                 yamlPath: YAML_CONFIG_PATH,
                 authRequired: AUTH_REQUIRED,
                 docker: {
-                    cli: dockerPath,
-                    compose: dockerComposeCmd,
+                    cli: dockerRuntime.dockerPath,
+                    compose: dockerRuntime.dockerComposeCmd,
                     socketMounted: fs.existsSync('/var/run/docker.sock') || os.platform() === 'win32',
-                    available: !dockerReadyMessage(),
-                    message: dockerReadyMessage()
+                    available: !dockerRuntime.readyMessage(),
+                    message: dockerRuntime.readyMessage()
                 }
             }, headers);
             return;
@@ -2288,13 +1086,15 @@ function startServer() {
             const actionText = action === 'up' ? '启动当前业务服务' : '重启当前业务服务';
             const guardedAction = async () => {
                 if (serviceId === getPackageServiceId() && (action === 'up' || action === 'restart')) {
-                    const dependencyBlock = await guardAppServiceDependencies(actionText);
-                    if (dependencyBlock) return dependencyBlock;
+                    const block = action === 'restart'
+                        ? await guardAppServiceRunning(actionText)
+                        : await guardAppServiceDependencies(actionText);
+                    if (block) return block;
                 }
                 return runComposeAction(serviceId, action);
             };
             guardedAction()
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (result.code === 'DEPENDENCIES_NOT_RUNNING' ? 409 : 500), result, headers))
+                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
                 .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
             return;
         }
@@ -2315,14 +1115,14 @@ function startServer() {
             readRequestBody(req).then(async body => {
                 const payload = body ? JSON.parse(body) : {};
                 const config = payload.config || parseEnvFile();
-                const dependencyBlock = await guardAppServiceDependencies('保存并重启当前业务服务', config);
+                const dependencyBlock = await guardAppServiceRunning('保存并重启当前业务服务', config);
                 if (dependencyBlock) return dependencyBlock;
                 if (payload.save !== false && payload.config) {
                     saveEnvFile(config);
                 }
                 return applyAppConfigChange(config);
             }).then(result => {
-                writeJson(res, result.status === 'success' ? 200 : (result.code === 'DEPENDENCIES_NOT_RUNNING' ? 409 : 500), result, headers);
+                writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers);
             }).catch(e => {
                 writeJson(res, 500, { status: 'error', message: e.message }, headers);
             });
@@ -2330,9 +1130,9 @@ function startServer() {
         }
 
         if (pathname === '/api/restart' && method === 'POST') {
-            guardAppServiceDependencies('重启当前业务服务')
+            guardAppServiceRunning('重启当前业务服务')
                 .then(block => block || runComposeAction(getPackageServiceId(), 'restart'))
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (result.code === 'DEPENDENCIES_NOT_RUNNING' ? 409 : 500), result, headers))
+                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
                 .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
             return;
         }
@@ -2345,9 +1145,9 @@ function startServer() {
         }
 
         if (pathname === '/api/service-restart' && method === 'POST') {
-            guardAppServiceDependencies('重启当前业务服务')
+            guardAppServiceRunning('重启当前业务服务')
                 .then(block => block || runComposeAction(getPackageServiceId(), 'restart'))
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (result.code === 'DEPENDENCIES_NOT_RUNNING' ? 409 : 500), result, headers))
+                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
                 .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
             return;
         }
@@ -2454,7 +1254,7 @@ function startServer() {
 
         // API: Execute Installation
         if (pathname === '/api/install' && method === 'POST') {
-            if (!dockerComposeCmd) {
+            if (!dockerRuntime.dockerComposeCmd) {
                 res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
                 return;
@@ -2467,15 +1267,15 @@ function startServer() {
                 return;
             }
 
-            checkRequiredDependencies()
-                .then(dependencyCheck => {
-                    if (!dependencyCheck.ok) {
-                        writeJson(res, 409, dependencyBlockResult('执行初始化安装', dependencyCheck), headers);
+            guardAppServiceRunning('执行初始化安装')
+                .then(block => {
+                    if (block) {
+                        writeJson(res, 409, block, headers);
                         return;
                     }
 
-                    const argsDown = [...dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'down'];
-                    const argsUp = [...dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'up'];
+                    const argsDown = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'down'];
+                    const argsUp = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'up'];
 
                     console.log(`[Info] Starting Installation (Mode: Down then Up): ${appDef.installComposePath}`);
 
@@ -2490,7 +1290,7 @@ function startServer() {
 
                     // Phase 1: Down
                     res.write('[INFO] 正在执行清理 (Clean up)...\n');
-                    activeChild = spawn(dockerComposeCmd, argsDown, { cwd: APP_ROOT });
+                    activeChild = spawn(dockerRuntime.dockerComposeCmd, argsDown, { cwd: APP_ROOT });
 
                     activeChild.stdout.on('data', d => res.write(d));
                     activeChild.stderr.on('data', d => res.write(d));
@@ -2507,7 +1307,7 @@ function startServer() {
                         // Phase 2: Up
                         let hasInstallError = false;
 
-                        activeChild = spawn(dockerComposeCmd, argsUp, { cwd: APP_ROOT });
+                        activeChild = spawn(dockerRuntime.dockerComposeCmd, argsUp, { cwd: APP_ROOT });
 
                         activeChild.stdout.on('data', d => {
                             const str = d.toString();
@@ -2551,7 +1351,7 @@ function startServer() {
 
         if (pathname === '/api/env-raw' && method === 'GET') {
             try {
-                const content = fs.existsSync(ENV_FILE_PATH) ? fs.readFileSync(ENV_FILE_PATH, 'utf-8') : '';
+                const content = envStore.readRaw();
                 res.writeHead(200, { ...headers, 'Content-Type': 'text/plain; charset=utf-8' });
                 res.end(content);
             } catch (e) {
@@ -2566,7 +1366,7 @@ function startServer() {
             req.on('data', chunk => body += chunk.toString());
             req.on('end', () => {
                 try {
-                    fs.writeFileSync(ENV_FILE_PATH, body, 'utf-8');
+                    envStore.saveRaw(body);
                     res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ status: 'ok' }));
                 } catch (e) {
@@ -2577,230 +1377,12 @@ function startServer() {
             return;
         }
 
-        // SSE for Container Logs - Using callback mode like restart API
         const serviceLogsMatch = pathname.match(/^\/api\/services\/([^/]+)\/logs$/);
         if ((pathname === '/api/logs' || serviceLogsMatch) && method === 'GET') {
-            if (!dockerComposeCmd) {
-                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'error',
-                    message: 'Docker Compose not available'
-                }));
-                return;
-            }
-
-            res.writeHead(200, {
-                'Content-Type': 'text/event-stream',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive'
-            });
-
-            // Use spawn for real-time logs (streaming)
             const serviceId = serviceLogsMatch
                 ? serviceLogsMatch[1]
                 : (requestUrl.searchParams.get('service') || getPackageServiceId());
-            const def = getServiceDefinition(serviceId);
-            if (!def || !def.exists) {
-                res.write(`data: ${JSON.stringify({ type: 'error', message: `[错误] 服务不存在或 compose 文件缺失: ${serviceId}` })}\n\n`);
-                res.write(`data: ${JSON.stringify({ type: 'close', code: -1 })}\n\n`);
-                res.end();
-                return;
-            }
-
-            const args = composeArgsFor(def, ['logs', '-f', '--tail=50', def.composeService]);
-            console.log(`[Info] Starting real-time logs: ${dockerComposeCmd} ${args.join(' ')}`);
-
-            const child = spawn(dockerComposeCmd, args, {
-                cwd: APP_ROOT,
-                detached: process.platform !== 'win32',
-                stdio: ['ignore', 'pipe', 'pipe'] // Ignore stdin, pipe stdout/stderr
-            });
-
-            const MAX_PENDING_LOG_EVENTS = 1000;
-            const MAX_EVENTS_PER_FLUSH = 120;
-            const MAX_SSE_LINE_LENGTH = 4000;
-            const FLUSH_INTERVAL_MS = 200;
-
-            let closed = false;
-            let cleanupStarted = false;
-            let waitingForDrain = false;
-            let droppedLogEvents = 0;
-            let stdoutRemainder = '';
-            let stderrRemainder = '';
-            const pendingEvents = [];
-
-            function isResponseOpen() {
-                return !closed && !res.destroyed && !res.writableEnded;
-            }
-
-            function pauseUntilDrain() {
-                if (waitingForDrain || !isResponseOpen()) return;
-                waitingForDrain = true;
-                child.stdout.pause();
-                child.stderr.pause();
-                res.once('drain', () => {
-                    waitingForDrain = false;
-                    if (!isResponseOpen()) return;
-                    child.stdout.resume();
-                    child.stderr.resume();
-                    flushPendingEvents();
-                });
-            }
-
-            function writeSse(payload) {
-                if (!isResponseOpen()) return false;
-                const ok = res.write(`data: ${JSON.stringify(payload)}\n\n`);
-                if (!ok) pauseUntilDrain();
-                return ok;
-            }
-
-            function enqueueLogLine(line) {
-                if (!line) return;
-                let message = line;
-                if (message.length > MAX_SSE_LINE_LENGTH) {
-                    message = `${message.slice(0, MAX_SSE_LINE_LENGTH)} ... [server truncated, original length: ${line.length}]`;
-                }
-                if (pendingEvents.length >= MAX_PENDING_LOG_EVENTS) {
-                    const dropCount = pendingEvents.length - MAX_PENDING_LOG_EVENTS + 1;
-                    pendingEvents.splice(0, dropCount);
-                    droppedLogEvents += dropCount;
-                }
-                pendingEvents.push({ type: 'log', message });
-            }
-
-            function processLogChunk(chunk, streamName) {
-                const existing = streamName === 'stdout' ? stdoutRemainder : stderrRemainder;
-                const text = existing + chunk.toString('utf8');
-                const lines = text.split(/\r?\n/);
-                const remainder = lines.pop() || '';
-                if (streamName === 'stdout') stdoutRemainder = remainder;
-                else stderrRemainder = remainder;
-                lines.forEach(enqueueLogLine);
-            }
-
-            function flushRemainders() {
-                if (stdoutRemainder) {
-                    enqueueLogLine(stdoutRemainder);
-                    stdoutRemainder = '';
-                }
-                if (stderrRemainder) {
-                    enqueueLogLine(stderrRemainder);
-                    stderrRemainder = '';
-                }
-            }
-
-            function flushPendingEvents() {
-                if (!isResponseOpen()) return;
-                if (droppedLogEvents > 0) {
-                    const dropped = droppedLogEvents;
-                    droppedLogEvents = 0;
-                    if (!writeSse({ type: 'warn', message: `[日志过多] 已丢弃 ${dropped} 条旧日志，继续显示最新内容。` })) return;
-                }
-
-                let sent = 0;
-                while (pendingEvents.length > 0 && sent < MAX_EVENTS_PER_FLUSH) {
-                    const event = pendingEvents.shift();
-                    if (!writeSse(event)) {
-                        pendingEvents.unshift(event);
-                        return;
-                    }
-                    sent += 1;
-                }
-            }
-
-            const flushTimer = setInterval(flushPendingEvents, FLUSH_INTERVAL_MS);
-
-            function killLogsProcess() {
-                if (child.killed || child.exitCode !== null) return;
-                try {
-                    if (process.platform !== 'win32') {
-                        process.kill(-child.pid, 'SIGTERM');
-                    } else {
-                        child.kill('SIGTERM');
-                    }
-                } catch (e) {
-                    try { child.kill('SIGTERM'); } catch (_) { /* ignore */ }
-                }
-                setTimeout(() => {
-                    if (child.killed || child.exitCode !== null) return;
-                    try {
-                        if (process.platform !== 'win32') {
-                            process.kill(-child.pid, 'SIGKILL');
-                        } else {
-                            child.kill('SIGKILL');
-                        }
-                    } catch (_) {
-                        // The process may already be gone.
-                    }
-                }, 5000).unref?.();
-            }
-
-            function cleanupLogStream(reason, shouldKillChild = false) {
-                if (cleanupStarted) return;
-                cleanupStarted = true;
-                closed = true;
-                clearInterval(heartbeat);
-                clearInterval(flushTimer);
-                child.stdout.removeAllListeners('data');
-                child.stderr.removeAllListeners('data');
-                pendingEvents.length = 0;
-                if (shouldKillChild) {
-                    console.log(`[Info] Closing logs stream (${reason}), killing logs process...`);
-                    killLogsProcess();
-                }
-            }
-
-            // Stream stdout/stderr into a bounded queue. The interval above handles SSE writes.
-            child.stdout.on('data', (chunk) => processLogChunk(chunk, 'stdout'));
-            child.stderr.on('data', (chunk) => processLogChunk(chunk, 'stderr'));
-
-            // Handle process exit
-            child.on('close', (code) => {
-                console.log(`[Info] Logs process exited with code ${code}`);
-                cleanupStarted = true;
-                clearInterval(heartbeat);
-                clearInterval(flushTimer);
-                flushRemainders();
-                flushPendingEvents();
-                if (isResponseOpen()) {
-                    writeSse({ type: 'close', code });
-                    closed = true;
-                    res.end();
-                }
-            });
-
-            child.on('error', (err) => {
-                console.error('[Error] Failed to spawn logs process:', err.message);
-                cleanupStarted = true;
-                clearInterval(heartbeat);
-                clearInterval(flushTimer);
-                if (isResponseOpen()) {
-                    writeSse({ type: 'error', message: `[错误] ${err.message}` });
-                    writeSse({ type: 'close', code: -1 });
-                    closed = true;
-                    res.end();
-                }
-            });
-
-            // Heartbeat to keep connection alive
-            const heartbeat = setInterval(() => {
-                if (isResponseOpen()) {
-                    const ok = res.write(': heartbeat\n\n');
-                    if (!ok) pauseUntilDrain();
-                } else {
-                    clearInterval(heartbeat);
-                }
-            }, 15000);
-
-            // Clean up on client disconnect
-            req.on('close', () => {
-                cleanupLogStream('request closed', true);
-            });
-
-            res.on('close', () => {
-                cleanupLogStream('response closed', true);
-            });
-
+            logStreamService.streamLogs({ req, res, serviceId, headers });
             return;
         }
 
@@ -2823,7 +1405,7 @@ function startServer() {
 
         // API: Diff Runtime vs Local Config
         if (pathname === '/api/diff-runtime' && method === 'GET') {
-            if (!dockerComposeCmd) {
+            if (!dockerRuntime.dockerComposeCmd) {
                 res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
                 return;
@@ -2839,9 +1421,9 @@ function startServer() {
 
                 // 2. Resolve Container ID via Service Name
                 // Command: docker compose ps -q <serviceName>
-                const argsPs = composeArgsFor(def, ['ps', '-q', def.composeService]);
+                const argsPs = dockerRuntime.composeArgsFor(def, ['ps', '-q', def.composeService]);
 
-                execFile(dockerComposeCmd, argsPs, { cwd: APP_ROOT }, (errPs, stdoutPs) => {
+                execFile(dockerRuntime.dockerComposeCmd, argsPs, { cwd: APP_ROOT }, (errPs, stdoutPs) => {
                     if (errPs) {
                         res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
                         res.end(JSON.stringify({ status: 'error', message: 'Failed to resolve container ID', details: errPs.message }));
@@ -2858,7 +1440,7 @@ function startServer() {
 
                     // 3. Fetch Runtime Env via docker inspect
                     // Note: We use 'docker' command directly.
-                    execFile(dockerPath, ['inspect', containerId], (errInspect, stdoutInspect) => {
+                    execFile(dockerRuntime.dockerPath, ['inspect', containerId], (errInspect, stdoutInspect) => {
                         if (errInspect) {
                             res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
                             res.end(JSON.stringify({ status: 'error', message: 'Failed to inspect container', details: errInspect.message }));
@@ -3011,5 +1593,5 @@ function openBrowser() {
 
 // Entry Point
 tryInitFromYaml();
-detectDockerPath();
+dockerRuntime.detect();
 startServer();
