@@ -15,6 +15,7 @@ const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
 const { createConfigRoutes } = require('./src/server/routes/config');
+const { createInstallRoutes } = require('./src/server/routes/install');
 const { createServiceRoutes } = require('./src/server/routes/services');
 const { createSystemRoutes } = require('./src/server/routes/system');
 const CONFIG_META = require('./config-meta');
@@ -587,6 +588,14 @@ const configRoutes = createConfigRoutes({
     getServiceDefinition,
     getPackageServiceId
 });
+const installRoutes = createInstallRoutes({
+    appRoot: APP_ROOT,
+    appDir: APP_DIR,
+    dockerRuntime,
+    getServiceDefinition,
+    getPackageServiceId,
+    guardAppServiceRunning
+});
 serviceRoutes = createServiceRoutes({
     listServiceDefinitions,
     getServiceDefinition,
@@ -1054,200 +1063,7 @@ function startServer() {
             return;
         }
 
-
-
-        // API: Check Installation Config
-        if (pathname === '/api/check-install' && method === 'GET') {
-            const appDef = getServiceDefinition(getPackageServiceId());
-            const installFile = appDef?.installComposeAbsPath;
-            const exists = !!installFile && fs.existsSync(installFile);
-            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ status: 'success', exists }));
-            return;
-        }
-
-        // API: Validate Compose Files (Check for env_file)
-        if (pathname === '/api/validate-compose' && method === 'GET') {
-            const appDef = getServiceDefinition(getPackageServiceId());
-            const requiredFiles = [
-                { label: appDef?.composePath || 'docker-compose.yml', path: appDef?.composeAbsPath },
-                { label: appDef?.installComposePath || 'docker-compose-install.yml', path: appDef?.installComposeAbsPath }
-            ];
-
-            const missingFiles = [];
-            const invalidFiles = [];
-
-            // 0. Pre-check: ThingsBoard Config Files (conf/thingsboard.yml or conf/tb-edge.yml)
-            const confDir = path.join(APP_DIR, 'conf');
-            const tbConfigPath = path.join(confDir, 'thingsboard.yml');
-            const edgeConfigPath = path.join(confDir, 'tb-edge.yml');
-
-            const hasTbConfig = fs.existsSync(tbConfigPath);
-            const hasEdgeConfig = fs.existsSync(edgeConfigPath);
-
-            if (!hasTbConfig && !hasEdgeConfig) {
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'config_missing',
-                    msg: 'Missing ThingsBoard configuration files',
-                    files: ['conf/thingsboard.yml', 'conf/tb-edge.yml']
-                }));
-                return;
-            }
-
-            // 1. Check Existence
-            requiredFiles.forEach(file => {
-                if (!file.path || !fs.existsSync(file.path)) {
-                    missingFiles.push(file.label);
-                }
-            });
-
-            // 2. Logic Branching
-            if (missingFiles.length > 0) {
-                // Scenario A: Missing Files -> Warning (Non-blocking)
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'missing',
-                    files: missingFiles
-                }));
-                return;
-            }
-
-            // Scenario B: All Files Exist -> Strict Content Check
-            requiredFiles.forEach(file => {
-                const filePath = file.path;
-                // We know it exists from step 1
-                if (!checkFileContent(filePath, 'env_file')) {
-                    invalidFiles.push({ file: file.label, msg: '未配置 env_file (Missing env_file property)' });
-                }
-            });
-
-            if (invalidFiles.length > 0) {
-                // Blocking Error
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'error',
-                    errors: invalidFiles
-                }));
-            } else {
-                // Success
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'success' }));
-            }
-            return;
-        }
-
-        function checkFileContent(filePath, keyword) {
-            try {
-                if (!filePath) return false;
-                const content = fs.readFileSync(filePath, 'utf-8');
-                const lines = content.split('\n');
-                // Regex: Start of line, optional whitespace, keyword, optional whitespace, colon, anything else
-                const regex = new RegExp(`^\\s*${keyword}\\s*:`);
-                return lines.some(line => {
-                    const trimmed = line.trim();
-                    return regex.test(line) && !trimmed.startsWith('#');
-                });
-            } catch (e) {
-                console.error(`[Error] checkFileContent failed for ${filePath}:`, e);
-                return false;
-            }
-        }
-
-        // API: Execute Installation
-        if (pathname === '/api/install' && method === 'POST') {
-            if (!dockerRuntime.dockerComposeCmd) {
-                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
-                return;
-            }
-
-            const appDef = getServiceDefinition(getPackageServiceId());
-            if (!appDef?.installComposeAbsPath || !fs.existsSync(appDef.installComposeAbsPath)) {
-                res.writeHead(404, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'error', message: 'Install compose file not found' }));
-                return;
-            }
-
-            guardAppServiceRunning('执行初始化安装')
-                .then(block => {
-                    if (block) {
-                        writeJson(res, 409, block, headers);
-                        return;
-                    }
-
-                    const argsDown = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'down'];
-                    const argsUp = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'up'];
-
-                    console.log(`[Info] Starting Installation (Mode: Down then Up): ${appDef.installComposePath}`);
-
-                    res.writeHead(200, {
-                        ...headers,
-                        'Content-Type': 'text/plain',
-                        'Transfer-Encoding': 'chunked'
-                    });
-
-                    // Keep track of active child for cleanup
-                    let activeChild = null;
-
-                    // Phase 1: Down
-                    res.write('[INFO] 正在执行清理 (Clean up)...\n');
-                    activeChild = spawn(dockerRuntime.dockerComposeCmd, argsDown, { cwd: APP_ROOT });
-
-                    activeChild.stdout.on('data', d => res.write(d));
-                    activeChild.stderr.on('data', d => res.write(d));
-
-                    activeChild.on('close', (codeDown) => {
-                        if (codeDown !== 0) {
-                            res.write(`[WARN] 清理命令退出代码: ${codeDown} (通常表示无运行容器，可忽略)\n`);
-                        } else {
-                            res.write('[INFO] 清理完成。\n');
-                        }
-
-                        res.write('[INFO] 正在启动安装 (Start Install)...\n');
-
-                        // Phase 2: Up
-                        let hasInstallError = false;
-
-                        activeChild = spawn(dockerRuntime.dockerComposeCmd, argsUp, { cwd: APP_ROOT });
-
-                        activeChild.stdout.on('data', d => {
-                            const str = d.toString();
-                            if (str.includes(' ERROR') || str.includes('ERROR ')) {
-                                hasInstallError = true;
-                            }
-                            res.write(d);
-                        });
-                        activeChild.stderr.on('data', d => {
-                            const str = d.toString();
-                            if (str.includes(' ERROR') || str.includes('ERROR ')) {
-                                hasInstallError = true;
-                            }
-                            res.write(d);
-                        });
-
-                        activeChild.on('close', (codeUp) => {
-                            console.log(`[Info] Installation finished with code ${codeUp}`);
-                            if (codeUp === 0 && !hasInstallError) {
-                                res.write('\n[SUCCESS] 安装完成。\n');
-                            } else {
-                                const reason = hasInstallError ? '检测到错误日志' : `退出代码：${codeUp}`;
-                                res.write(`\n[ERROR] 安装初始化流程失败 (${reason})。\n`);
-                            }
-                            res.end();
-                            activeChild = null;
-                        });
-                    });
-
-                    req.on('close', () => {
-                        if (activeChild && !activeChild.killed) {
-                            console.log('[Info] Request cancelled, killing active process...');
-                            activeChild.kill('SIGTERM');
-                            setTimeout(() => { if (activeChild && !activeChild.killed) activeChild.kill('SIGKILL'); }, 5000);
-                        }
-                    });
-                })
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+        if (installRoutes.handle(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
