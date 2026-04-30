@@ -47,18 +47,6 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
-const nativeFetch = window.fetch.bind(window);
-let authExpiredNotified = false;
-
-function getRequestPath(input) {
-    try {
-        const rawUrl = typeof input === 'string' ? input : (input && input.url) || '';
-        return new URL(rawUrl, window.location.origin).pathname;
-    } catch (e) {
-        return '';
-    }
-}
-
 function stopPollingTimers() {
     if (statusPollTimer) {
         clearInterval(statusPollTimer);
@@ -110,21 +98,12 @@ function showLoginOverlay(message = '') {
         password.value = '';
         (operator && !operator.value ? operator : password).focus();
     }
-    if (message && !authExpiredNotified) {
-        authExpiredNotified = true;
+    if (message) {
         showToast(message, 'warning');
     }
 }
 
-window.fetch = async function protectedFetch(input, init) {
-    const res = await nativeFetch(input, init);
-    const path = getRequestPath(input);
-    const skipAuthOverlay = path === '/api/login' || path === '/api/auth/status';
-    if (res.status === 401 && !skipAuthOverlay) {
-        showLoginOverlay('登录已过期，请重新登录');
-    }
-    return res;
-};
+ConfigMateApi.setUnauthorizedHandler(() => showLoginOverlay('登录已过期，请重新登录'));
 
 let confirmResolver = null;
 function customConfirm(message, confirmBtnText = '确定', confirmBtnColor = 'var(--primary)') {
@@ -165,7 +144,7 @@ function resolveConfirm(result) {
 
 async function boot() {
     try {
-        const res = await fetch('/api/auth/status');
+        const res = await ConfigMateApi.authStatus();
         const auth = await res.json();
         if (auth.required && !auth.authenticated) {
             updateAuthUI('');
@@ -193,11 +172,7 @@ async function login(event) {
     btn.disabled = true;
     btn.textContent = '登录中...';
     try {
-        const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ operator, password })
-        });
+        const res = await ConfigMateApi.login({ operator, password });
         const data = await res.json();
         if (!res.ok || data.status !== 'success') {
             showToast(data.message || '登录失败', 'error');
@@ -205,7 +180,7 @@ async function login(event) {
         }
         localStorage.setItem('configMateOperator', operator);
         updateAuthUI(data.operator || operator);
-        authExpiredNotified = false;
+        ConfigMateApi.resetAuthExpiredNotice();
         stopPollingTimers();
         document.getElementById('login-overlay').style.display = 'none';
         await init();
@@ -223,12 +198,12 @@ async function logout() {
         if (!ok) return;
     }
     try {
-        await fetch('/api/logout', { method: 'POST' });
+        await ConfigMateApi.logout();
     } catch (e) {
         // Even if the network request fails, clear local UI state and ask for login again.
     }
     localStorage.removeItem('configMateOperator');
-    authExpiredNotified = false;
+    ConfigMateApi.resetAuthExpiredNotice();
     stopPollingTimers();
     updateAuthUI('');
     showLoginOverlay('已退出登录');
@@ -237,7 +212,7 @@ async function logout() {
 async function init() {
     try {
         stopPollingTimers();
-        const res = await fetch('/api/config');
+        const res = await ConfigMateApi.config();
         if (res.status === 401) {
             showLoginOverlay();
             return;
@@ -537,7 +512,7 @@ async function refreshDeployment() {
 }
 
 async function loadDeploymentInfo() {
-    const res = await fetch('/api/deployment');
+    const res = await ConfigMateApi.deployment();
     if (!res.ok) return;
     deploymentInfo = await res.json();
     const metaEl = document.getElementById('deployment-meta');
@@ -626,11 +601,7 @@ function shortPath(value) {
 async function updateDeploymentPlan() {
     const summaryEl = document.getElementById('plan-summary');
     try {
-        const res = await fetch('/api/plan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ config: configValues })
-        });
+        const res = await ConfigMateApi.plan(configValues);
         const json = await res.json();
         if (json.status !== 'success') {
             summaryEl.textContent = '依赖分析失败：' + (json.message || '未知错误');
@@ -774,7 +745,7 @@ function setHeaderStatus(state, label) {
 
 async function refreshServices() {
     try {
-        const res = await fetch('/api/services');
+        const res = await ConfigMateApi.services();
         const json = await res.json();
         if (json.status !== 'success') return;
         latestServices = json.services || [];
@@ -876,7 +847,7 @@ async function loadServiceConfig(serviceId) {
     const requestSeq = ++serviceConfigRequestSeq;
     renderServiceConfigState('正在读取 compose 配置...');
     try {
-        const res = await fetch(`/api/services/${encodeURIComponent(serviceId)}/config`);
+        const res = await ConfigMateApi.serviceConfig(serviceId);
         const data = await res.json();
         if (requestSeq !== serviceConfigRequestSeq) return;
         if (!res.ok || data.status !== 'success') {
@@ -1151,7 +1122,7 @@ function resolveCleanupConfirm(result) {
 async function cleanupService(serviceId) {
     if (!isCleanupSupportedService(serviceId)) return;
     try {
-        const planRes = await fetch(`/api/services/${encodeURIComponent(serviceId)}/cleanup-plan`);
+        const planRes = await ConfigMateApi.cleanupPlan(serviceId);
         const plan = await planRes.json();
         if (!planRes.ok || plan.status !== 'success') {
             showToast(plan.message || '清理计划读取失败', 'error');
@@ -1165,11 +1136,7 @@ async function cleanupService(serviceId) {
         renderServices();
         if (selectedServiceId === serviceId && selectedServiceConfig) renderServiceConfig(selectedServiceConfig);
         const confirmServiceId = document.getElementById('cleanup-confirm-input')?.value.trim() || '';
-        const res = await fetch(`/api/services/${encodeURIComponent(serviceId)}/cleanup`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ confirmServiceId })
-        });
+        const res = await ConfigMateApi.cleanup(serviceId, confirmServiceId);
         const data = await res.json();
         if (data.status === 'success') {
             const extra = serviceId === 'postgres' ? '。PostgreSQL 已为空库，如需业务表结构，请手动执行初始化安装。' : '';
@@ -1198,7 +1165,7 @@ async function serviceAction(serviceId, action) {
     }
     if (!await customConfirm(`确定要${actionText} ${serviceId} 吗？`, actionText, action === 'down' ? 'var(--danger)' : 'var(--primary)')) return;
     try {
-        const res = await fetch(`/api/services/${serviceId}/${action}`, { method: 'POST' });
+        const res = await ConfigMateApi.serviceAction(serviceId, action);
         const data = await res.json();
         if (data.status === 'success') {
             showToast(`${actionText} ${serviceId} 成功`, 'success');
@@ -1535,7 +1502,7 @@ async function toggleSourceMode() {
 
     if (nextMode) {
         try {
-            const res = await fetch('/api/env-raw');
+            const res = await ConfigMateApi.rawEnv();
             const text = await res.text();
             editor.value = text;
             initialSourceContent = text; // Set initial state
@@ -1648,10 +1615,10 @@ async function saveConfig(silent = false) {
     try {
         if (isSourceMode) {
             const rawContent = document.getElementById('source-editor').value;
-            const res = await fetch('/api/save-raw', { method: 'POST', body: rawContent });
+            const res = await ConfigMateApi.saveRaw(rawContent);
             if (!res.ok) throw new Error(await res.text());
         } else {
-            const res = await fetch('/api/save', { method: 'POST', body: JSON.stringify(configValues) });
+            const res = await ConfigMateApi.saveConfig(configValues);
             if (!res.ok) throw new Error(await res.text());
             initialConfigValues = JSON.parse(JSON.stringify(configValues)); // Update initial state
         }
@@ -1688,11 +1655,7 @@ async function saveAndApplyPlan() {
     if (!await customConfirm(`将保存配置，并只重启：${appServiceName}。${missingNote}`, '保存并重启', '#00B894')) return;
 
     try {
-        const res = await fetch('/api/apply-plan', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ config: configValues, save: true })
-        });
+        const res = await ConfigMateApi.applyPlan(configValues, true);
         const data = await res.json();
         if (data.status === 'success') {
             initialConfigValues = JSON.parse(JSON.stringify(configValues));
@@ -1900,8 +1863,7 @@ async function copyVisibleLogs() {
 function connectLogsStream() {
     closeLogsStream();
 
-    const serviceQuery = selectedLogService ? `?service=${encodeURIComponent(selectedLogService)}` : '';
-    logsEventSource = new EventSource('/api/logs' + serviceQuery);
+    logsEventSource = new EventSource(ConfigMateApi.logsUrl(selectedLogService));
     updateLogStatus('实时监听中...', 'live');
 
     logsEventSource.onmessage = (event) => {
@@ -2248,7 +2210,7 @@ async function checkStatus() {
     if (isActionPending) return; // Skip updates during user actions
 
     try {
-        const res = await fetch('/api/status');
+        const res = await ConfigMateApi.status();
         const data = await res.json();
         console.log('[Debug] Status Check:', data.status);
 
@@ -2384,7 +2346,7 @@ async function stopService(event) {
     isActionPending = true;
 
     try {
-        const res = await fetch('/api/stop', { method: 'POST' });
+        const res = await ConfigMateApi.stopAppService();
         const data = await res.json();
         if (data.status === 'success') {
             showToast('✅ 服务已停止', 'success');
@@ -2424,7 +2386,7 @@ async function restartServiceOnly(event) {
         // Clear logs before restart to show fresh status
         clearLogs();
 
-        const res = await fetch('/api/service-restart', { method: 'POST' });
+        const res = await ConfigMateApi.restartAppService();
         const data = await res.json();
 
         if (data.status === 'success') {
@@ -2463,7 +2425,7 @@ async function restartService() {
         // Clear logs before restart to show fresh status
         clearLogs();
 
-        const res = await fetch('/api/service-restart', { method: 'POST' });
+        const res = await ConfigMateApi.restartAppService();
         const data = await res.json();
 
         if (data.status === 'success') {
@@ -2514,7 +2476,7 @@ async function fetchHistory() {
     }
     renderHistoryLoading();
     try {
-        const res = await fetch('/api/history');
+        const res = await ConfigMateApi.history();
         const json = await res.json();
 
         if (json.status === 'success') {
@@ -2711,11 +2673,7 @@ function closeDiffModal() {
 
 async function viewContent(filename) {
     try {
-        const res = await fetch('/api/history/content', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename })
-        });
+        const res = await ConfigMateApi.historyContent(filename);
         const json = await res.json();
         if (json.status === 'success') {
             const contentEl = document.getElementById('diff-content');
@@ -2734,15 +2692,11 @@ async function viewContent(filename) {
 async function compareHistory(filename) {
     try {
         // 1. Get History Content
-        const resHist = await fetch('/api/history/content', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename })
-        });
+        const resHist = await ConfigMateApi.historyContent(filename);
         const jsonHist = await resHist.json();
 
         // 2. Get Current Content
-        const resCurr = await fetch('/api/env-raw');
+        const resCurr = await ConfigMateApi.rawEnv();
         const textCurr = await resCurr.text();
 
         if (jsonHist.status === 'success') {
@@ -2826,11 +2780,7 @@ async function restoreHistory(filename) {
     if (!await customConfirm(`确定要将配置回滚到 ${filename} 吗？\n\n当前未保存的修改将会丢失。`, '确认回滚', 'var(--danger)')) return;
 
     try {
-        const res = await fetch('/api/history/restore', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename })
-        });
+        const res = await ConfigMateApi.restoreHistory(filename);
         const json = await res.json();
 
         if (json.status === 'success') {
@@ -2847,7 +2797,7 @@ async function restoreHistory(filename) {
 // Initialize Modal Listeners
 window.addEventListener('DOMContentLoaded', () => {
     // 加载并显示版本号
-    fetch('/api/version')
+    ConfigMateApi.version()
         .then(res => res.json())
         .then(data => {
             const versionBadge = document.getElementById('app-version');
@@ -2925,7 +2875,7 @@ async function checkRuntimeSync() {
         btn.innerHTML = `<svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
         btn.disabled = true;
 
-        const res = await fetch('/api/diff-runtime');
+        const res = await ConfigMateApi.runtimeDiff();
         const json = await res.json();
 
         console.log("Runtime Check Response:", json);
@@ -3046,7 +2996,7 @@ let installHadError = false;
 
 async function checkInstallAvailability() {
     try {
-        const res = await fetch('/api/check-install');
+        const res = await ConfigMateApi.checkInstall();
         const data = await res.json();
         if (data.exists) {
             const btn = document.getElementById('btn-install-init');
@@ -3100,7 +3050,7 @@ async function startInstallService() {
     installHadError = false;
 
     try {
-        const response = await fetch('/api/install', { method: 'POST' });
+        const response = await ConfigMateApi.install();
         if (!response.ok || !response.body) {
             const text = await response.text();
             try {
@@ -3430,7 +3380,7 @@ window.addEventListener('load', () => {
 // Startup Validation Check
 async function checkEnvConfigValidation() {
     try {
-        const res = await fetch('/api/validate-compose?t=' + Date.now());
+        const res = await ConfigMateApi.validateCompose();
         const data = await res.json();
 
         const listEl = document.getElementById('validate-files-list');
