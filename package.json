@@ -1,6 +1,6 @@
 {
     "name": "tb-config-mate",
-    "version": "1.4.13",
+    "version": "1.4.14",
     "main": "tb-config-src.js",
     "bin": "tb-config-src.js",
     "pkg": {
@@ -21,6 +21,7 @@
         "start": "node tb-config-src.js",
         "dev": "node tb-config-src.js --dev",
         "check": "node scripts/check.js",
+        "dist:image-build": "bash scripts/prepare-image-build-dist.sh",
         "clean": "rm -rf dist node_modules/.cache",
         "build": "npm run clean && pkg .",
         "docker:build:base": "docker build -f Dockerfile.base -t tb-config-mate-base:latest .",
