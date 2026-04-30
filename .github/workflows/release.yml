@@ -49,38 +49,18 @@ jobs:
       - name: Run checks
         run: npm run check
 
-      - name: Build standalone binaries
-        run: npm run build
-
       - name: Prepare image build package
         run: npm run dist:image-build
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Build Docker image tarballs from dist package
+      - name: Verify Docker image build from dist package
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist/docker
-
-          build_image_tar() {
-            local platform="$1"
-            local label="$2"
-            local output="$3"
-            local base_image="tb-config-mate-base:${label}"
-
-            pushd dist/config-mate-image-build
-            PLATFORM="${platform}" BASE_IMAGE_NAME="${base_image}" ./build-base.sh
-            PLATFORM="${platform}" BASE_IMAGE_NAME="${base_image}" IMAGE_NAME="tb-config-mate:latest" ./build-image.sh
-            popd
-
-            docker save tb-config-mate:latest | gzip -9 > "dist/docker/${output}"
-            echo "Created dist/docker/${output}"
-          }
-
-          build_image_tar "linux/amd64" "linux-amd64" "tb-config-mate_linux_amd64.tar.gz"
-          build_image_tar "linux/arm64" "linux-arm64" "tb-config-mate_linux_arm64.tar.gz"
+          pushd dist/config-mate-image-build
+          PLATFORM="linux/amd64" BASE_IMAGE_NAME="tb-config-mate-base:release-check" ./build-base.sh
+          PLATFORM="linux/amd64" BASE_IMAGE_NAME="tb-config-mate-base:release-check" IMAGE_NAME="tb-config-mate:release-check" ./build-image.sh
+          popd
+          docker image rm tb-config-mate:release-check tb-config-mate-base:release-check || true
 
       - name: List release assets
         run: |
@@ -92,9 +72,6 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           name: Config Mate ${{ env.RELEASE_TAG }}
           generate_release_notes: true
-          files: |
-            dist/tb-config-mate-*
-            dist/config-mate-image-build.tar.gz
-            dist/docker/*.tar.gz
+          files: dist/config-mate-image-build.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

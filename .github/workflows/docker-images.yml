@@ -23,10 +23,8 @@ jobs:
         platform:
           - label: linux-amd64
             docker_platform: linux/amd64
-            artifact: tb-config-mate_linux_amd64.tar.gz
           - label: linux-arm64
             docker_platform: linux/arm64
-            artifact: tb-config-mate_linux_arm64.tar.gz
 
     steps:
       - name: Checkout code
@@ -47,23 +45,16 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      - name: Build image tar from dist package
+      - name: Verify image build from dist package
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist/docker
           base_image="tb-config-mate-base:${{ matrix.platform.label }}"
+          image_name="tb-config-mate:${{ matrix.platform.label }}"
 
           pushd dist/config-mate-image-build
           PLATFORM="${{ matrix.platform.docker_platform }}" BASE_IMAGE_NAME="${base_image}" ./build-base.sh
-          PLATFORM="${{ matrix.platform.docker_platform }}" BASE_IMAGE_NAME="${base_image}" IMAGE_NAME="tb-config-mate:latest" ./build-image.sh
+          PLATFORM="${{ matrix.platform.docker_platform }}" BASE_IMAGE_NAME="${base_image}" IMAGE_NAME="${image_name}" ./build-image.sh
           popd
 
-          docker save tb-config-mate:latest | gzip -9 > "dist/docker/${{ matrix.platform.artifact }}"
-
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.platform.artifact }}
-          path: dist/docker/${{ matrix.platform.artifact }}
-          if-no-files-found: error
+          docker image rm "${image_name}" "${base_image}" || true
