@@ -46,7 +46,7 @@
                 titleText.textContent = `${isManual ? '实时容器日志' : '服务重启日志'}${serviceLabel}`;
             }
 
-            if (modal) modal.classList.add('active');
+            window.ConfigMateUi.openModal(modal, '');
             reset();
             connectStream();
         }
@@ -86,10 +86,7 @@
 
         function close() {
             const modal = document.getElementById('logs-modal');
-            if (modal) {
-                modal.classList.remove('active');
-                modal.classList.remove('fullscreen');
-            }
+            window.ConfigMateUi.closeModal(modal, { display: '', removeClasses: ['fullscreen'] });
             closeStream();
             logBuffer = [];
             droppedBufferedLogs = 0;
@@ -181,20 +178,7 @@
                 return;
             }
 
-            try {
-                await navigator.clipboard.writeText(visibleLogs);
-                notify(`已复制 ${visibleLogs.split('\n').length} 行日志`, 'success');
-            } catch (e) {
-                const textarea = document.createElement('textarea');
-                textarea.value = visibleLogs;
-                textarea.style.position = 'fixed';
-                textarea.style.left = '-9999px';
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                textarea.remove();
-                notify('已复制当前日志', 'success');
-            }
+            await window.ConfigMateUi.copyText(visibleLogs, `已复制 ${visibleLogs.split('\n').length} 行日志`);
         }
 
         function connectStream() {

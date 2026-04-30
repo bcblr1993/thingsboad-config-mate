@@ -1,13 +1,5 @@
 (function () {
-    function escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        return String(text)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
+    const escapeHtml = window.ConfigMateUi.escapeHtml;
 
     function createHistoryUi(options = {}) {
         function getApi() {
@@ -17,19 +9,14 @@
         function open() {
             const modal = document.getElementById('history-modal');
             if (!modal) return;
-            modal.style.display = 'flex';
-            void modal.offsetWidth;
-            modal.classList.add('active');
+            window.ConfigMateUi.openModal(modal);
             fetchHistory();
         }
 
         function close() {
             const modal = document.getElementById('history-modal');
             if (!modal) return;
-            modal.classList.remove('active');
-            setTimeout(() => {
-                modal.style.display = 'none';
-            }, 200);
+            window.ConfigMateUi.closeModal(modal);
         }
 
         async function fetchHistory() {
@@ -223,18 +210,13 @@
             const modal = document.getElementById('diff-modal');
             if (titleEl) titleEl.innerText = title;
             if (!modal) return;
-            modal.style.display = 'flex';
-            void modal.offsetWidth;
-            modal.classList.add('active');
+            window.ConfigMateUi.openModal(modal);
         }
 
         function closeDiff() {
             const modal = document.getElementById('diff-modal');
             if (!modal) return;
-            modal.classList.remove('active');
-            setTimeout(() => {
-                modal.style.display = 'none';
-            }, 200);
+            window.ConfigMateUi.closeModal(modal);
         }
 
         async function viewContent(filename) {

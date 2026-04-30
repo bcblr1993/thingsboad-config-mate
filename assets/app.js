@@ -26,24 +26,14 @@ let initialSourceContent = null;
 let isDirty = false;
 
 // --- UI Helpers ---
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
+const showToast = ConfigMateUi.showToast;
+const customConfirm = ConfigMateUi.customConfirm;
+const escapeHtml = ConfigMateUi.escapeHtml;
+const openModal = ConfigMateUi.openModal;
+const closeModal = ConfigMateUi.closeModal;
 
-    let icon = '';
-    if (type === 'success') icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-    else if (type === 'error') icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
-    else icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
-
-    toast.innerHTML = `${icon}<div class="toast-content">${message.replace(/\n/g, '<br>')}</div>`;
-    container.appendChild(toast);
-
-    // Auto Remove
-    setTimeout(() => {
-        toast.style.animation = 'fadeOut 0.3s forwards';
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+function resolveConfirm(result) {
+    ConfigMateUi.resolveConfirm(result);
 }
 
 function stopPollingTimers() {
@@ -103,43 +93,6 @@ function showLoginOverlay(message = '') {
 }
 
 ConfigMateApi.setUnauthorizedHandler(() => showLoginOverlay('登录已过期，请重新登录'));
-
-let confirmResolver = null;
-function customConfirm(message, confirmBtnText = '确定', confirmBtnColor = 'var(--primary)') {
-    return new Promise((resolve) => {
-        confirmResolver = resolve;
-        // Support newline in message
-        document.getElementById('confirm-message').innerHTML = message.replace(/\n/g, '<br>');
-        const modal = document.getElementById('confirm-modal');
-        const btnYes = document.getElementById('btn-confirm-yes');
-
-        btnYes.innerText = confirmBtnText;
-
-        // Keep color logic
-        if (confirmBtnColor.startsWith('var') || confirmBtnColor.startsWith('#')) {
-            btnYes.style.background = confirmBtnColor;
-        } else {
-            btnYes.style.background = confirmBtnColor;
-        }
-
-        // Force reflow
-        modal.style.display = 'flex'; // Reset display property overwritten by close
-        void modal.offsetWidth;
-        modal.classList.add('active');
-    });
-}
-
-function resolveConfirm(result) {
-    const modal = document.getElementById('confirm-modal');
-    modal.classList.remove('active');
-    setTimeout(() => {
-        modal.style.display = 'none';
-        if (confirmResolver) {
-            confirmResolver(result);
-            confirmResolver = null;
-        }
-    }, 200);
-}
 
 async function boot() {
     try {
@@ -843,20 +796,7 @@ async function copyServiceConfigValue(sectionIndex, itemIndex) {
 }
 
 async function writeClipboardText(text, successMessage = '已复制') {
-    try {
-        await navigator.clipboard.writeText(text);
-        showToast(successMessage, 'success');
-    } catch (e) {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        textarea.remove();
-        showToast(successMessage, 'success');
-    }
+    await ConfigMateUi.copyText(text, successMessage);
 }
 
 function isCleanupSupportedService(serviceId) {
@@ -906,10 +846,7 @@ function confirmCleanup(plan) {
     }
 
     syncCleanupConfirmButton();
-    const modal = document.getElementById('cleanup-modal');
-    modal.style.display = 'flex';
-    void modal.offsetWidth;
-    modal.classList.add('active');
+    openModal('cleanup-modal');
     setTimeout(() => input?.focus(), 60);
 
     return new Promise(resolve => {
@@ -918,14 +855,14 @@ function confirmCleanup(plan) {
 }
 
 function resolveCleanupConfirm(result) {
-    const modal = document.getElementById('cleanup-modal');
-    modal.classList.remove('active');
-    setTimeout(() => {
-        modal.style.display = 'none';
-        const resolver = cleanupConfirmResolver;
-        cleanupConfirmResolver = null;
-        if (resolver) resolver(result);
-    }, 180);
+    closeModal('cleanup-modal', {
+        delay: 180,
+        afterClose: () => {
+            const resolver = cleanupConfirmResolver;
+            cleanupConfirmResolver = null;
+            if (resolver) resolver(result);
+        }
+    });
 }
 
 async function cleanupService(serviceId) {
@@ -1593,7 +1530,7 @@ async function checkStatus() {
                     `;
                 }
 
-                modal.classList.add('active');
+                openModal(modal, '');
             }
 
             // Disable buttons
@@ -1938,12 +1875,7 @@ function renderRuntimeDiff(data) {
     const resultDiv = document.getElementById('runtime-diff-result');
     const restartBtn = document.getElementById('btn-restart-from-diff');
 
-    // Reset UI
-    console.log("Opening Runtime Diff Modal...");
-    modal.style.display = 'flex'; // Force flex
-    void modal.offsetWidth;
-    modal.classList.add('active');
-    console.log("Modal active class added, display set to flex");
+    openModal(modal);
 
     loadingDiv.style.display = 'none';
     resultDiv.style.display = 'flex';
@@ -2002,23 +1934,12 @@ function renderRuntimeDiff(data) {
 }
 
 function closeRuntimeDiffModal() {
-    const modal = document.getElementById('runtime-diff-modal');
-    modal.classList.remove('active');
-    setTimeout(() => {
-        modal.style.display = 'none';
-        document.getElementById('runtime-diff-result').style.display = 'none';
-        document.getElementById('runtime-diff-loading').style.display = 'flex';
-    }, 200);
-}
-
-function escapeHtml(text) {
-    if (text === null || text === undefined) return '';
-    return text.toString()
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    closeModal('runtime-diff-modal', {
+        afterClose: () => {
+            document.getElementById('runtime-diff-result').style.display = 'none';
+            document.getElementById('runtime-diff-loading').style.display = 'flex';
+        }
+    });
 }
 
 const INSTALL_STEPS = ['cleanup', 'compose', 'schema', 'data', 'assets', 'finish'];
@@ -2068,12 +1989,11 @@ function closeInstallModal() {
         showToast('初始化仍在执行，完成后才能关闭窗口', 'info');
         return;
     }
-    document.getElementById('install-modal').classList.remove('active');
+    closeModal('install-modal', { display: '' });
 }
 
 async function startInstallService() {
-    const modal = document.getElementById('install-modal');
-    modal.classList.add('active');
+    openModal('install-modal', '');
     resetInstallUi();
     setInstallState('running', '运行中');
     setInstallProgress(3, '准备启动安装任务', 'cleanup');
@@ -2347,20 +2267,7 @@ async function copyInstallLogs() {
         showToast('当前没有可复制的安装日志', 'info');
         return;
     }
-    try {
-        await navigator.clipboard.writeText(logs);
-        showToast('安装日志已复制', 'success');
-    } catch (e) {
-        const textarea = document.createElement('textarea');
-        textarea.value = logs;
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        textarea.remove();
-        showToast('安装日志已复制', 'success');
-    }
+    await ConfigMateUi.copyText(logs, '安装日志已复制');
 }
 
 function clearInstallLogs() {
@@ -2459,8 +2366,7 @@ async function checkEnvConfigValidation() {
             actionBtn.style.backgroundColor = '#ef4444';
             actionBtn.onclick = () => location.reload();
 
-            modal.style.display = 'flex';
-            modal.classList.add('active');
+            openModal(modal);
             return;
         } else if (data.status === 'error' && data.errors.length > 0) {
             // Hide the raw list and hint, we will use msgEl for everything
@@ -2498,8 +2404,7 @@ async function checkEnvConfigValidation() {
             actionBtn.style.backgroundColor = '#ef4444';
             actionBtn.onclick = () => location.reload();
 
-            modal.style.display = 'flex'; // Force show
-            modal.classList.add('active');
+            openModal(modal);
         }
     } catch (e) {
         console.error("Validation check failed", e);
@@ -2507,7 +2412,5 @@ async function checkEnvConfigValidation() {
 }
 
 function closeValidateModal() {
-    const modal = document.getElementById('validate-modal');
-    modal.style.display = 'none'; // Force hide
-    modal.classList.remove('active');
+    closeModal('validate-modal', { delay: 0 });
 }

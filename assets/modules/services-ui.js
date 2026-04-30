@@ -2,16 +2,7 @@
     const COPY_ENABLED_SERVICES = new Set(['postgres', 'redis', 'kafka', 'cassandra', 'wechat']);
     const CLEANUP_SUPPORTED_SERVICES = new Set(['postgres', 'redis', 'kafka', 'cassandra']);
     const DISABLED_STATUSES = new Set(['missing', 'unknown', 'missing-image', 'unsupported']);
-
-    function escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        return String(text)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
+    const escapeHtml = window.ConfigMateUi.escapeHtml;
 
     function jsString(value) {
         return JSON.stringify(String(value || ''));
