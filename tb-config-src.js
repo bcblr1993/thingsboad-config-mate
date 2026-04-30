@@ -596,7 +596,7 @@ const installRoutes = createInstallRoutes({
     dockerRuntime,
     getServiceDefinition,
     getPackageServiceId,
-    guardAppServiceRunning
+    guardAppServiceDependencies
 });
 serviceRoutes = createServiceRoutes({
     listServiceDefinitions,

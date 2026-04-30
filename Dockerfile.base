@@ -1,0 +1,47 @@
+ARG NODE_IMAGE=docker.m.daocloud.io/library/node:18-bookworm-slim
+FROM ${NODE_IMAGE}
+
+ARG DOCKER_CLI_VERSION=27.5.1
+ARG DOCKER_COMPOSE_VERSION=2.32.4
+ARG APT_MIRROR=mirrors.aliyun.com
+ARG APT_SECURITY_MIRROR=mirrors.aliyun.com/debian-security
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ARG DOCKER_DOWNLOAD_BASE=https://mirrors.aliyun.com/docker-ce/linux/static/stable
+ARG DOCKER_DOWNLOAD_FALLBACK_BASE=https://download.docker.com/linux/static/stable
+ARG COMPOSE_DOWNLOAD_BASE=https://gh-proxy.com/https://github.com/docker/compose/releases/download
+ARG COMPOSE_DOWNLOAD_FALLBACK_BASE_1=https://gh.llkk.cc/https://github.com/docker/compose/releases/download
+ARG COMPOSE_DOWNLOAD_FALLBACK_BASE_2=https://github.com/docker/compose/releases/download
+ARG TARGETARCH
+
+RUN find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i \
+        -e "s|deb.debian.org/debian|${APT_MIRROR}/debian|g" \
+        -e "s|security.debian.org/debian-security|${APT_SECURITY_MIRROR}|g" \
+        -e "s|deb.debian.org/debian-security|${APT_SECURITY_MIRROR}|g" {} + \
+    && apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl tar \
+    && rm -rf /var/lib/apt/lists/* \
+    && case "${TARGETARCH:-amd64}" in amd64) DOCKER_ARCH="x86_64"; COMPOSE_ARCH="x86_64" ;; arm64) DOCKER_ARCH="aarch64"; COMPOSE_ARCH="aarch64" ;; *) echo "Unsupported arch: ${TARGETARCH}" && exit 1 ;; esac \
+    && download_with_fallback() { output="$1"; shift; for url in "$@"; do echo "Downloading: ${url}"; if curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 "${url}" -o "${output}"; then return 0; fi; echo "Download failed, trying next mirror..."; done; echo "All download mirrors failed for ${output}" >&2; return 1; } \
+    && download_with_fallback /tmp/docker.tgz \
+        "${DOCKER_DOWNLOAD_BASE}/${DOCKER_ARCH}/docker-${DOCKER_CLI_VERSION}.tgz" \
+        "${DOCKER_DOWNLOAD_FALLBACK_BASE}/${DOCKER_ARCH}/docker-${DOCKER_CLI_VERSION}.tgz" \
+    && tar -xzf /tmp/docker.tgz -C /tmp \
+    && mv /tmp/docker/docker /usr/local/bin/docker \
+    && rm -rf /tmp/docker /tmp/docker.tgz \
+    && mkdir -p /usr/local/lib/docker/cli-plugins \
+    && download_with_fallback /usr/local/lib/docker/cli-plugins/docker-compose \
+        "${COMPOSE_DOWNLOAD_BASE}/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${COMPOSE_ARCH}" \
+        "${COMPOSE_DOWNLOAD_FALLBACK_BASE_1}/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${COMPOSE_ARCH}" \
+        "${COMPOSE_DOWNLOAD_FALLBACK_BASE_2}/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${COMPOSE_ARCH}" \
+    && chmod +x /usr/local/bin/docker /usr/local/lib/docker/cli-plugins/docker-compose
+
+WORKDIR /opt/tb-config-mate
+
+COPY package*.json ./
+RUN npm config set registry "${NPM_REGISTRY}" \
+    && npm ci --omit=dev --registry="${NPM_REGISTRY}" \
+    && npm cache clean --force
+
+ENV NODE_ENV=production \
+    PORT=3300 \
+    NO_BROWSER=1

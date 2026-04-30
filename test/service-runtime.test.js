@@ -70,6 +70,26 @@ test('getServiceStatus returns stopped when compose has no container id', async 
     assert.equal(status.containerId, '');
 });
 
+test('getServiceStatus does not mark existing non-arm image as unsupported', async () => {
+    const docker = createDockerMock({
+        async exec(cmd, args) {
+            this.calls.push({ cmd, args });
+            if (args.includes('ps')) return { stdout: '', stderr: '', error: null };
+            if (args.includes('image') && args.includes('inspect')) return { stdout: 'linux/amd64\n', stderr: '', error: null };
+            return { stdout: '', stderr: '', error: null };
+        }
+    });
+    const runtime = createServiceRuntime({
+        docker,
+        getServiceDefinition: () => ({ ...postgresDef, image: 'postgres:15.4' })
+    });
+
+    const status = await runtime.getServiceStatus({ ...postgresDef, image: 'postgres:15.4' });
+
+    assert.equal(status.status, 'stopped');
+    assert.equal(status.running, false);
+});
+
 test('getServiceStatus inspects running container', async () => {
     const docker = createDockerMock({
         async exec(cmd, args) {
@@ -86,6 +106,28 @@ test('getServiceStatus inspects running container', async () => {
     assert.equal(status.status, 'running');
     assert.equal(status.running, true);
     assert.equal(status.containerId, 'container-1');
+});
+
+test('runComposeAction lets docker decide whether existing image can run', async () => {
+    const docker = createDockerMock({
+        async exec(cmd, args) {
+            this.calls.push({ cmd, args });
+            if (args.includes('image') && args.includes('inspect')) return { stdout: 'linux/amd64\n', stderr: '', error: null };
+            return { stdout: '', stderr: '', error: null };
+        }
+    });
+    const runtime = createServiceRuntime({
+        docker,
+        getServiceDefinition: id => (id === 'postgres' ? { ...postgresDef, image: 'postgres:15.4' } : null)
+    });
+
+    const result = await runtime.runComposeAction('postgres', 'up');
+
+    assert.equal(result.status, 'success');
+    assert.deepEqual(docker.calls.map(call => call.args), [
+        ['image', 'inspect', 'postgres:15.4', '--format', '{{.Os}}/{{.Architecture}}'],
+        ['compose', '-f', postgresDef.composeAbsPath, 'up', '-d']
+    ]);
 });
 
 test('runComposeAction executes restart as down then up', async () => {

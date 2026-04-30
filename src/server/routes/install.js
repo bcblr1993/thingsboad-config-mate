@@ -58,7 +58,7 @@ function createInstallRoutes({
     dockerRuntime,
     getServiceDefinition,
     getPackageServiceId,
-    guardAppServiceRunning,
+    guardAppServiceDependencies,
     spawn = spawnChild,
     logger = console
 }) {
@@ -98,7 +98,7 @@ function createInstallRoutes({
             return;
         }
 
-        const block = await guardAppServiceRunning('执行初始化安装');
+        const block = await guardAppServiceDependencies('执行初始化安装');
         if (block) {
             writeJson(res, 409, block, headers);
             return;

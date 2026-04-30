@@ -3,8 +3,10 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { EventEmitter } = require('events');
 const {
     checkComposeFileContent,
+    createInstallRoutes,
     validateComposeFiles
 } = require('../src/server/routes/install');
 
@@ -75,4 +77,59 @@ test('validateComposeFiles validates compose files and env_file declarations', (
 
     fs.writeFileSync(installCompose, 'services:\n  install:\n    env_file:\n      - ./.env\n');
     assert.deepEqual(validateComposeFiles({ appDir: root, appDef }), { status: 'success' });
+});
+
+test('install route checks dependencies instead of requiring app service running', async () => {
+    const root = tempRoot();
+    const installCompose = path.join(root, 'docker-compose-install.yml');
+    fs.writeFileSync(installCompose, 'services:\n  install:\n    env_file:\n      - ./.env\n');
+
+    let dependencyGuardCalled = false;
+    const routes = createInstallRoutes({
+        appRoot: root,
+        appDir: root,
+        dockerRuntime: {
+            dockerComposeCmd: 'docker',
+            dockerComposeCmdArgs: ['compose']
+        },
+        getServiceDefinition: () => ({
+            id: 'iotcloud',
+            installComposePath: 'services/iotcloud/docker-compose-install.yml',
+            installComposeAbsPath: installCompose
+        }),
+        getPackageServiceId: () => 'iotcloud',
+        guardAppServiceDependencies: async actionText => {
+            dependencyGuardCalled = true;
+            assert.equal(actionText, '执行初始化安装');
+            return {
+                status: 'error',
+                code: 'DEPENDENCIES_NOT_RUNNING',
+                message: '请先启动依赖服务：PostgreSQL'
+            };
+        }
+    });
+
+    const req = new EventEmitter();
+    const body = await new Promise(resolve => {
+        const res = {
+            writeHead(statusCode, headers) {
+                this.statusCode = statusCode;
+                this.headers = headers;
+            },
+            end(payload) {
+                resolve({ statusCode: this.statusCode, headers: this.headers, payload });
+            }
+        };
+
+        const handled = routes.handle(req, res, {
+            method: 'POST',
+            pathname: '/api/install',
+            headers: {}
+        });
+        assert.equal(handled, true);
+    });
+
+    assert.equal(dependencyGuardCalled, true);
+    assert.equal(body.statusCode, 409);
+    assert.equal(JSON.parse(body.payload).code, 'DEPENDENCIES_NOT_RUNNING');
 });

@@ -20,10 +20,6 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
             if (image.error) {
                 return { ...def, status: 'missing-image', running: false, containerId: '', message: def.missingImageMessage || `Image not found: ${def.image}` };
             }
-            const platform = image.stdout.trim();
-            if (platform && platform !== 'linux/arm64') {
-                return { ...def, status: 'unsupported', running: false, containerId: '', message: `${def.image} is ${platform}, expected linux/arm64.` };
-            }
         }
 
         if (!containerId) {
@@ -47,10 +43,6 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
             const image = await docker.exec(docker.dockerPath, ['image', 'inspect', def.image, '--format', '{{.Os}}/{{.Architecture}}']);
             if (image.error) {
                 return { status: 'error', message: def.missingImageMessage || `Image not found: ${def.image}` };
-            }
-            const platform = image.stdout.trim();
-            if (platform && platform !== 'linux/arm64') {
-                return { status: 'error', message: `${def.image} is ${platform}, expected linux/arm64.` };
             }
         }
 

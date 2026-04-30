@@ -4,8 +4,8 @@
     const DISABLED_STATUSES = new Set(['missing', 'unknown', 'missing-image', 'unsupported']);
     const escapeHtml = window.ConfigMateUi.escapeHtml;
 
-    function jsString(value) {
-        return JSON.stringify(String(value || ''));
+    function jsArg(value) {
+        return escapeHtml(JSON.stringify(String(value || '')));
     }
 
     function isCleanupSupportedService(serviceId) {
@@ -57,7 +57,7 @@
             const canOperateRunning = !disabled && service.running;
             const messageHtml = service.message ? `<div class="service-message">${escapeHtml(service.message)}</div>` : '';
             const selected = selectedServiceId === service.id;
-            const idArg = jsString(service.id);
+            const idArg = jsArg(service.id);
             return `
                 <div class="service-card ${required ? 'required' : ''} ${selected ? 'selected' : ''}" data-service-id="${escapeHtml(service.id)}" onclick="selectService(${idArg})">
                     <div class="service-top">
@@ -91,7 +91,7 @@
             || isDisabledStatus(options.serviceStatus?.status)
             || !!cleanupInFlightService;
         const cleanupButton = isCleanupSupportedService(serviceId)
-            ? `<button class="service-detail-cleanup-btn" type="button" onclick="cleanupService(${jsString(serviceId)})" ${cleanupDisabled ? 'disabled' : ''}>${cleanupInFlightService === serviceId ? '清理中' : '数据清理'}</button>`
+            ? `<button class="service-detail-cleanup-btn" type="button" onclick="cleanupService(${jsArg(serviceId)})" ${cleanupDisabled ? 'disabled' : ''}>${cleanupInFlightService === serviceId ? '清理中' : '数据清理'}</button>`
             : '';
 
         return `

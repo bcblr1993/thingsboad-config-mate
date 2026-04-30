@@ -61,6 +61,17 @@ test('guardAppServiceDependencies blocks when required dependency is stopped', a
     assert.deepEqual(result.missingDependencyIds, ['redis']);
 });
 
+test('guardAppServiceDependencies allows initialization when app service is stopped', async () => {
+    const planner = makePlanner({
+        config: {},
+        statuses: { iotcloud: false }
+    });
+
+    const result = await planner.guardAppServiceDependencies('执行初始化安装');
+
+    assert.equal(result, null);
+});
+
 test('guardAppServiceRunning blocks when app service is stopped', async () => {
     const planner = makePlanner({
         config: {},
