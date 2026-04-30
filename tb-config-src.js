@@ -1,19 +1,25 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { exec, spawn, execFile } = require('child_process');
+const { exec, spawn } = require('child_process');
 const os = require('os');
 const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
 const { createAuthService } = require('./src/server/auth/session');
 const { createEnvStore } = require('./src/server/config/env-store');
+const { createYamlInitializer } = require('./src/server/config/yaml-init');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
-const { readRequestBody, writeJson } = require('./src/server/http');
+const { writeJson } = require('./src/server/http');
 const { createCleanupService } = require('./src/server/services/cleanup');
 const { createServiceComposeConfigBuilder } = require('./src/server/services/compose-config');
 const { createDeploymentPlanner } = require('./src/server/services/deployment-plan');
 const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
+const { createAppRoutes } = require('./src/server/routes/app');
+const { createConfigRoutes } = require('./src/server/routes/config');
+const { createInstallRoutes } = require('./src/server/routes/install');
+const { createServiceRoutes } = require('./src/server/routes/services');
+const { createSystemRoutes } = require('./src/server/routes/system');
 const CONFIG_META = require('./config-meta');
 
 const args = process.argv.slice(2);
@@ -46,13 +52,8 @@ const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || '';
 const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
 const AUTH_REQUIRED = authService.authRequired;
 const {
-    createSession,
-    destroySession,
-    getAuthToken,
     getRequestActor,
-    getSession,
-    isAuthenticated,
-    normalizeOperatorName
+    isAuthenticated
 } = authService;
 const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
 const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
@@ -101,7 +102,99 @@ const logStreamService = createLogStreamService({
     getServiceDefinition,
     defaultServiceId: getPackageServiceId
 });
+const systemRoutes = createSystemRoutes({
+    appRoot: APP_ROOT,
+    appDir: APP_DIR,
+    appType: APP_TYPE,
+    envFilePath: ENV_FILE_PATH,
+    yamlConfigPath: YAML_CONFIG_PATH,
+    authService,
+    configMatePassword: CONFIG_MATE_PASSWORD,
+    dockerRuntime,
+    buildDeploymentDiagnostics,
+    getPackageServiceId
+});
+let serviceRoutes = null;
 let serviceComposeConfigBuilder = null;
+
+function buildDiagnosticItem(id, label, ok, detail, severity = 'error') {
+    return {
+        id,
+        label,
+        state: ok ? 'ok' : severity,
+        detail
+    };
+}
+
+function buildDeploymentDiagnostics() {
+    const dockerMessage = dockerRuntime.readyMessage();
+    const socketMounted = fs.existsSync('/var/run/docker.sock') || os.platform() === 'win32';
+    const serviceDefs = listServiceDefinitions();
+    const existingServices = serviceDefs.filter(service => service.exists);
+    const appDef = getServiceDefinition(getPackageServiceId());
+    const checks = [
+        buildDiagnosticItem(
+            'app-root',
+            '安装包目录',
+            fs.existsSync(APP_ROOT),
+            fs.existsSync(APP_ROOT) ? APP_ROOT : `目录不存在：${APP_ROOT}`
+        ),
+        buildDiagnosticItem(
+            'app-env',
+            '业务配置',
+            fs.existsSync(ENV_FILE_PATH),
+            fs.existsSync(ENV_FILE_PATH) ? ENV_FILE_PATH : `未找到 .env：${ENV_FILE_PATH}`
+        ),
+        buildDiagnosticItem(
+            'yaml-config',
+            'YAML 模板',
+            !!YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH),
+            YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH) ? YAML_CONFIG_PATH : '未找到 YAML 模板，首次补全配置可能不完整。',
+            'warning'
+        ),
+        buildDiagnosticItem(
+            'docker-socket',
+            'Docker Socket',
+            socketMounted,
+            socketMounted ? '/var/run/docker.sock 已挂载' : '未挂载 /var/run/docker.sock，无法控制宿主机 Docker。'
+        ),
+        buildDiagnosticItem(
+            'docker-compose',
+            'Docker Compose',
+            !dockerMessage,
+            dockerMessage || `${dockerRuntime.dockerComposeCmd || 'docker compose'} 可用`
+        ),
+        buildDiagnosticItem(
+            'app-compose',
+            '业务 Compose',
+            !!appDef?.exists,
+            appDef?.exists ? appDef.composePath : `未找到 ${appDef?.composePath || '业务 compose'}`
+        ),
+        buildDiagnosticItem(
+            'service-compose',
+            '服务 Compose',
+            existingServices.length > 0,
+            `${existingServices.length}/${serviceDefs.length} 个服务 compose 可用`,
+            'warning'
+        ),
+        buildDiagnosticItem(
+            'auth',
+            '登录保护',
+            AUTH_REQUIRED,
+            AUTH_REQUIRED ? '已启用管理口令' : '未配置 CONFIG_MATE_PASSWORD，高权限控制台未受保护。',
+            'warning'
+        )
+    ];
+    const counts = checks.reduce((acc, check) => {
+        acc[check.state] = (acc[check.state] || 0) + 1;
+        return acc;
+    }, { ok: 0, warning: 0, error: 0 });
+    return {
+        status: counts.error > 0 ? 'error' : (counts.warning > 0 ? 'warning' : 'ok'),
+        counts,
+        checks
+    };
+}
 
 // --- Helper: Check Status ---
 function getRunningPid(pidPath = PID_FILE) {
@@ -488,310 +581,59 @@ serviceComposeConfigBuilder = createServiceComposeConfigBuilder({
     envProvider: parseEnvFile
 });
 const { buildServiceComposeConfig } = serviceComposeConfigBuilder;
-
-// --- Auto-Init Logic ---
-function tryInitFromYaml() {
-    let existingEnv = {};
-
-    if (fs.existsSync(ENV_FILE_PATH)) {
-        try {
-            existingEnv = parseEnvFile();
-            const keyCount = Object.keys(existingEnv).length;
-            console.log(`[Info] .env file exists with ${keyCount} keys. Checking for missing configurations...`);
-        } catch (e) {
-            console.warn('[Warn] Failed to parse existing .env, will create new:', e);
-        }
-    } else {
-        console.log('[Info] .env file not found. Will create from YAML...');
-    }
-
-    if (!yaml) return;
-
-    console.log('[Info] Looking for YAML config...');
-
-    const candidates = [
-        YAML_CONFIG_PATH,
-        path.join(APP_DIR, 'conf', 'thingsboard.yml'),
-        path.join(APP_DIR, 'conf', 'tb-edge.yml'),
-        path.join(APP_DIR, 'thingsboard.yml'),
-        path.join(APP_DIR, 'tb-edge.yml'),
-        path.join(APP_ROOT, 'conf', 'thingsboard.yml'),
-        path.join(APP_ROOT, 'conf', 'tb-edge.yml'),
-        path.join(__dirname, 'conf', 'thingsboard.yml'),
-        path.join(__dirname, 'conf', 'tb-edge.yml')
-    ].filter(Boolean);
-
-    let yamlPath = null;
-    for (const p of candidates) {
-        if (fs.existsSync(p)) {
-            yamlPath = p;
-            break;
-        }
-    }
-
-    if (!yamlPath) {
-        console.log('[Info] No YAML config found in conf/ directory. Skipping.');
-        return;
-    }
-
-    console.log(`[Info] Found YAML config at: ${yamlPath}`);
-
-    try {
-        const fileContents = fs.readFileSync(yamlPath, 'utf8');
-        const data = yaml.load(fileContents);
-        const flattened = flattenYaml(data);
-
-        // Auto-extract Env Vars from values
-        Object.keys(flattened).forEach(flatKey => {
-            const val = flattened[flatKey];
-            if (typeof val === 'string') {
-                const match = val.match(/^\$\{([^:]+)(:.*)?\}$/);
-                if (match) {
-                    const varName = match[1];
-                    if (!flattened[varName]) {
-                        flattened[varName] = val;
-                    }
-                }
-            }
-        });
-
-        const YAML_KEY_MAPPING = {
-            "REDIS_CONNECTION_TYPE": ["REDIS_CONNECTION_TYPE"],
-            "REDIS_HOST": ["REDIS_STANDALONE_HOST"],
-            "REDIS_PORT": ["REDIS_STANDALONE_PORT"],
-            "REDIS_USE_DEFAULT_CLIENT_CONFIG": ["REDIS_STANDALONE_USEDEFAULTCLIENTCONFIG"],
-            "REDIS_CLIENT_NAME": ["REDIS_STANDALONE_CLIENTNAME"],
-            "REDIS_CLIENT_CONNECT_TIMEOUT": ["REDIS_STANDALONE_CONNECTTIMEOUT"],
-            "REDIS_CLIENT_READ_TIMEOUT": ["REDIS_STANDALONE_READTIMEOUT"],
-            "REDIS_CLIENT_USE_POOL_CONFIG": ["REDIS_STANDALONE_USEPOOLCONFIG"],
-            "REDIS_NODES": ["REDIS_CLUSTER_NODES"],
-            "REDIS_MAX_REDIRECTS": ["REDIS_CLUSTER_MAX_REDIRECTS"],
-            "REDIS_USE_DEFAULT_POOL_CONFIG": ["REDIS_CLUSTER_USEDEFAULTPOOLCONFIG", "REDIS_USE_DEFAULT_POOL_CONFIG"],
-            "REDIS_MASTER": ["REDIS_SENTINEL_MASTER"],
-            "REDIS_SENTINELS": ["REDIS_SENTINEL_SENTINELS"],
-            "REDIS_SENTINEL_PASSWORD": ["REDIS_SENTINEL_PASSWORD"],
-            "REDIS_SENTINEL_USE_DEFAULT_POOL_CONFIG": ["REDIS_SENTINEL_USEDEFAULTPOOLCONFIG"],
-            "SPRING_DRIVER_CLASS_NAME": ["SPRING_DATASOURCE_DRIVERCLASSNAME"],
-            "NETTY_MAX_PAYLOAD_SIZE": ["TRANSPORT_MQTT_NETTY_MAX_PAYLOAD_SIZE"],
-            "MQTT_BIND_PORT": ["TRANSPORT_MQTT_BIND_PORT"]
-        };
-
-        const newConfig = {};
-
-        // Infer APPTYPE based on filename
-        let targetAppType = 'CLOUD';
-        const filename = path.basename(yamlPath);
-        if (filename === 'thingsboard.yml') {
-            newConfig['APPTYPE'] = 'CLOUD';
-            targetAppType = 'CLOUD';
-        } else if (filename === 'tb-edge.yml') {
-            newConfig['APPTYPE'] = 'EDGE';
-            targetAppType = 'EDGE';
-        }
-
-
-        // Build Reverse Mapping from YAML values
-        // Scan all flattened values. If a value contains "${KEY:DEFAULT}" or "${KEY}", 
-        // we map KEY -> value (the placeholder string itself).
-        // This allows automatic discovery of keys without manual mapping.
-        const reverseMapping = {};
-        Object.keys(flattened).forEach(flatKey => {
-            const val = flattened[flatKey];
-            if (typeof val === 'string') {
-                // Regex to match ${KEY} or ${KEY:DEFAULT}
-                // We capture the KEY name.
-                // Note: YAML might have nested structure like "${HOST}:${PORT}", so we iterate all matches.
-                // But for simple config extraction, usually one key per value.
-                const regex = /\$\{([A-Z0-9_]+)(?::[^}]*)?\}/g;
-                let match;
-                while ((match = regex.exec(val)) !== null) {
-                    const envKey = match[1];
-                    // If we have multiple occurrences (rare), last one wins or we ignore collisions.
-                    // We store the full original value string which resolveSpringPlaceholder can handle.
-                    // But resolveSpringPlaceholder expects the *entire* string to be the value to parse.
-                    reverseMapping[envKey] = val;
-                }
-            }
-        });
-
-        Object.keys(CONFIG_META).forEach(metaKey => {
-            const meta = CONFIG_META[metaKey];
-            const scope = meta.scope || 'common';
-            if (scope === 'cloud' && targetAppType !== 'CLOUD') return;
-            if (scope === 'edge' && targetAppType !== 'EDGE') return;
-            // 注意: 不再检查 dependsOn，所有配置项都会被提取到 .env
-            // UI 显示/隐藏由前端的 dependsOn 逻辑控制
-
-            // Priority 1: Direct key match (doubtful for YAML but possible)
-            if (flattened[metaKey] !== undefined) {
-                newConfig[metaKey] = resolveSpringPlaceholder(flattened[metaKey]);
-                return;
-            }
-
-            // Priority 2: Auto-discovered Reverse Mapping (The Magic Fix)
-            if (reverseMapping[metaKey] !== undefined) {
-                newConfig[metaKey] = resolveSpringPlaceholder(reverseMapping[metaKey]);
-                return;
-            }
-
-
-            // Priority 3: Explicit Manual Mapping (Legacy/Fallback)
-            if (YAML_KEY_MAPPING[metaKey]) {
-                const mappedKeys = YAML_KEY_MAPPING[metaKey];
-                for (const mappedKey of mappedKeys) {
-                    if (flattened[mappedKey] !== undefined) {
-                        newConfig[metaKey] = resolveSpringPlaceholder(flattened[mappedKey]);
-                        return;
-                    }
-                }
-            }
-
-            // Priority 4: Special Handling for Legacy Edge Keys (No Env Var in YAML)
-            if (targetAppType === 'EDGE') {
-                if (metaKey === 'CLOUD_CHECK_STATUS_BASE_URL' && data?.cloud?.check_status?.baseURL) {
-                    newConfig[metaKey] = data.cloud.check_status.baseURL;
-                    return;
-                }
-                if (metaKey === 'EDGES_STORAGE_HISTORY_STATUS' && data?.cloud?.rpc?.storage?.history_status !== undefined) {
-                    newConfig[metaKey] = String(data.cloud.rpc.storage.history_status);
-                    return;
-                }
-                if (metaKey === 'TELEMETRY_SEPARATION_ENABLED' && data?.cloud?.telemetry?.separation?.enabled !== undefined) {
-                    newConfig[metaKey] = String(data.cloud.telemetry.separation.enabled);
-                    return;
-                }
-            }
-        });
-
-        if (Object.keys(newConfig).length > 0) {
-            console.log(`[Info] Extracted ${Object.keys(newConfig).length} configurations from YAML.`);
-
-            // Calculate missing keys (present in newConfig but NOT in existingEnv)
-            const missingKeys = {};
-            let missingCount = 0;
-            Object.keys(newConfig).forEach(key => {
-                // Use Object.prototype.hasOwnProperty for safety
-                if (!Object.prototype.hasOwnProperty.call(existingEnv, key)) {
-                    missingKeys[key] = newConfig[key];
-                    missingCount++;
-                }
-            });
-
-
-            // Log missing keys details
-            const expectedKeys = [];
-
-            Object.keys(CONFIG_META).forEach(k => {
-                const meta = CONFIG_META[k];
-                const scope = meta.scope || 'common';
-                if (scope === 'cloud' && targetAppType !== 'CLOUD') return;
-                if (scope === 'edge' && targetAppType !== 'EDGE') return;
-                // 不再根据 dependsOn 跳过，所有配置项都应该被提取
-                expectedKeys.push(k);
-            });
-
-            const missedExtraction = expectedKeys.filter(k => !newConfig[k] && !existingEnv[k]);
-
-            if (missedExtraction.length > 0) {
-                console.log(`[Info] ⚠️  The following ${missedExtraction.length} keys were expected but NOT found in YAML or .env. Using defaults:`);
-                missedExtraction.forEach(k => {
-                    console.log(`   - ${k}`);
-                    const meta = CONFIG_META[k];
-                    // Priority 5: Default value from Metadata (Fallback)
-                    if (meta.default !== undefined) {
-                        missingKeys[k] = meta.default;
-                        missingCount++;
-                    } else {
-                        // If no default, maybe set empty? Or skip?
-                        // User request implies "extract all defined here to env".
-                        // Let's set it to empty string if no default, to ensure it exists.
-                        missingKeys[k] = '';
-                        missingCount++;
-                    }
-                });
-            }
-
-            if (missingCount > 0) {
-                console.log(`[Info] Found ${missingCount} missing keys. Updating .env...`);
-
-                if (Object.keys(existingEnv).length === 0 && !fs.existsSync(ENV_FILE_PATH)) {
-                    // New file: Create clean
-                    saveEnvFile(missingKeys);
-                } else {
-                    // Existing file: Append only
-                    let appendContent = '\n# --- Auto-Generated Defaults ---\n';
-                    Object.keys(missingKeys).sort().forEach(key => {
-                        const meta = CONFIG_META[key];
-                        if (meta) {
-                            if (meta.comment) {
-                                appendContent += `# ${meta.label} (${meta.comment})\n`;
-                            } else {
-                                appendContent += `# ${meta.label}\n`;
-                            }
-                        }
-                        appendContent += `${key}=${missingKeys[key]}\n`;
-                    });
-                    try {
-                        fs.appendFileSync(ENV_FILE_PATH, appendContent);
-                        console.log('[Success] Appended missing configurations to .env');
-                    } catch (err) {
-                        console.error('[Error] Failed to append to .env:', err);
-                    }
-                }
-            } else {
-                console.log('[Info] .env is already complete. No new keys to add.');
-            }
-        } else {
-            console.log('[Warn] Parsed YAML but found no matching configurations defined in metadata.');
-        }
-
-    } catch (e) {
-        console.error('[Error] Failed to parse YAML:', e);
-    }
-}
-
-function flattenYaml(obj, prefix = '', res = {}) {
-    for (const key in obj) {
-        if (!obj.hasOwnProperty(key)) continue;
-        const val = obj[key];
-        // Convert camelCase or snake_case key to UPPER_UNDERSCORE for standard ENV
-        // But wait, thingsboard.yml keys are usually snake_case or camelCase?
-        // Actually usually standard YAML keys are lowercase/mixed.
-        // e.g. spring: datasource: url
-        // We want SPRING_DATASOURCE_URL.
-
-        // Normalize key to uppercase
-        const upperKey = key.toUpperCase();
-        const newKey = prefix ? `${prefix}_${upperKey}` : upperKey;
-
-        if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
-            flattenYaml(val, newKey, res);
-        } else {
-            res[newKey] = String(val);
-        }
-    }
-    return res;
-}
-
-function resolveSpringPlaceholder(val) {
-    if (typeof val !== 'string') return val;
-    val = val.trim();
-    // Match ${VAR:default} or ${VAR:} (empty default)
-    // Note: This regex assumes simple nesting or no nesting.
-    // Captures: 1=VAR, 2=default (can be empty)
-    const match = val.match(/^\$\{([^:]+):(.*)\}$/);
-    if (match) {
-        return match[2]; // Return default value (can be empty string)
-    }
-    // Match ${VAR} (no default) -> return empty string or keep it?
-    // If it's a variable without default, likely meant to be set by env.
-    // Returning empty string for .env initialization seems safer than leaving raw ${VAR}.
-    const matchNoDefault = val.match(/^\$\{([^:]+)\}$/);
-    if (matchNoDefault) {
-        return "";
-    }
-    return val;
-}
+const configRoutes = createConfigRoutes({
+    configMeta: CONFIG_META,
+    envStore,
+    parseEnvFile,
+    saveEnvFile,
+    dockerRuntime,
+    getServiceDefinition,
+    getPackageServiceId
+});
+const installRoutes = createInstallRoutes({
+    appRoot: APP_ROOT,
+    appDir: APP_DIR,
+    dockerRuntime,
+    getServiceDefinition,
+    getPackageServiceId,
+    guardAppServiceDependencies
+});
+serviceRoutes = createServiceRoutes({
+    listServiceDefinitions,
+    getServiceDefinition,
+    getPackageServiceId,
+    getServiceStatus,
+    runComposeAction,
+    buildServiceComposeConfig,
+    buildCleanupPlan,
+    runCleanupService,
+    getRequestActor,
+    guardAppServiceDependencies,
+    guardAppServiceRunning
+});
+const yamlInitializer = createYamlInitializer({
+    yaml,
+    envFilePath: ENV_FILE_PATH,
+    yamlConfigPath: YAML_CONFIG_PATH,
+    appRoot: APP_ROOT,
+    appDir: APP_DIR,
+    projectRoot: __dirname,
+    configMeta: CONFIG_META,
+    parseEnvFile,
+    saveEnvFile
+});
+const appRoutes = createAppRoutes({
+    parseEnvFile,
+    saveEnvFile,
+    buildDeploymentPlanWithStatus,
+    guardAppServiceRunning,
+    applyAppConfigChange,
+    runComposeAction,
+    getPackageServiceId,
+    getServiceDefinition,
+    getServiceStatus,
+    logStreamService
+});
 
 // --- HTTP Server ---
 
@@ -868,70 +710,7 @@ function startServer() {
             return;
         }
 
-        if (pathname === '/api/health' && method === 'GET') {
-            writeJson(res, 200, {
-                status: 'ok',
-                appRoot: APP_ROOT,
-                appDir: APP_DIR,
-                appType: APP_TYPE,
-                docker: {
-                    available: !dockerRuntime.readyMessage(),
-                    message: dockerRuntime.readyMessage()
-                }
-            }, headers);
-            return;
-        }
-
-        if (pathname === '/api/auth/status' && method === 'GET') {
-            const session = getSession(req);
-            writeJson(res, 200, {
-                required: AUTH_REQUIRED,
-                authenticated: isAuthenticated(req),
-                operator: session?.operator || ''
-            }, headers);
-            return;
-        }
-
-        if (pathname === '/api/login' && method === 'POST') {
-            readRequestBody(req).then(body => {
-                try {
-                    const payload = JSON.parse(body || '{}');
-                    const operator = normalizeOperatorName(payload.operator);
-                    if (!operator) {
-                        writeJson(res, 400, { status: 'error', message: '请输入操作员名称' }, headers);
-                        return;
-                    }
-                    if (!AUTH_REQUIRED || payload.password === CONFIG_MATE_PASSWORD) {
-                        const token = createSession(req, operator);
-                        writeJson(res, 200, { status: 'success', operator: normalizeOperatorName(operator) || 'operator' }, {
-                            ...headers,
-                            'Set-Cookie': `config_mate_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`
-                        });
-                    } else {
-                        writeJson(res, 401, { status: 'error', message: '密码错误' }, headers);
-                    }
-                } catch (e) {
-                    writeJson(res, 400, { status: 'error', message: e.message }, headers);
-                }
-            });
-            return;
-        }
-
-        if (pathname === '/api/logout' && method === 'POST') {
-            const token = getAuthToken(req);
-            destroySession(token);
-            writeJson(res, 200, { status: 'success' }, {
-                ...headers,
-                'Set-Cookie': 'config_mate_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'
-            });
-            return;
-        }
-
-        // 版本号 API
-        if (pathname === '/api/version' && method === 'GET') {
-            const packageJson = require('./package.json');
-            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ version: packageJson.version }));
+        if (systemRoutes.handlePublic(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
@@ -940,594 +719,23 @@ function startServer() {
             return;
         }
 
-        if (pathname === '/api/config' && method === 'GET') {
-            const current = parseEnvFile();
-            const responseData = {
-                meta: CONFIG_META,
-                values: current
-            };
-            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(responseData));
+        if (systemRoutes.handleAuthenticated(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
-        if (pathname === '/api/save' && method === 'POST') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => {
-                try {
-                    const newConfig = JSON.parse(body);
-                    saveEnvFile(newConfig);
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'ok' }));
-                } catch (e) {
-                    res.writeHead(500, headers);
-                    res.end(JSON.stringify({ status: 'error', message: e.message }));
-                }
-            });
+        if (configRoutes.handle(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
-        // API: Get History List
-        if (pathname === '/api/history' && method === 'GET') {
-            writeJson(res, 200, { status: 'success', data: envStore.listHistory() }, headers);
+        if (serviceRoutes.handle(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
-        // API: Restore History
-        if (pathname === '/api/history/restore' && method === 'POST') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => {
-                try {
-                    const { filename } = JSON.parse(body);
-                    const result = envStore.restoreHistory(filename);
-                    if (!result.ok) {
-                        writeJson(res, result.statusCode || 500, { status: 'error', message: result.message }, headers);
-                        return;
-                    }
-                    writeJson(res, 200, { status: 'success', message: result.message }, headers);
-                } catch (e) {
-                    writeJson(res, 500, { status: 'error', message: e.message }, headers);
-                }
-            });
+        if (installRoutes.handle(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
-        // API: Get History Content
-        if (pathname === '/api/history/content' && method === 'POST') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => {
-                try {
-                    const { filename } = JSON.parse(body);
-                    const result = envStore.readHistoryContent(filename);
-                    if (!result.ok) {
-                        writeJson(res, result.statusCode || 500, { status: 'error', message: result.message }, headers);
-                        return;
-                    }
-                    writeJson(res, 200, { status: 'success', content: result.content }, headers);
-                } catch (e) {
-                    writeJson(res, 500, { status: 'error', message: e.message }, headers);
-                }
-            });
-            return;
-        }
-
-        if (pathname === '/api/deployment' && method === 'GET') {
-            writeJson(res, 200, {
-                status: 'success',
-                appRoot: APP_ROOT,
-                appDir: APP_DIR,
-                appType: APP_TYPE,
-                appService: getPackageServiceId(),
-                envPath: ENV_FILE_PATH,
-                yamlPath: YAML_CONFIG_PATH,
-                authRequired: AUTH_REQUIRED,
-                docker: {
-                    cli: dockerRuntime.dockerPath,
-                    compose: dockerRuntime.dockerComposeCmd,
-                    socketMounted: fs.existsSync('/var/run/docker.sock') || os.platform() === 'win32',
-                    available: !dockerRuntime.readyMessage(),
-                    message: dockerRuntime.readyMessage()
-                }
-            }, headers);
-            return;
-        }
-
-        if (pathname === '/api/services' && method === 'GET') {
-            Promise.all(listServiceDefinitions().map(getServiceStatus))
-                .then(services => writeJson(res, 200, { status: 'success', services }, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        const serviceConfigMatch = pathname.match(/^\/api\/services\/([^/]+)\/config$/);
-        if (serviceConfigMatch && method === 'GET') {
-            const result = buildServiceComposeConfig(serviceConfigMatch[1]);
-            writeJson(res, result.status === 'success' ? 200 : 404, result, headers);
-            return;
-        }
-
-        const serviceCleanupPlanMatch = pathname.match(/^\/api\/services\/([^/]+)\/cleanup-plan$/);
-        if (serviceCleanupPlanMatch && method === 'GET') {
-            const actor = getRequestActor(req);
-            const result = buildCleanupPlan(serviceCleanupPlanMatch[1], actor);
-            if (result.status === 'success') {
-                getServiceStatus(getServiceDefinition(getPackageServiceId()))
-                    .then(appStatus => {
-                        result.appServiceRunning = !!appStatus.running;
-                        result.appServiceStatus = appStatus.status || 'unknown';
-                        writeJson(res, 200, result, headers);
-                    })
-                    .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            } else {
-                writeJson(res, 404, result, headers);
-            }
-            return;
-        }
-
-        const serviceCleanupMatch = pathname.match(/^\/api\/services\/([^/]+)\/cleanup$/);
-        if (serviceCleanupMatch && method === 'POST') {
-            readRequestBody(req).then(body => {
-                const payload = body ? JSON.parse(body) : {};
-                return runCleanupService(serviceCleanupMatch[1], payload.confirmServiceId, getRequestActor(req));
-            }).then(result => {
-                const code = result.status === 'success' ? 200
-                    : (result.code === 'APP_SERVICE_RUNNING' || result.code === 'CLEANUP_RUNNING' ? 409 : 400);
-                writeJson(res, code, result, headers);
-            }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        const serviceActionMatch = pathname.match(/^\/api\/services\/([^/]+)\/(up|down|restart)$/);
-        if (serviceActionMatch && method === 'POST') {
-            const [, serviceId, action] = serviceActionMatch;
-            const actionText = action === 'up' ? '启动当前业务服务' : '重启当前业务服务';
-            const guardedAction = async () => {
-                if (serviceId === getPackageServiceId() && (action === 'up' || action === 'restart')) {
-                    const block = action === 'restart'
-                        ? await guardAppServiceRunning(actionText)
-                        : await guardAppServiceDependencies(actionText);
-                    if (block) return block;
-                }
-                return runComposeAction(serviceId, action);
-            };
-            guardedAction()
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        if (pathname === '/api/plan' && method === 'POST') {
-            readRequestBody(req).then(body => {
-                const payload = body ? JSON.parse(body) : {};
-                return buildDeploymentPlanWithStatus(payload.config || parseEnvFile());
-            }).then(plan => {
-                writeJson(res, 200, { status: 'success', plan }, headers);
-            }).catch(e => {
-                writeJson(res, 500, { status: 'error', message: e.message }, headers);
-            });
-            return;
-        }
-
-        if (pathname === '/api/apply-plan' && method === 'POST') {
-            readRequestBody(req).then(async body => {
-                const payload = body ? JSON.parse(body) : {};
-                const config = payload.config || parseEnvFile();
-                const dependencyBlock = await guardAppServiceRunning('保存并重启当前业务服务', config);
-                if (dependencyBlock) return dependencyBlock;
-                if (payload.save !== false && payload.config) {
-                    saveEnvFile(config);
-                }
-                return applyAppConfigChange(config);
-            }).then(result => {
-                writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers);
-            }).catch(e => {
-                writeJson(res, 500, { status: 'error', message: e.message }, headers);
-            });
-            return;
-        }
-
-        if (pathname === '/api/restart' && method === 'POST') {
-            guardAppServiceRunning('重启当前业务服务')
-                .then(block => block || runComposeAction(getPackageServiceId(), 'restart'))
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        if (pathname === '/api/stop' && method === 'POST') {
-            runComposeAction(getPackageServiceId(), 'down')
-                .then(result => writeJson(res, result.status === 'success' ? 200 : 500, result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        if (pathname === '/api/service-restart' && method === 'POST') {
-            guardAppServiceRunning('重启当前业务服务')
-                .then(block => block || runComposeAction(getPackageServiceId(), 'restart'))
-                .then(result => writeJson(res, result.status === 'success' ? 200 : (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code) ? 409 : 500), result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-
-
-        // API: Check Installation Config
-        if (pathname === '/api/check-install' && method === 'GET') {
-            const appDef = getServiceDefinition(getPackageServiceId());
-            const installFile = appDef?.installComposeAbsPath;
-            const exists = !!installFile && fs.existsSync(installFile);
-            res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ status: 'success', exists }));
-            return;
-        }
-
-        // API: Validate Compose Files (Check for env_file)
-        if (pathname === '/api/validate-compose' && method === 'GET') {
-            const appDef = getServiceDefinition(getPackageServiceId());
-            const requiredFiles = [
-                { label: appDef?.composePath || 'docker-compose.yml', path: appDef?.composeAbsPath },
-                { label: appDef?.installComposePath || 'docker-compose-install.yml', path: appDef?.installComposeAbsPath }
-            ];
-
-            const missingFiles = [];
-            const invalidFiles = [];
-
-            // 0. Pre-check: ThingsBoard Config Files (conf/thingsboard.yml or conf/tb-edge.yml)
-            const confDir = path.join(APP_DIR, 'conf');
-            const tbConfigPath = path.join(confDir, 'thingsboard.yml');
-            const edgeConfigPath = path.join(confDir, 'tb-edge.yml');
-
-            const hasTbConfig = fs.existsSync(tbConfigPath);
-            const hasEdgeConfig = fs.existsSync(edgeConfigPath);
-
-            if (!hasTbConfig && !hasEdgeConfig) {
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'config_missing',
-                    msg: 'Missing ThingsBoard configuration files',
-                    files: ['conf/thingsboard.yml', 'conf/tb-edge.yml']
-                }));
-                return;
-            }
-
-            // 1. Check Existence
-            requiredFiles.forEach(file => {
-                if (!file.path || !fs.existsSync(file.path)) {
-                    missingFiles.push(file.label);
-                }
-            });
-
-            // 2. Logic Branching
-            if (missingFiles.length > 0) {
-                // Scenario A: Missing Files -> Warning (Non-blocking)
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'missing',
-                    files: missingFiles
-                }));
-                return;
-            }
-
-            // Scenario B: All Files Exist -> Strict Content Check
-            requiredFiles.forEach(file => {
-                const filePath = file.path;
-                // We know it exists from step 1
-                if (!checkFileContent(filePath, 'env_file')) {
-                    invalidFiles.push({ file: file.label, msg: '未配置 env_file (Missing env_file property)' });
-                }
-            });
-
-            if (invalidFiles.length > 0) {
-                // Blocking Error
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: 'error',
-                    errors: invalidFiles
-                }));
-            } else {
-                // Success
-                res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'success' }));
-            }
-            return;
-        }
-
-        function checkFileContent(filePath, keyword) {
-            try {
-                if (!filePath) return false;
-                const content = fs.readFileSync(filePath, 'utf-8');
-                const lines = content.split('\n');
-                // Regex: Start of line, optional whitespace, keyword, optional whitespace, colon, anything else
-                const regex = new RegExp(`^\\s*${keyword}\\s*:`);
-                return lines.some(line => {
-                    const trimmed = line.trim();
-                    return regex.test(line) && !trimmed.startsWith('#');
-                });
-            } catch (e) {
-                console.error(`[Error] checkFileContent failed for ${filePath}:`, e);
-                return false;
-            }
-        }
-
-        // API: Execute Installation
-        if (pathname === '/api/install' && method === 'POST') {
-            if (!dockerRuntime.dockerComposeCmd) {
-                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
-                return;
-            }
-
-            const appDef = getServiceDefinition(getPackageServiceId());
-            if (!appDef?.installComposeAbsPath || !fs.existsSync(appDef.installComposeAbsPath)) {
-                res.writeHead(404, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'error', message: 'Install compose file not found' }));
-                return;
-            }
-
-            guardAppServiceRunning('执行初始化安装')
-                .then(block => {
-                    if (block) {
-                        writeJson(res, 409, block, headers);
-                        return;
-                    }
-
-                    const argsDown = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'down'];
-                    const argsUp = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'up'];
-
-                    console.log(`[Info] Starting Installation (Mode: Down then Up): ${appDef.installComposePath}`);
-
-                    res.writeHead(200, {
-                        ...headers,
-                        'Content-Type': 'text/plain',
-                        'Transfer-Encoding': 'chunked'
-                    });
-
-                    // Keep track of active child for cleanup
-                    let activeChild = null;
-
-                    // Phase 1: Down
-                    res.write('[INFO] 正在执行清理 (Clean up)...\n');
-                    activeChild = spawn(dockerRuntime.dockerComposeCmd, argsDown, { cwd: APP_ROOT });
-
-                    activeChild.stdout.on('data', d => res.write(d));
-                    activeChild.stderr.on('data', d => res.write(d));
-
-                    activeChild.on('close', (codeDown) => {
-                        if (codeDown !== 0) {
-                            res.write(`[WARN] 清理命令退出代码: ${codeDown} (通常表示无运行容器，可忽略)\n`);
-                        } else {
-                            res.write('[INFO] 清理完成。\n');
-                        }
-
-                        res.write('[INFO] 正在启动安装 (Start Install)...\n');
-
-                        // Phase 2: Up
-                        let hasInstallError = false;
-
-                        activeChild = spawn(dockerRuntime.dockerComposeCmd, argsUp, { cwd: APP_ROOT });
-
-                        activeChild.stdout.on('data', d => {
-                            const str = d.toString();
-                            if (str.includes(' ERROR') || str.includes('ERROR ')) {
-                                hasInstallError = true;
-                            }
-                            res.write(d);
-                        });
-                        activeChild.stderr.on('data', d => {
-                            const str = d.toString();
-                            if (str.includes(' ERROR') || str.includes('ERROR ')) {
-                                hasInstallError = true;
-                            }
-                            res.write(d);
-                        });
-
-                        activeChild.on('close', (codeUp) => {
-                            console.log(`[Info] Installation finished with code ${codeUp}`);
-                            if (codeUp === 0 && !hasInstallError) {
-                                res.write('\n[SUCCESS] 安装完成。\n');
-                            } else {
-                                const reason = hasInstallError ? '检测到错误日志' : `退出代码：${codeUp}`;
-                                res.write(`\n[ERROR] 安装初始化流程失败 (${reason})。\n`);
-                            }
-                            res.end();
-                            activeChild = null;
-                        });
-                    });
-
-                    req.on('close', () => {
-                        if (activeChild && !activeChild.killed) {
-                            console.log('[Info] Request cancelled, killing active process...');
-                            activeChild.kill('SIGTERM');
-                            setTimeout(() => { if (activeChild && !activeChild.killed) activeChild.kill('SIGKILL'); }, 5000);
-                        }
-                    });
-                })
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        if (pathname === '/api/env-raw' && method === 'GET') {
-            try {
-                const content = envStore.readRaw();
-                res.writeHead(200, { ...headers, 'Content-Type': 'text/plain; charset=utf-8' });
-                res.end(content);
-            } catch (e) {
-                res.writeHead(500, headers);
-                res.end(JSON.stringify({ status: 'error', message: e.message }));
-            }
-            return;
-        }
-
-        if (pathname === '/api/save-raw' && method === 'POST') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => {
-                try {
-                    envStore.saveRaw(body);
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'ok' }));
-                } catch (e) {
-                    res.writeHead(500, headers);
-                    res.end(JSON.stringify({ status: 'error', message: e.message }));
-                }
-            });
-            return;
-        }
-
-        const serviceLogsMatch = pathname.match(/^\/api\/services\/([^/]+)\/logs$/);
-        if ((pathname === '/api/logs' || serviceLogsMatch) && method === 'GET') {
-            const serviceId = serviceLogsMatch
-                ? serviceLogsMatch[1]
-                : (requestUrl.searchParams.get('service') || getPackageServiceId());
-            logStreamService.streamLogs({ req, res, serviceId, headers });
-            return;
-        }
-
-        if (pathname === '/api/status' && method === 'GET') {
-            const def = getServiceDefinition(getPackageServiceId());
-            getServiceStatus(def)
-                .then(status => {
-                    const payload = {
-                        status: status.status,
-                        service: status.id,
-                        dockerComposeMissing: !status.exists,
-                        missingFiles: status.exists ? [] : [status.composePath],
-                        message: status.message
-                    };
-                    writeJson(res, 200, payload, headers);
-                })
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
-            return;
-        }
-
-        // API: Diff Runtime vs Local Config
-        if (pathname === '/api/diff-runtime' && method === 'GET') {
-            if (!dockerRuntime.dockerComposeCmd) {
-                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'error', message: 'Docker not available' }));
-                return;
-            }
-
-            try {
-                const def = getServiceDefinition(getPackageServiceId());
-                if (!def || !def.exists) {
-                    res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ status: 'not_running', service: getPackageServiceId() }));
-                    return;
-                }
-
-                // 2. Resolve Container ID via Service Name
-                // Command: docker compose ps -q <serviceName>
-                const argsPs = dockerRuntime.composeArgsFor(def, ['ps', '-q', def.composeService]);
-
-                execFile(dockerRuntime.dockerComposeCmd, argsPs, { cwd: APP_ROOT }, (errPs, stdoutPs) => {
-                    if (errPs) {
-                        res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'error', message: 'Failed to resolve container ID', details: errPs.message }));
-                        return;
-                    }
-
-                    const containerId = stdoutPs.trim();
-
-                    if (!containerId) {
-                        res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ status: 'not_running', service: def.id }));
-                        return;
-                    }
-
-                    // 3. Fetch Runtime Env via docker inspect
-                    // Note: We use 'docker' command directly.
-                    execFile(dockerRuntime.dockerPath, ['inspect', containerId], (errInspect, stdoutInspect) => {
-                        if (errInspect) {
-                            res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ status: 'error', message: 'Failed to inspect container', details: errInspect.message }));
-                            return;
-                        }
-
-                        let runtimeEnvMap = {};
-                        try {
-                            const inspectData = JSON.parse(stdoutInspect);
-                            if (inspectData && inspectData[0] && inspectData[0].Config && inspectData[0].Config.Env) {
-                                inspectData[0].Config.Env.forEach(envStr => {
-                                    const parts = envStr.split('=');
-                                    const key = parts[0];
-                                    const val = parts.slice(1).join('=');
-                                    runtimeEnvMap[key] = val;
-                                });
-                            }
-                        } catch (e) {
-                            console.error('[Error] Failed to parse inspect output:', e);
-                        }
-
-                        // 4. Fetch Local Config
-                        const localEnvMap = {};
-
-                        // 4.1 Load .env for values
-                        const dotEnvConfig = parseEnvFile();
-
-                        // 4.2 Merge into localEnvMap
-                        // In this tool, the .env file IS the source of truth for variables we care about.
-                        // Variables in docker-compose.yml are either hardcoded or mapped to .env.
-                        // For the purpose of "Did I change my config?", comparing against .env is the most direct way.
-                        Object.assign(localEnvMap, dotEnvConfig);
-
-                        // 5. Compare
-                        // Compare - Only Key in Local config matters
-                        const diffs = [];
-                        // We only care about keys defined in Local Config (.env / compose)
-                        // If Runtime has extra keys (e.g. system default envs), we ignore them.
-                        const interestingKeys = Object.keys(localEnvMap);
-                        const ignoredPrefixes = ['PATH', 'JAVA_', 'LANG', 'LC_', 'HOME', 'LOG_DIR', 'LIB_DIR', 'CONFIG_PATH', 'APP_NAME', 'CONFIG_NAME', 'LOGGING_CONFIG', 'HOSTNAME', 'PWD', 'GPG_KEY'];
-
-                        interestingKeys.forEach(key => {
-                            if (ignoredPrefixes.some(prefix => key.startsWith(prefix))) return;
-
-                            let runtimeVal = runtimeEnvMap[key];
-                            let localVal = localEnvMap[key];
-
-                            // Logic:
-                            // 1. Local has it, Runtime doesn't -> DELETED (Action: Restart needed to apply)
-                            // 2. Local has it, Runtime has different -> MODIFIED (Action: Restart needed)
-                            // 3. Local has it, Runtime has same -> Synced (Ignored)
-
-                            if (runtimeVal !== localVal) {
-                                let state = 'MODIFIED';
-                                if (runtimeVal === undefined) state = 'DELETED';
-                                // Note: 'NEW' case (Runtime has it, Local doesn't) is effectively ignored by iterating interestingKeys only.
-
-                                // Special handling for empty strings if needed, but strict equality is usually fine for envs
-                                diffs.push({
-                                    key,
-                                    runtimeVal: runtimeVal === undefined ? '(missing)' : runtimeVal,
-                                    localVal: localVal === undefined ? '(missing)' : localVal,
-                                    state
-                                });
-                            }
-                        });
-
-                        // Sort: MODIFIED first
-                        diffs.sort((a, b) => {
-                            const score = (s) => s === 'MODIFIED' ? 0 : (s === 'NEW' ? 1 : 2);
-                            return score(a.state) - score(b.state);
-                        });
-
-                        res.writeHead(200, { ...headers, 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({
-                            status: 'success',
-                            service: def.id,
-                            containerId: containerId,
-                            diffs: diffs
-                        }));
-                    });
-                });
-
-            } catch (e) {
-                res.writeHead(500, { ...headers, 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ status: 'error', message: 'Internal Server Error', details: e.message }));
-            }
+        if (appRoutes.handle(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
@@ -1592,6 +800,6 @@ function openBrowser() {
 }
 
 // Entry Point
-tryInitFromYaml();
+yamlInitializer.run();
 dockerRuntime.detect();
 startServer();

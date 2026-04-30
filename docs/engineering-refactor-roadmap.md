@@ -20,6 +20,12 @@ Config Mate 后续会持续承担现场安装包配置、服务编排、日志�
 - `src/server/services/registry.js` 统一维护 Docker 服务白名单和清理数据目录白名单。
 - `src/server/docker/compose.js` 统一处理 Docker CLI 探测、Compose v2/v1 兼容、Compose 参数和安全执行。
 - `src/server/services/runtime.js` 统一处理服务状态查询和启动/停止/重启动作。
+- `src/server/routes/system.js` 统一处理健康检查、登录状态、登录/退出、版本、部署信息等系统路由。
+- `src/server/routes/services.js` 统一处理服务列表、服务配置、启停重启、清理计划和清理执行等服务路由。
+- `src/server/routes/config.js` 统一处理配置读取保存、历史版本、源码模式和运行时差异检查等配置路由。
+- `src/server/routes/install.js` 统一处理安装检查、compose 校验和初始化安装日志流等安装路由。
+- `src/server/routes/app.js` 统一处理部署计划、保存并重启、业务启停状态和日志入口等应用路由。
+- `src/server/config/yaml-init.js` 统一处理 YAML 初始化、占位符解析、缺失配置补全。
 - `test/app-context.test.js` 覆盖现场目录识别规则。
 - `test/service-registry.test.js` 覆盖服务注册表 Cloud/Edge 过滤和路径解析。
 - `test/docker-compose.test.js` 覆盖 Docker Compose 探测和 fallback。
@@ -50,9 +56,9 @@ Config Mate 后续会持续承担现场安装包配置、服务编排、日志�
 
 ## 后续阶段
 
-### 第二阶段：后端服务层拆分
+### 第二阶段：后端服务层与路由拆分
 
-把 `tb-config-src.js` 中剩余的日志 SSE、清理备份逻辑拆到独立模块。
+把 `tb-config-src.js` 中剩余的 API 路由、日志 SSE、清理备份逻辑拆到独立模块。
 
 验收标准：
 
@@ -60,6 +66,16 @@ Config Mate 后续会持续承担现场安装包配置、服务编排、日志�
 - Docker 操作全部通过白名单服务定义执行。
 - 服务状态、服务配置展示、清理计划都有单元测试。
 - 现有 API 路径保持不变。
+
+当前进度：
+
+- 已完成系统路由拆分：健康检查、登录状态、登录/退出、版本、部署信息。
+- 已完成服务路由拆分：服务列表、服务配置、启动/停止/重启、清理计划和清理执行。
+- 已完成配置路由拆分：配置读取保存、历史版本、源码模式、运行时差异检查。
+- 已完成安装路由拆分：安装检查、compose 校验、初始化安装日志流。
+- 已完成 YAML 初始化逻辑下沉：YAML 提取、缺失配置补全、占位符解析。
+- 已完成应用动作路由拆分：plan/apply-plan/restart/stop/status/logs。
+- 下一步进入前端模块化：API 客户端、服务面板、配置表单、日志、弹窗。
 
 ### 第三阶段：配置读写层拆分
 

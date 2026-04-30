@@ -31,7 +31,7 @@ function run(command, args) {
 const syntaxFiles = [
     'tb-config-src.js',
     'config-meta.js',
-    'assets/app.js',
+    ...collectJsFiles(path.join(root, 'assets')),
     ...collectJsFiles(path.join(root, 'src', 'server'))
 ];
 
