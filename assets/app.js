@@ -4,7 +4,6 @@ let configValues = {};
 let deploymentInfo = null;
 let latestServices = [];
 let latestPlan = null;
-let selectedLogService = null;
 let selectedServiceId = null;
 let selectedServiceConfig = null;
 let serviceConfigRequestSeq = 0;
@@ -626,37 +625,7 @@ async function updateDeploymentPlan() {
 }
 
 function renderDependencyStatusChips(plan = {}) {
-    const statuses = Array.isArray(plan.statuses) && plan.statuses.length
-        ? plan.statuses
-        : (plan.services || []).map(service => ({
-            ...service,
-            running: !(plan.missingServices || []).includes(service.id),
-            status: (plan.missingServices || []).includes(service.id) ? 'stopped' : 'running'
-        }));
-    if (!statuses.length) {
-        return '<span class="dependency-status-chip empty">无依赖</span>';
-    }
-    return statuses.map(item => {
-        const state = item.running ? 'running'
-            : (['missing', 'unknown', 'missing-image', 'unsupported'].includes(item.status) ? 'unknown' : 'pending');
-        const statusText = item.running ? '运行中' : (state === 'unknown' ? '异常' : '待启动');
-        const label = item.label || item.id || 'service';
-        return `
-            <span class="dependency-status-chip ${state}" title="${escapeHtml(label)}：${escapeHtml(item.status || statusText)}">
-                <span class="dependency-status-dot"></span>
-                <span class="dependency-status-name">${escapeHtml(label)}</span>
-            </span>
-        `;
-    }).join('');
-}
-
-function renderDependencyChips(items, type = '') {
-    if (!items || items.length === 0) {
-        return '<span class="dependency-chip empty">无</span>';
-    }
-    return items.map(item => `
-        <span class="dependency-chip ${escapeHtml(type)}">${escapeHtml(item)}</span>
-    `).join('');
+    return ConfigMateServicesUi.renderDependencyStatusChips(plan);
 }
 
 function getServiceDisplayNameById(id) {
@@ -728,11 +697,7 @@ async function handleDependencyBlockedResponse(data, actionText) {
 }
 
 function renderServiceStatus(status) {
-    return `
-        <span class="service-status ${escapeHtml(status || 'unknown')}">
-            <span class="service-status-dot"></span>${escapeHtml(status || 'unknown')}
-        </span>
-    `;
+    return ConfigMateServicesUi.renderServiceStatus(status);
 }
 
 function setHeaderStatus(state, label) {
@@ -773,32 +738,11 @@ function renderServices() {
         countEl.textContent = `${runningCount}/${latestServices.length}`;
         countEl.title = `运行中 ${runningCount} 个，共 ${latestServices.length} 个服务`;
     }
-    const requiredIds = new Set((latestPlan?.services || []).map(s => s.id));
-    grid.innerHTML = latestServices.map(s => {
-        const required = requiredIds.has(s.id);
-        const disabled = ['missing', 'unknown', 'missing-image', 'unsupported'].includes(s.status);
-        const canStart = !disabled && !s.running;
-        const canOperateRunning = !disabled && s.running;
-        const messageHtml = s.message ? `<div class="service-message">${escapeHtml(s.message)}</div>` : '';
-        const selected = selectedServiceId === s.id;
-        return `
-            <div class="service-card ${required ? 'required' : ''} ${selected ? 'selected' : ''}" data-service-id="${escapeHtml(s.id)}" onclick="selectService('${s.id}')">
-                <div class="service-top">
-                    <div class="service-name" title="${escapeHtml(s.label || s.id)}">${required ? '<span class="service-required-tag">*</span>' : ''}${escapeHtml(s.label || s.id)}</div>
-                    <div class="service-state-row">
-                        ${renderServiceStatus(s.status)}
-                    </div>
-                </div>
-                ${messageHtml}
-                <div class="service-actions">
-                    <button onclick="event.stopPropagation(); serviceAction('${s.id}', 'up')" ${canStart ? '' : 'disabled'}>启动</button>
-                    <button onclick="event.stopPropagation(); serviceAction('${s.id}', 'restart')" ${canOperateRunning ? '' : 'disabled'}>重启</button>
-                    <button onclick="event.stopPropagation(); serviceAction('${s.id}', 'down')" ${canOperateRunning ? '' : 'disabled'}>停止</button>
-                    <button onclick="event.stopPropagation(); showLogs(true, '${s.id}')" ${disabled ? 'disabled' : ''}>日志</button>
-                </div>
-            </div>
-        `;
-    }).join('');
+    grid.innerHTML = ConfigMateServicesUi.renderServiceCards({
+        services: latestServices,
+        requiredIds: new Set((latestPlan?.services || []).map(s => s.id)),
+        selectedServiceId
+    });
     ensureSelectedService();
 }
 
@@ -874,153 +818,18 @@ function renderServiceConfig(data) {
     const panel = document.getElementById('service-config-panel');
     if (!panel) return;
     selectedServiceConfig = data;
-    const summary = data.summary || {};
     const serviceId = data.service?.id || selectedServiceId || '';
-    const chips = [
-        summary.image ? `镜像: ${summary.image}` : '',
-        summary.containerName ? `容器: ${summary.containerName}` : '',
-        summary.restart ? `重启: ${summary.restart}` : ''
-    ].filter(Boolean);
     const serviceStatus = (latestServices || []).find(s => s.id === serviceId);
-    const cleanupDisabled = !isCleanupSupportedService(serviceId)
-        || ['missing', 'unknown', 'missing-image', 'unsupported'].includes(serviceStatus?.status)
-        || !!cleanupInFlightService;
-    const cleanupButton = isCleanupSupportedService(serviceId)
-        ? `<button class="service-detail-cleanup-btn" type="button" onclick="cleanupService('${serviceId}')" ${cleanupDisabled ? 'disabled' : ''}>${cleanupInFlightService === serviceId ? '清理中' : '数据清理'}</button>`
-        : '';
-
     panel.style.display = 'block';
-    panel.innerHTML = `
-        <div class="service-config-header">
-            <div>
-                <div class="service-config-title">服务配置：${escapeHtml(data.service?.label || data.service?.id || selectedServiceId || '')}</div>
-                <div class="service-config-path">${escapeHtml(data.composePath || '')}</div>
-            </div>
-            <div class="service-config-summary">
-                ${cleanupButton}
-                ${chips.map(chip => `<span class="deployment-chip">${escapeHtml(chip)}</span>`).join('')}
-            </div>
-        </div>
-        <div class="service-config-body">
-            <div class="service-config-sections ${getServiceConfigSectionsClass(data.sections || [])}">
-                ${(data.sections || []).map((section, sectionIndex) => renderServiceConfigSection(section, sectionIndex, serviceId)).join('')}
-            </div>
-        </div>
-    `;
-}
-
-function getServiceConfigSectionsClass(sections) {
-    const titles = new Set((sections || []).map(section => section.title || ''));
-    return [
-        titles.has('端口') ? 'has-port' : '',
-        titles.has('其他') ? 'has-other' : ''
-    ].filter(Boolean).join(' ');
-}
-
-function getServiceConfigSectionClass(sectionTitle, isWide) {
-    const classes = ['service-config-section'];
-    if (isWide) classes.push('wide');
-    if (sectionTitle === '关键配置') classes.push('section-key');
-    if (sectionTitle === '环境变量') classes.push('section-env');
-    if (sectionTitle === '端口') classes.push('section-port');
-    if (sectionTitle === '挂载') classes.push('section-volume');
-    if (sectionTitle === '其他') classes.push('section-other');
-    return classes.join(' ');
-}
-
-function renderServiceConfigSection(section, sectionIndex, serviceId = '') {
-    const items = section.items || [];
-    const sectionTitle = section.title || '配置';
-    const isWide = sectionTitle === '环境变量' && items.length > 6;
-    const rows = items.length
-        ? items.map((item, itemIndex) => renderServiceConfigItem(item, sectionIndex, itemIndex, serviceId, sectionTitle)).join('')
-        : '<tr><td colspan="2"><div class="service-config-empty">无配置</div></td></tr>';
-    return `
-        <div class="${getServiceConfigSectionClass(sectionTitle, isWide)}">
-            <div class="service-config-section-title">${escapeHtml(sectionTitle)}</div>
-            <table class="service-config-table"><tbody>${rows}</tbody></table>
-        </div>
-    `;
-}
-
-function renderServiceConfigItem(item, sectionIndex, itemIndex, serviceId = '', sectionTitle = '') {
-    const key = item.key || '';
-    const value = item.value === undefined || item.value === null ? '' : String(item.value);
-    const displayValue = item.sensitive && value ? '******' : value;
-    const toggle = item.sensitive && value
-        ? `<button class="secret-toggle" type="button" title="显示" aria-label="显示 ${escapeHtml(key || '敏感配置')}" onclick="toggleServiceSecret(${sectionIndex}, ${itemIndex}, this)">${renderServiceSecretIcon(false)}</button>`
-        : '';
-    const copyButton = shouldShowServiceConfigCopy(item, serviceId, sectionTitle)
-        ? `<button class="copy-config-value" type="button" title="复制 ${escapeHtml(key || '配置值')}" aria-label="复制 ${escapeHtml(key || '配置值')}" onclick="copyServiceConfigValue(${sectionIndex}, ${itemIndex})">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                </svg>
-                <span>复制</span>
-            </button>`
-        : '';
-    if (!key) {
-        return `
-        <tr>
-            <td class="service-config-list-value" colspan="2">
-                <div class="service-config-list-scroll" title="${escapeHtml(displayValue)}">${escapeHtml(displayValue)}</div>
-            </td>
-        </tr>
-    `;
-    }
-    return `
-        <tr>
-            <td class="service-config-key" title="${key ? escapeHtml(key) : '-'}">${key ? escapeHtml(key) : '-'}</td>
-            <td class="service-config-value">
-                <div class="service-config-value-wrap">
-                    <span class="service-config-value-text" title="${escapeHtml(displayValue)}">${escapeHtml(displayValue)}</span>${toggle}${copyButton}
-                </div>
-            </td>
-        </tr>
-    `;
-}
-
-function shouldShowServiceConfigCopy(item, serviceId = '', sectionTitle = '') {
-    if (sectionTitle === '其他') return false;
-    const currentServiceId = serviceId || selectedServiceConfig?.service?.id || selectedServiceId;
-    const copyEnabledServices = new Set(['postgres', 'redis', 'kafka', 'cassandra', 'wechat']);
-    const value = item?.value === undefined || item?.value === null ? '' : String(item.value);
-    return copyEnabledServices.has(currentServiceId) && !!item?.key && value.length > 0 && value !== '无环境变量';
-}
-
-function renderServiceSecretIcon(isVisible) {
-    if (isVisible) {
-        return `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"></path>
-                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"></path>
-                <path d="M14.12 14.12A3 3 0 1 1 9.88 9.88"></path>
-                <line x1="1" y1="1" x2="23" y2="23"></line>
-            </svg>
-        `;
-    }
-    return `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-            <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-    `;
+    panel.innerHTML = ConfigMateServicesUi.renderServiceConfig(data, {
+        selectedServiceId,
+        serviceStatus,
+        cleanupInFlightService
+    });
 }
 
 function toggleServiceSecret(sectionIndex, itemIndex, btn) {
-    const item = selectedServiceConfig?.sections?.[sectionIndex]?.items?.[itemIndex];
-    if (!item) return;
-    const valueEl = btn?.parentElement?.querySelector('.service-config-value-text');
-    if (!valueEl) return;
-    const nextVisible = valueEl.textContent === '******';
-    valueEl.textContent = nextVisible ? (item.value || '') : '******';
-    valueEl.title = nextVisible ? (item.value || '') : '******';
-    btn.innerHTML = renderServiceSecretIcon(nextVisible);
-    const nextLabel = nextVisible ? '隐藏' : '显示';
-    btn.title = nextLabel;
-    btn.setAttribute('aria-label', `${nextLabel} ${item.key || '敏感配置'}`);
+    ConfigMateServicesUi.toggleServiceSecretItem(selectedServiceConfig, sectionIndex, itemIndex, btn);
 }
 
 async function copyServiceConfigValue(sectionIndex, itemIndex) {
@@ -1051,7 +860,7 @@ async function writeClipboardText(text, successMessage = '已复制') {
 }
 
 function isCleanupSupportedService(serviceId) {
-    return ['postgres', 'redis', 'kafka', 'cassandra'].includes(serviceId);
+    return ConfigMateServicesUi.isCleanupSupportedService(serviceId);
 }
 
 function setCleanupModalText(id, value) {
@@ -1675,528 +1484,65 @@ async function saveAndApplyPlan() {
 }
 
 // Logs Viewer Functions
-let logsEventSource = null;
-let startupDetected = false;
-let logReconnectTimer = null;
-let logEntries = [];
-let logBuffer = [];
-let isFlushing = false;
-let droppedBufferedLogs = 0;
-let droppedStoredLogs = 0;
-let logSeq = 0;
-let isWrapMode = true;
-let isLogPaused = false;
-let autoScrollLogs = true;
-let isLogFullscreen = false;
-let currentLogSearch = '';
-let currentLogLevel = 'all';
-let pendingLogRerender = false;
-let pendingLogMetaUpdate = false;
-let isProgrammaticLogScroll = false;
+let logsController = null;
 
-const MAX_LOG_LINES = 800;
-const MAX_LOG_STORE = 3000;
-const MAX_BUFFERED_LOGS = 1500;
-const LOG_FLUSH_BATCH_SIZE = 120;
-const MAX_MSG_LENGTH = 2000;
-
-function showLogs(isManual = false, serviceId = null) {
-    selectedLogService = serviceId || selectedLogService || deploymentInfo?.appService || null;
-    const modal = document.getElementById('logs-modal');
-    const serviceLabel = selectedLogService ? ` - ${selectedLogService}` : '';
-    const titleText = document.getElementById('logs-title-text');
-
-    if (titleText) {
-        titleText.textContent = `${isManual ? '实时容器日志' : '服务重启日志'}${serviceLabel}`;
+function getLogsController() {
+    if (!logsController) {
+        logsController = ConfigMateLogsUi.createLogViewer({
+            logsUrl: serviceId => ConfigMateApi.logsUrl(serviceId),
+            showToast
+        });
     }
-
-    modal.classList.add('active');
-    resetLogViewerState();
-
-    connectLogsStream();
+    return logsController;
 }
 
-function resetLogViewerState() {
-    const content = document.getElementById('logs-content');
-    const searchInput = document.getElementById('logs-search-input');
-    const levelFilter = document.getElementById('logs-level-filter');
-
-    closeLogsStream();
-    startupDetected = false;
-    logEntries = [];
-    logBuffer = [];
-    isFlushing = false;
-    droppedBufferedLogs = 0;
-    droppedStoredLogs = 0;
-    logSeq = 0;
-    isLogPaused = false;
-    autoScrollLogs = true;
-    currentLogSearch = '';
-    currentLogLevel = 'all';
-    pendingLogRerender = false;
-    pendingLogMetaUpdate = false;
-
-    if (content) {
-        content.innerHTML = '';
-        content.classList.toggle('wrap-mode', isWrapMode);
-        bindLogScrollWatcher(content);
-    }
-    if (searchInput) searchInput.value = '';
-    if (levelFilter) levelFilter.value = 'all';
-
-    updateLogControls();
-    updateLogStatus('实时监听中...', 'live');
-    updateLogMeta();
+function showLogs(isManual = false, serviceId = null) {
+    getLogsController().show({
+        isManual,
+        serviceId,
+        defaultServiceId: deploymentInfo?.appService || null
+    });
 }
 
 function closeLogs() {
-    const modal = document.getElementById('logs-modal');
-    modal.classList.remove('active');
-    closeLogsStream();
-    logBuffer = [];
-    droppedBufferedLogs = 0;
-    isLogPaused = false;
-    isLogFullscreen = false;
-    modal.classList.remove('fullscreen');
-    updateLogControls();
+    getLogsController().close();
 }
 
 function clearLogs() {
-    const content = document.getElementById('logs-content');
-    if (content) content.innerHTML = '';
-    logEntries = [];
-    logBuffer = [];
-    droppedBufferedLogs = 0;
-    droppedStoredLogs = 0;
-    logSeq = 0;
-    updateLogMeta();
-    updateLogStatus(logsEventSource ? '实时监听中...' : '日志已清空', logsEventSource ? 'live' : 'paused');
-}
-
-function closeLogsStream() {
-    if (logReconnectTimer) {
-        clearTimeout(logReconnectTimer);
-        logReconnectTimer = null;
-    }
-    if (logsEventSource) {
-        logsEventSource.close();
-        logsEventSource = null;
-    }
+    getLogsController().clear();
 }
 
 function toggleLogWrap() {
-    isWrapMode = !isWrapMode;
-    const content = document.getElementById('logs-content');
-    if (content) content.classList.toggle('wrap-mode', isWrapMode);
-    updateLogControls();
+    getLogsController().toggleWrap();
 }
 
 function toggleLogPause() {
-    isLogPaused = !isLogPaused;
-    updateLogControls();
-
-    if (isLogPaused) {
-        logBuffer = [];
-        updateLogStatus('已暂停实时刷新', 'paused');
-        updateLogMeta();
-        return;
-    }
-
-    updateLogStatus('实时监听中...', 'live');
-    renderFilteredLogs();
+    getLogsController().togglePause();
 }
 
 function toggleLogFollow() {
-    autoScrollLogs = !autoScrollLogs;
-    updateLogControls();
-    if (autoScrollLogs) scrollLogsToBottom();
+    getLogsController().toggleFollow();
 }
 
 function toggleLogFullscreen() {
-    const modal = document.getElementById('logs-modal');
-    isLogFullscreen = !isLogFullscreen;
-    if (modal) modal.classList.toggle('fullscreen', isLogFullscreen);
-    updateLogControls();
-    if (autoScrollLogs) requestAnimationFrame(scrollLogsToBottom);
+    getLogsController().toggleFullscreen();
 }
 
 function handleLogSearch(value) {
-    currentLogSearch = (value || '').trim().toLowerCase();
-    updateLogControls();
-    scheduleLogRerender();
+    getLogsController().search(value);
 }
 
 function clearLogSearch() {
-    const input = document.getElementById('logs-search-input');
-    if (input) input.value = '';
-    handleLogSearch('');
+    getLogsController().clearSearch();
 }
 
 function setLogLevelFilter(value) {
-    currentLogLevel = value || 'all';
-    scheduleLogRerender();
+    getLogsController().setLevelFilter(value);
 }
 
 async function copyVisibleLogs() {
-    const visibleLogs = getFilteredEntries().slice(-MAX_LOG_LINES).map(entry => entry.message).join('\n');
-    if (!visibleLogs) {
-        showToast('当前没有可复制的日志', 'info');
-        return;
-    }
-
-    try {
-        await navigator.clipboard.writeText(visibleLogs);
-        showToast(`已复制 ${visibleLogs.split('\n').length} 行日志`, 'success');
-    } catch (e) {
-        const textarea = document.createElement('textarea');
-        textarea.value = visibleLogs;
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        textarea.remove();
-        showToast('已复制当前日志', 'success');
-    }
+    await getLogsController().copyVisible();
 }
-
-function connectLogsStream() {
-    closeLogsStream();
-
-    logsEventSource = new EventSource(ConfigMateApi.logsUrl(selectedLogService));
-    updateLogStatus('实时监听中...', 'live');
-
-    logsEventSource.onmessage = (event) => {
-        let data;
-        try {
-            data = JSON.parse(event.data);
-        } catch (e) {
-            data = { type: 'error', message: '[日志解析失败] ' + e.message };
-        }
-        handleLogData(data);
-    };
-
-    logsEventSource.onerror = () => {
-        handleLogData({ type: 'error', message: '[连接错误] 实时日志连接中断，3 秒后尝试重连...' });
-        updateLogStatus('连接中断，准备重连...', 'error');
-        closeLogsStream();
-        logReconnectTimer = setTimeout(() => {
-            logReconnectTimer = null;
-            if (document.getElementById('logs-modal')?.classList.contains('active')) {
-                connectLogsStream();
-            }
-        }, 3000);
-    };
-}
-
-function handleLogData(data) {
-    const entry = normalizeLogEntry(data);
-    storeLogEntry(entry);
-
-    if (entry.type === 'close') {
-        closeLogsStream();
-        updateLogStatus(`连接已关闭，退出代码: ${data.code ?? 0}`, 'paused');
-    }
-
-    if (entry.level === 'success' && !startupDetected) {
-        startupDetected = true;
-        updateLogStatus('启动成功', 'success');
-        setTimeout(() => {
-            if (!isLogPaused && logsEventSource) updateLogStatus('实时监听中...', 'live');
-        }, 5000);
-    }
-
-    if (!isLogPaused && entryMatchesFilters(entry)) {
-        enqueueLogEntry(entry);
-    } else {
-        scheduleLogMetaUpdate();
-    }
-}
-
-function normalizeLogEntry(data) {
-    const fallbackMessage = data.type === 'close' ? `[连接已关闭，退出代码: ${data.code ?? 0}]` : '';
-    const rawMessage = typeof data.message === 'string' ? data.message : String(data.message ?? fallbackMessage);
-    let message = rawMessage;
-    let truncated = false;
-
-    if (message.length > MAX_MSG_LENGTH) {
-        message = `${message.slice(0, MAX_MSG_LENGTH)} ... [已截断, 原文长度: ${rawMessage.length} chars]`;
-        truncated = true;
-    }
-
-    const level = classifyLogLevel(data, message);
-
-    return {
-        id: ++logSeq,
-        type: data.type || 'log',
-        level,
-        message,
-        truncated,
-        rawLength: rawMessage.length
-    };
-}
-
-function classifyLogLevel(data, message) {
-    if (data.type === 'error') return 'error';
-    if (data.type === 'warn') return 'warn';
-    if (isSuccessLogMessage(message)) return 'success';
-
-    const explicitLevel = getExplicitLogLevel(message);
-    if (explicitLevel) {
-        if (explicitLevel === 'ERROR' || explicitLevel === 'FATAL') return 'error';
-        if (explicitLevel === 'WARN' || explicitLevel === 'WARNING') return 'warn';
-        return 'info';
-    }
-
-    if (isStrongErrorMessage(message)) return 'error';
-    if (message.includes('[日志过多]') || /\bWARNING\b|\bWARN\b/i.test(message)) return 'warn';
-    return 'info';
-}
-
-function isSuccessLogMessage(message) {
-    return message.includes('Started ThingsBoard')
-        || message.includes('启动成功')
-        || message.includes('Installation finished successfully');
-}
-
-function getExplicitLogLevel(message) {
-    const normalized = message.replace(/^\S+\s+\|\s*/, '');
-    const match = normalized.match(/\b(TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL)\b/i);
-    return match ? match[1].toUpperCase() : '';
-}
-
-function isStrongErrorMessage(message) {
-    return message.includes('[错误]')
-        || /\bEXCEPTION IN THREAD\b/i.test(message)
-        || /\bCAUSED BY:/i.test(message)
-        || /\bTRACEBACK\b/i.test(message)
-        || /\b[A-Z0-9_.]+EXCEPTION(?::|\s|$)/i.test(message);
-}
-
-function storeLogEntry(entry) {
-    logEntries.push(entry);
-    if (logEntries.length > MAX_LOG_STORE) {
-        const dropCount = logEntries.length - MAX_LOG_STORE;
-        logEntries.splice(0, dropCount);
-        droppedStoredLogs += dropCount;
-    }
-}
-
-function enqueueLogEntry(entry) {
-    if (logBuffer.length >= MAX_BUFFERED_LOGS) {
-        const dropCount = logBuffer.length - MAX_BUFFERED_LOGS + 1;
-        logBuffer.splice(0, dropCount);
-        droppedBufferedLogs += dropCount;
-    }
-    logBuffer.push(entry);
-    requestFlushLogs();
-}
-
-function requestFlushLogs() {
-    if (isFlushing || isLogPaused) return;
-    isFlushing = true;
-    requestAnimationFrame(flushLogs);
-}
-
-function flushLogs() {
-    const content = document.getElementById('logs-content');
-
-    if (!content || logBuffer.length === 0) {
-        isFlushing = false;
-        updateLogMeta();
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    const batch = logBuffer.splice(0, LOG_FLUSH_BATCH_SIZE);
-
-    if (droppedBufferedLogs > 0) {
-        fragment.appendChild(renderLogLine({
-            id: ++logSeq,
-            type: 'system',
-            level: 'warn',
-            message: `[日志过多] 已跳过 ${droppedBufferedLogs} 条待渲染日志，继续显示最新内容。`
-        }));
-        droppedBufferedLogs = 0;
-    }
-
-    batch.forEach(entry => fragment.appendChild(renderLogLine(entry)));
-
-    content.appendChild(fragment);
-
-    const excess = content.children.length - MAX_LOG_LINES;
-    if (excess > 0) {
-        const range = document.createRange();
-        range.setStartBefore(content.firstChild);
-        range.setEndAfter(content.children[excess - 1]);
-        range.deleteContents();
-        range.detach();
-    }
-
-    if (autoScrollLogs) scrollLogsToBottom();
-
-    isFlushing = false;
-    updateLogMeta();
-
-    if (logBuffer.length > 0) {
-        requestFlushLogs();
-    }
-}
-
-function renderFilteredLogs() {
-    const content = document.getElementById('logs-content');
-    if (!content) return;
-
-    const fragment = document.createDocumentFragment();
-    const entries = getFilteredEntries().slice(-MAX_LOG_LINES);
-    content.innerHTML = '';
-    entries.forEach(entry => fragment.appendChild(renderLogLine(entry)));
-    content.appendChild(fragment);
-    if (autoScrollLogs) scrollLogsToBottom();
-    updateLogMeta();
-}
-
-function scheduleLogRerender() {
-    if (pendingLogRerender) return;
-    pendingLogRerender = true;
-    requestAnimationFrame(() => {
-        pendingLogRerender = false;
-        renderFilteredLogs();
-    });
-}
-
-function renderLogLine(entry) {
-    const line = document.createElement('div');
-    const levelClass = entry.type === 'system' || entry.type === 'close' ? 'system' : entry.level;
-    line.className = `log-line ${levelClass || ''}`.trim();
-    if (entry.truncated) line.title = '日志过长已截断';
-
-    appendHighlightedMessage(line, entry.message);
-    return line;
-}
-
-function appendHighlightedMessage(container, message) {
-    if (!currentLogSearch) {
-        container.textContent = message;
-        return;
-    }
-
-    const lowerMessage = message.toLowerCase();
-    let start = 0;
-    let matchIndex = lowerMessage.indexOf(currentLogSearch, start);
-    let matchCount = 0;
-
-    while (matchIndex !== -1 && matchCount < 80) {
-        if (matchIndex > start) {
-            container.appendChild(document.createTextNode(message.slice(start, matchIndex)));
-        }
-        const mark = document.createElement('mark');
-        mark.className = 'log-match';
-        mark.textContent = message.slice(matchIndex, matchIndex + currentLogSearch.length);
-        container.appendChild(mark);
-        start = matchIndex + currentLogSearch.length;
-        matchIndex = lowerMessage.indexOf(currentLogSearch, start);
-        matchCount += 1;
-    }
-
-    if (start < message.length) {
-        container.appendChild(document.createTextNode(message.slice(start)));
-    }
-}
-
-function getFilteredEntries() {
-    return logEntries.filter(entry => entryMatchesFilters(entry));
-}
-
-function entryMatchesFilters(entry) {
-    if (currentLogLevel !== 'all' && entry.level !== currentLogLevel) return false;
-    if (currentLogSearch && !entry.message.toLowerCase().includes(currentLogSearch)) return false;
-    return true;
-}
-
-function isLogsNearBottom() {
-    const content = document.getElementById('logs-content');
-    if (!content) return true;
-    return content.scrollHeight - content.scrollTop - content.clientHeight < 80;
-}
-
-function bindLogScrollWatcher(content) {
-    if (!content || content.dataset.scrollWatcherBound === 'true') return;
-    content.dataset.scrollWatcherBound = 'true';
-    content.addEventListener('scroll', () => {
-        if (isProgrammaticLogScroll) return;
-        const shouldFollow = isLogsNearBottom();
-        if (autoScrollLogs !== shouldFollow) {
-            autoScrollLogs = shouldFollow;
-            updateLogControls();
-            scheduleLogMetaUpdate();
-        }
-    }, { passive: true });
-}
-
-function scrollLogsToBottom() {
-    const content = document.getElementById('logs-content');
-    if (!content) return;
-    isProgrammaticLogScroll = true;
-    content.scrollTop = content.scrollHeight;
-    requestAnimationFrame(() => {
-        isProgrammaticLogScroll = false;
-    });
-}
-
-function updateLogStatus(text, state = 'live') {
-    const statusEl = document.getElementById('logs-status');
-    if (!statusEl) return;
-    statusEl.classList.remove('success', 'paused', 'error');
-    if (state && state !== 'live') statusEl.classList.add(state);
-    const span = statusEl.querySelector('span');
-    if (span) span.textContent = text;
-}
-
-function updateLogControls() {
-    const wrapBtn = document.getElementById('btn-wrap-toggle');
-    const followBtn = document.getElementById('btn-log-follow');
-    const pauseBtn = document.getElementById('btn-log-pause');
-    const fullscreenBtn = document.getElementById('btn-log-fullscreen');
-    const searchClear = document.getElementById('logs-search-clear');
-
-    setToolButtonState(wrapBtn, isWrapMode, isWrapMode ? '换行' : '不换行');
-    setToolButtonState(followBtn, autoScrollLogs, autoScrollLogs ? '跟随' : '不跟随');
-    setToolButtonState(fullscreenBtn, isLogFullscreen, isLogFullscreen ? '退出全屏' : '全屏');
-    setToolButtonState(pauseBtn, isLogPaused, isLogPaused ? '继续' : '暂停');
-    if (pauseBtn) pauseBtn.classList.toggle('warn', isLogPaused);
-    if (searchClear) searchClear.style.display = currentLogSearch ? 'inline-flex' : 'none';
-}
-
-function setToolButtonState(button, isActive, label) {
-    if (!button) return;
-    button.classList.toggle('active', isActive);
-    const span = button.querySelector('span');
-    if (span) span.textContent = label;
-}
-
-function updateLogMeta() {
-    const meta = document.getElementById('logs-meta');
-    if (!meta) return;
-    const matched = getFilteredEntries().length;
-    const visible = Math.min(matched, MAX_LOG_LINES);
-    const totalReceived = logEntries.length + droppedStoredLogs;
-    const parts = [`显示 ${visible}`, `匹配 ${matched}`, `已接收 ${totalReceived}`];
-    if (droppedStoredLogs > 0) parts.push(`已归档丢弃 ${droppedStoredLogs}`);
-    if (isLogPaused) parts.push('暂停中');
-    if (!autoScrollLogs) parts.push('未跟随');
-    meta.textContent = parts.join(' / ');
-}
-
-function scheduleLogMetaUpdate() {
-    if (pendingLogMetaUpdate) return;
-    pendingLogMetaUpdate = true;
-    requestAnimationFrame(() => {
-        pendingLogMetaUpdate = false;
-        updateLogMeta();
-    });
-}
-
 
 let isActionPending = false; // Global flag to prevent checkStatus updates during user actions
 
@@ -2450,348 +1796,37 @@ async function restartService() {
     }
 }
 // --- History Feature ---
+let historyUi = null;
+
+function getHistoryUi() {
+    if (!historyUi) {
+        historyUi = ConfigMateHistoryUi.createHistoryUi({
+            api: ConfigMateApi,
+            customConfirm,
+            getEnvPath: () => ({
+                full: deploymentInfo?.envPath || '.env',
+                short: deploymentInfo?.envPath ? shortPath(deploymentInfo.envPath) : '.env'
+            }),
+            reload: () => location.reload()
+        });
+    }
+    return historyUi;
+}
 
 function openHistoryModal() {
-    const modal = document.getElementById('history-modal');
-    modal.style.display = 'flex'; // Reset display property overwritten by close
-    // Force reflow
-    void modal.offsetWidth;
-    modal.classList.add('active');
-    fetchHistory();
+    getHistoryUi().open();
 }
 
 function closeHistoryModal() {
-    const modal = document.getElementById('history-modal');
-    modal.classList.remove('active');
-    setTimeout(() => {
-        modal.style.display = 'none';
-    }, 200);
-}
-
-async function fetchHistory() {
-    const listEl = document.getElementById('history-list');
-    if (!listEl) {
-        console.error("history-list element not found!");
-        return;
-    }
-    renderHistoryLoading();
-    try {
-        const res = await ConfigMateApi.history();
-        const json = await res.json();
-
-        if (json.status === 'success') {
-            renderHistory(json.data);
-        } else {
-            renderHistoryState('读取失败', json.message || '历史记录接口返回异常', 'error');
-        }
-    } catch (e) {
-        console.error(e);
-        renderHistoryState('请求失败', e.message, 'error');
-    }
-}
-
-function renderHistoryLoading() {
-    updateHistorySummary([]);
-    const listEl = document.getElementById('history-list');
-    if (!listEl) return;
-    listEl.innerHTML = `
-        <li class="history-state">
-            <div class="history-state-card">
-                <div class="history-state-icon">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" style="animation: spin 1s linear infinite;">
-                        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-                    </svg>
-                </div>
-                <div class="history-state-title">加载中</div>
-                <div class="history-state-desc">正在读取历史记录</div>
-            </div>
-        </li>
-    `;
-}
-
-function renderHistoryState(title, message, type = '') {
-    const listEl = document.getElementById('history-list');
-    if (!listEl) return;
-    const iconColor = type === 'error' ? '#B91C1C' : '#64748B';
-    listEl.innerHTML = `
-        <li class="history-state">
-            <div class="history-state-card">
-                <div class="history-state-icon" style="color:${iconColor};">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="12"></line>
-                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                </div>
-                <div class="history-state-title">${escapeHtml(title)}</div>
-                <div class="history-state-desc">${escapeHtml(message || '')}</div>
-            </div>
-        </li>
-    `;
-}
-
-function updateHistorySummary(files) {
-    const countEl = document.getElementById('history-count');
-    const latestEl = document.getElementById('history-latest');
-    const envPathEl = document.getElementById('history-env-path');
-    const count = Array.isArray(files) ? files.length : 0;
-    if (countEl) countEl.textContent = `${count} / 5`;
-    if (latestEl) latestEl.textContent = count ? formatHistoryDate(files[0].timestamp, 'datetime') : '暂无记录';
-    if (envPathEl) {
-        const envPath = deploymentInfo?.envPath ? shortPath(deploymentInfo.envPath) : '.env';
-        envPathEl.textContent = envPath;
-        if (deploymentInfo?.envPath) envPathEl.title = deploymentInfo.envPath;
-    }
-}
-
-function renderHistory(files) {
-    const listEl = document.getElementById('history-list');
-    updateHistorySummary(files || []);
-    if (!files || files.length === 0) {
-        renderHistoryState('暂无历史版本', '保存配置后会在这里显示备份记录');
-        return;
-    }
-
-    listEl.innerHTML = files.map((file, index) => {
-        const dateObj = new Date(file.timestamp);
-        const timeStr = dateObj.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-        const dateStr = dateObj.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
-        const isLatest = index === 0;
-        const filename = String(file.filename || '');
-        const safeFilename = escapeHtml(filename);
-        const relative = formatHistoryRelative(file.timestamp);
-        const size = formatHistorySize(file.size);
-
-        return `
-        <li class="timeline-item ${isLatest ? 'latest' : ''}">
-            <div class="timeline-marker"></div>
-            <div class="timeline-content">
-                <div class="timeline-header">
-                    <div>
-                        <div class="timeline-time">
-                        <span>${timeStr}</span>
-                        <span class="timeline-date-badge">${dateStr}</span>
-                        ${isLatest ? '<span class="history-badge latest">最新</span>' : ''}
-                        </div>
-                        <div class="timeline-meta">
-                            <span class="timeline-file-tag">ENV</span>
-                            <span class="timeline-file-name" title="${safeFilename}">${safeFilename}</span>
-                            <span>${escapeHtml(size)}</span>
-                            <span>${escapeHtml(relative)}</span>
-                        </div>
-                    </div>
-                    <div class="timeline-actions">
-                    <button class="history-action" type="button" data-history-action="view" data-history-file="${safeFilename}" title="查看内容">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                        查看
-                    </button>
-                    <button class="history-action" type="button" data-history-action="compare" data-history-file="${safeFilename}" title="与当前配置对比">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M9 21H4v-5"></path></svg>
-                        对比
-                    </button>
-                    <button class="history-action danger" type="button" data-history-action="restore" data-history-file="${safeFilename}" title="回滚到此版本">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2"><path d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8"></path></svg>
-                        回滚
-                    </button>
-                    </div>
-                </div>
-            </div>
-        </li>
-    `}).join('');
+    getHistoryUi().close();
 }
 
 function handleHistoryAction(event) {
-    const button = event.target.closest('[data-history-action]');
-    if (!button) return;
-    const filename = button.dataset.historyFile || '';
-    if (!filename) return;
-    const action = button.dataset.historyAction;
-    if (action === 'view') viewContent(filename);
-    else if (action === 'compare') compareHistory(filename);
-    else if (action === 'restore') restoreHistory(filename);
-}
-
-function formatHistoryDate(isoStr, mode = 'short') {
-    const date = new Date(isoStr);
-    if (Number.isNaN(date.getTime())) return '--';
-    if (mode === 'datetime') {
-        return date.toLocaleString('zh-CN', {
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', second: '2-digit',
-            hour12: false
-        });
-    }
-    return date.toLocaleString('zh-CN', {
-        month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false
-    });
-}
-
-function formatHistoryRelative(isoStr) {
-    const time = new Date(isoStr).getTime();
-    if (!time) return '';
-    const diffSeconds = Math.max(0, Math.floor((Date.now() - time) / 1000));
-    if (diffSeconds < 60) return '刚刚';
-    const diffMinutes = Math.floor(diffSeconds / 60);
-    if (diffMinutes < 60) return `${diffMinutes} 分钟前`;
-    const diffHours = Math.floor(diffMinutes / 60);
-    if (diffHours < 24) return `${diffHours} 小时前`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} 天前`;
-}
-
-function formatHistorySize(size) {
-    const bytes = Number(size || 0);
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-// --- Diff / View Logic ---
-
-function openDiffModal(title) {
-    document.getElementById('diff-title').innerText = title;
-    const modal = document.getElementById('diff-modal');
-    modal.style.display = 'flex'; // Reset display property overwritten by close
-    void modal.offsetWidth;
-    modal.classList.add('active');
+    getHistoryUi().handleAction(event);
 }
 
 function closeDiffModal() {
-    const modal = document.getElementById('diff-modal');
-    modal.classList.remove('active');
-    setTimeout(() => {
-        modal.style.display = 'none';
-    }, 200);
-}
-
-async function viewContent(filename) {
-    try {
-        const res = await ConfigMateApi.historyContent(filename);
-        const json = await res.json();
-        if (json.status === 'success') {
-            const contentEl = document.getElementById('diff-content');
-            contentEl.innerHTML = json.content.split('\n').map(line =>
-                `<div class="diff-line">${escapeHtml(line)}</div>`
-            ).join('');
-            openDiffModal(`文件内容: ${filename}`);
-        } else {
-            alert('获取失败: ' + json.message);
-        }
-    } catch (e) {
-        alert('请求失败: ' + e.message);
-    }
-}
-
-async function compareHistory(filename) {
-    try {
-        // 1. Get History Content
-        const resHist = await ConfigMateApi.historyContent(filename);
-        const jsonHist = await resHist.json();
-
-        // 2. Get Current Content
-        const resCurr = await ConfigMateApi.rawEnv();
-        const textCurr = await resCurr.text();
-
-        if (jsonHist.status === 'success') {
-            renderDiff(jsonHist.content, textCurr);
-            openDiffModal(`配置对比 (${filename} vs 当前)`);
-        } else {
-            alert('获取历史文件失败: ' + jsonHist.message);
-        }
-    } catch (e) {
-        alert('请求失败: ' + e.message);
-    }
-}
-
-function renderDiff(oldText, newText) {
-    const oldLines = oldText.split('\n');
-    const newLines = newText.split('\n');
-
-    // Simple key-value based diff (naive line diff for now for simplicity, since config order might change)
-    // Or just visual line diff? Config order shouldn't change much.
-    // Let's do a simple modified Check: Key-based is better for env files.
-
-    const oldMap = parseEnvLines(oldLines);
-    const newMap = parseEnvLines(newLines);
-
-    const allKeys = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
-    const sortedKeys = Array.from(allKeys).sort();
-
-    let html = '';
-
-    sortedKeys.forEach(key => {
-        const oldVal = oldMap[key];
-        const newVal = newMap[key];
-
-        if (oldVal === undefined) {
-            // Added
-            html += `<div class="diff-line diff-added">+ ${key}=${newVal}</div>`;
-        } else if (newVal === undefined) {
-            // Removed
-            html += `<div class="diff-line diff-removed">- ${key}=${oldVal}</div>`;
-        } else if (oldVal !== newVal) {
-            // Modified
-            html += `<div class="diff-line diff-removed">- ${key}=${oldVal}</div>`;
-            html += `<div class="diff-line diff-added">+ ${key}=${newVal}</div>`;
-        } else {
-            // Unchanged (optional: hide or show grey?)
-            // Let's show context? or just changes?
-            // User asked to "compare", usually implies seeing differences.
-            // But seeing the whole file with highlights is also good.
-            // Let's show everything but plain for unchanged.
-            html += `<div class="diff-line">  ${key}=${newVal}</div>`;
-        }
-    });
-
-    document.getElementById('diff-content').innerHTML = html;
-}
-
-function parseEnvLines(lines) {
-    const map = {};
-    lines.forEach(line => {
-        const trim = line.trim();
-        if (!trim || trim.startsWith('#')) return;
-        const parts = trim.split('=');
-        const key = parts[0].trim();
-        const val = parts.slice(1).join('=').trim();
-        map[key] = val;
-    });
-    return map;
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    return text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-async function restoreHistory(filename) {
-    if (!await customConfirm(`确定要将配置回滚到 ${filename} 吗？\n\n当前未保存的修改将会丢失。`, '确认回滚', 'var(--danger)')) return;
-
-    try {
-        const res = await ConfigMateApi.restoreHistory(filename);
-        const json = await res.json();
-
-        if (json.status === 'success') {
-            alert('回滚成功！页面将刷新以加载新配置。');
-            location.reload();
-        } else {
-            alert('回滚失败: ' + json.message);
-        }
-    } catch (e) {
-        alert('请求失败: ' + e.message);
-    }
+    getHistoryUi().closeDiff();
 }
 
 // Initialize Modal Listeners
