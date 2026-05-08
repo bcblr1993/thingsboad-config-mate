@@ -81,6 +81,10 @@ const CLEANUP_SERVICE_DATA_DIRS = {
     cassandra: 'services/cassandra/cassandra_node1_data'
 };
 
+const CLEANUP_SERVICE_DATA_DIR_MODES = {
+    kafka: 0o777
+};
+
 function createServiceRegistry({ appRoot, appType }) {
     function getPackageServiceId() {
         return appType === 'EDGE' ? 'iotedge' : 'iotcloud';
@@ -109,6 +113,7 @@ function createServiceRegistry({ appRoot, appType }) {
 
     return {
         cleanupServiceDataDirs: { ...CLEANUP_SERVICE_DATA_DIRS },
+        cleanupServiceDataDirModes: { ...CLEANUP_SERVICE_DATA_DIR_MODES },
         getPackageServiceId,
         getServiceDefinition,
         listServiceDefinitions
@@ -117,6 +122,7 @@ function createServiceRegistry({ appRoot, appType }) {
 
 module.exports = {
     CLEANUP_SERVICE_DATA_DIRS,
+    CLEANUP_SERVICE_DATA_DIR_MODES,
     SERVICE_DEFINITIONS,
     createServiceRegistry
 };

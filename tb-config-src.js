@@ -90,6 +90,7 @@ const cleanupService = createCleanupService({
     backupRoot: CLEANUP_BACKUP_ROOT,
     auditLogFile: AUDIT_LOG_FILE,
     cleanupServiceDataDirs: serviceRegistry.cleanupServiceDataDirs,
+    cleanupServiceDataDirModes: serviceRegistry.cleanupServiceDataDirModes,
     getServiceDefinition,
     getPackageServiceId,
     getServiceStatus,

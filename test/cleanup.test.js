@@ -40,6 +40,16 @@ function createService(root, overrides = {}) {
                 exists: fs.existsSync(path.join(root, 'services/postgres/docker-compose.yml'))
             };
         }
+        if (id === 'kafka') {
+            return {
+                id: 'kafka',
+                label: 'Kafka',
+                composePath: 'services/kafka/docker-compose.yml',
+                composeAbsPath: path.join(root, 'services/kafka/docker-compose.yml'),
+                composeService: 'kafka',
+                exists: fs.existsSync(path.join(root, 'services/kafka/docker-compose.yml'))
+            };
+        }
         if (id === 'iotcloud') {
             return {
                 id: 'iotcloud',
@@ -59,6 +69,7 @@ function createService(root, overrides = {}) {
         backupRoot,
         auditLogFile,
         cleanupServiceDataDirs: { postgres: 'services/postgres/data', ...overrides.cleanupServiceDataDirs },
+        cleanupServiceDataDirModes: overrides.cleanupServiceDataDirModes || {},
         getServiceDefinition,
         getPackageServiceId: () => 'iotcloud',
         getServiceStatus: overrides.getServiceStatus || (async () => ({ status: 'stopped', running: false, containerId: '' })),
@@ -166,6 +177,25 @@ test('runCleanupService archives data directory and writes manifest', async () =
         ['compose', '-f', path.join(root, 'services/postgres/docker-compose.yml'), 'down'],
         ['compose', '-f', path.join(root, 'services/postgres/docker-compose.yml'), 'up', '-d']
     ]);
+});
+
+test('runCleanupService recreates kafka data directory with required mode', async () => {
+    const root = createTempRoot();
+    touch(path.join(root, 'services/kafka/docker-compose.yml'));
+    touch(path.join(root, 'services/kafka/kafka_0_data/current.log'), 'kafka-data');
+    const { service } = createService(root, {
+        cleanupServiceDataDirs: { kafka: 'services/kafka/kafka_0_data' },
+        cleanupServiceDataDirModes: { kafka: 0o777 }
+    });
+
+    const result = await service.runCleanupService('kafka', 'kafka', actor);
+    const recreatedMode = fs.statSync(path.join(root, 'services/kafka/kafka_0_data')).mode & 0o777;
+    const manifest = JSON.parse(fs.readFileSync(result.manifestPath, 'utf8'));
+
+    assert.equal(result.status, 'success');
+    assert.equal(recreatedMode, 0o777);
+    assert.equal(manifest.recreatedDirMode, 0o777);
+    assert.equal(fs.readFileSync(path.join(result.backupDir, 'kafka_0_data/current.log'), 'utf8'), 'kafka-data');
 });
 
 test('cleanup path must stay inside app root', () => {

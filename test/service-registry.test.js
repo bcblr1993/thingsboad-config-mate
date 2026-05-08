@@ -62,3 +62,12 @@ test('exposes cleanup data directory whitelist', () => {
         cassandra: 'services/cassandra/cassandra_node1_data'
     });
 });
+
+test('exposes cleanup data directory mode whitelist', () => {
+    const root = createTempRoot();
+    const registry = createServiceRegistry({ appRoot: root, appType: 'CLOUD' });
+
+    assert.deepEqual(registry.cleanupServiceDataDirModes, {
+        kafka: 0o777
+    });
+});

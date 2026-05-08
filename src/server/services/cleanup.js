@@ -34,6 +34,7 @@ function createCleanupService({
     backupRoot,
     auditLogFile,
     cleanupServiceDataDirs,
+    cleanupServiceDataDirModes = {},
     getServiceDefinition,
     getPackageServiceId,
     getServiceStatus,
@@ -69,6 +70,7 @@ function createCleanupService({
             ...def,
             dataDir,
             dataAbsPath,
+            dataDirMode: cleanupServiceDataDirModes[serviceId],
             backupRoot: resolvedBackupRoot
         };
     }
@@ -101,6 +103,7 @@ function createCleanupService({
             appService: getPackageServiceId(),
             dataDir: def.dataDir,
             dataPath: def.dataAbsPath,
+            dataDirMode: def.dataDirMode,
             backupRoot,
             backupDir,
             composePath: def.composePath,
@@ -146,6 +149,13 @@ function createCleanupService({
     function writeCleanupManifest(manifestPath, manifest) {
         fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
         fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    }
+
+    function recreateDataDir(def) {
+        fs.mkdirSync(def.dataAbsPath, { recursive: true });
+        if (def.dataDirMode !== undefined && def.dataDirMode !== null) {
+            fs.chmodSync(def.dataAbsPath, def.dataDirMode);
+        }
     }
 
     async function runCleanupService(serviceId, confirmServiceId, actor) {
@@ -244,6 +254,7 @@ function createCleanupService({
             appService: getPackageServiceId(),
             composePath: def.composePath,
             sourcePath: def.dataAbsPath,
+            recreatedDirMode: def.dataDirMode,
             backupDir,
             archivedDataPath,
             sourceExisted,
@@ -270,7 +281,7 @@ function createCleanupService({
             if (down.error) throw new Error(down.error.message);
 
             const archived = safeMovePath(def.dataAbsPath, archivedDataPath);
-            fs.mkdirSync(def.dataAbsPath, { recursive: true });
+            recreateDataDir(def);
 
             const up = await docker.exec(docker.dockerComposeCmd, docker.composeArgsFor(def, ['up', '-d']));
             output += up.stdout + up.stderr;
