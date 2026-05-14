@@ -1,24 +1,28 @@
 :root {
     color-scheme: light;
 
-    /* Config Mate semantic palette. Keep business modules using these tokens only. */
-    --cm-background: #F6F8FB;
-    --cm-foreground: #111827;
-    --cm-muted: #667085;
-    --cm-muted-foreground: #7A8699;
+    /* Config Mate semantic palette · Slate Tooling theme.
+       Primary color is reserved for key CTAs; accent (#2563EB) for links/highlights. */
+    --cm-background: #F8FAFC;
+    --cm-foreground: #0F172A;
+    --cm-muted: #64748B;
+    --cm-muted-foreground: #94A3B8;
     --cm-surface: #FFFFFF;
-    --cm-surface-muted: #F8FAFC;
+    --cm-surface-muted: #F1F5F9;
     --cm-card: #FFFFFF;
-    --cm-card-foreground: #111827;
-    --cm-border: #D8E2EE;
-    --cm-border-subtle: #E7EDF5;
-    --cm-input: #D8E2EE;
-    --cm-ring: rgba(37, 99, 235, 0.22);
+    --cm-card-foreground: #0F172A;
+    --cm-border: #E2E8F0;
+    --cm-border-subtle: #EEF1F5;
+    --cm-input: #E2E8F0;
+    --cm-ring: rgba(15, 23, 42, 0.18);
 
-    --cm-primary: #2563EB;
-    --cm-primary-hover: #1D4ED8;
-    --cm-primary-soft: #EFF6FF;
+    --cm-primary: #0F172A;
+    --cm-primary-hover: #1E293B;
+    --cm-primary-soft: #F1F5F9;
     --cm-primary-foreground: #FFFFFF;
+
+    --cm-accent: #2563EB;
+    --cm-accent-soft: #EFF6FF;
 
     --cm-success: #059669;
     --cm-success-soft: #ECFDF5;
