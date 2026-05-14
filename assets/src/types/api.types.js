@@ -1,15 +1,11 @@
-/**
- * JSDoc typedefs for API payloads.
- *
- * Style: types live in standalone .js files exporting only typedefs.
- * VSCode / WebStorm / Vue Volar all pick up these typedefs across the
- * project as long as another module imports the file (or it's referenced
- * in a JSDoc @import).
- *
- * Usage at call site:
- *   /** @type {import('../types/api.types.js').AuthStatus} *\/
- *   const auth = await authApi.status();
- */
+// JSDoc typedefs for API payloads.
+//
+// Types live in standalone .js files exporting only typedefs. VSCode and
+// WebStorm pick up these typedefs across the project as long as another
+// module imports the file. At a call site, annotate via JSDoc:
+//
+//   const auth = await authApi.status();
+//   // jsdoc: type {import('../types/api.types.js').AuthStatus}
 
 /**
  * @typedef {Object} AuthStatus

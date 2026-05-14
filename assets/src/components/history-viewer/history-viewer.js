@@ -134,6 +134,7 @@ export function createHistoryUi(options = {}) {
             renderState('暂无历史版本', '保存配置后会在这里显示备份记录');
             return;
         }
+        if (!listEl) return;
 
         listEl.innerHTML = files.map((file, index) => {
             const dateObj = new Date(file.timestamp);

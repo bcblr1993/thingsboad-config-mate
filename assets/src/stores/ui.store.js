@@ -15,8 +15,8 @@
  */
 
 import { createStore } from '../core/store.js';
-import { TOAST_TYPE, TOAST_DEFAULT_DURATION_MS } from '../constants/ui.js';
-import { TOAST_TYPE as _TOAST_TYPE } from '../constants/toast-type.js'; // re-import for explicit usage
+import { TOAST_DEFAULT_DURATION_MS } from '../constants/ui.js';
+import { TOAST_TYPE } from '../constants/toast-type.js';
 
 const initial = {
     /** @type {Record<string, boolean>} */
@@ -61,9 +61,13 @@ function isAnyLoading() {
 
 /* ---------- toasts ---------- */
 
-function pushToast({ message, type = _TOAST_TYPE.INFO, duration = TOAST_DEFAULT_DURATION_MS } = {}) {
+/**
+ * @param {{message?: string, type?: string, duration?: number}} [opts]
+ */
+function pushToast(opts) {
+    const { message = '', type = TOAST_TYPE.INFO, duration = TOAST_DEFAULT_DURATION_MS } = opts || {};
     const id = nextToastId();
-    const toast = { id, message: String(message ?? ''), type, duration };
+    const toast = { id, message: String(message), type, duration };
     store.set(s => ({ toasts: [...s.toasts, toast] }));
     if (duration > 0) setTimeout(() => dismissToast(id), duration);
     return id;
@@ -99,7 +103,11 @@ function topModal() {
 
 /* ---------- global banner ---------- */
 
-function showBanner({ message, type = _TOAST_TYPE.INFO } = {}) {
+/**
+ * @param {{message?: string, type?: string}} [opts]
+ */
+function showBanner(opts) {
+    const { message = '', type = TOAST_TYPE.INFO } = opts || {};
     store.set({ globalBanner: { visible: true, message, type } });
 }
 

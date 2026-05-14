@@ -68,15 +68,15 @@ export function createLogViewer(options = {}) {
             titleText.textContent = `${isManual ? '实时容器日志' : '服务重启日志'}${serviceLabel}`;
         }
 
-        window.ConfigMateUi.openModal(modal, '');
+        if (modal) window.ConfigMateUi.openModal(modal, '');
         reset();
         connectStream();
     }
 
     function reset() {
         const content = document.getElementById('logs-content');
-        const searchInput = document.getElementById('logs-search-input');
-        const levelFilter = document.getElementById('logs-level-filter');
+        const searchInput = /** @type {HTMLInputElement | null} */ (document.getElementById('logs-search-input'));
+        const levelFilter = /** @type {HTMLSelectElement | null} */ (document.getElementById('logs-level-filter'));
 
         closeStream();
         startupDetected = false;
@@ -108,7 +108,7 @@ export function createLogViewer(options = {}) {
 
     function close() {
         const modal = document.getElementById('logs-modal');
-        window.ConfigMateUi.closeModal(modal, { display: '', removeClasses: ['fullscreen'] });
+        if (modal) window.ConfigMateUi.closeModal(modal, { display: '', removeClasses: ['fullscreen'] });
         closeStream();
         logBuffer = [];
         droppedBufferedLogs = 0;
@@ -183,7 +183,7 @@ export function createLogViewer(options = {}) {
     }
 
     function clearSearch() {
-        const input = document.getElementById('logs-search-input');
+        const input = /** @type {HTMLInputElement | null} */ (document.getElementById('logs-search-input'));
         if (input) input.value = '';
         search('');
     }
@@ -365,7 +365,7 @@ export function createLogViewer(options = {}) {
         content.appendChild(fragment);
 
         const excess = content.children.length - MAX_LOG_LINES;
-        if (excess > 0) {
+        if (excess > 0 && content.firstChild) {
             const range = document.createRange();
             range.setStartBefore(content.firstChild);
             range.setEndAfter(content.children[excess - 1]);

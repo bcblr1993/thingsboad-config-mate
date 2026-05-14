@@ -42,7 +42,13 @@ function setOperator(operator) {
     } catch { /* localStorage may be disabled */ }
 }
 
-function setAuthenticated(authenticated, { required } = {}) {
+/**
+ * @param {boolean} authenticated
+ * @param {{required?: boolean}} [opts]
+ */
+function setAuthenticated(authenticated, opts) {
+    const required = opts?.required;
+    /** @type {{authenticated: boolean, required?: boolean}} */
     const patch = { authenticated: Boolean(authenticated) };
     if (required !== undefined) patch.required = Boolean(required);
     store.set(patch);
