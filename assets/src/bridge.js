@@ -32,9 +32,9 @@ import { logger } from './core/logger.js';
 
 import { authApi, configApi, serviceApi, installApi, systemApi, legacyApi } from './api/index.js';
 
-import { uiStore, authStore } from './stores/index.js';
+import { uiStore, authStore, deploymentStore, configStore } from './stores/index.js';
 
-import { authService } from './services/index.js';
+import { authService, deploymentService, configService } from './services/index.js';
 
 import * as constants from './constants/index.js';
 import * as utils from './utils/index.js';
@@ -59,10 +59,14 @@ const bridge = Object.freeze({
         legacy:  legacyApi
     },
 
-    stores: { uiStore, authStore },
+    stores: { uiStore, authStore, deploymentStore, configStore },
     uiStore,                  // shortcut
     authStore,                // shortcut
-    services: { auth: authService },
+    services: {
+        auth:       authService,
+        deployment: deploymentService,
+        config:     configService
+    },
     constants,
     utils,
 
