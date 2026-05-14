@@ -3,9 +3,9 @@
  *
  * What this does:
  *   Exposes the new infrastructure (http, store, eventBus, errors, env, logger,
- *   api domains) on window.__CM__ so that legacy /assets/app.js — which cannot
- *   use ESM `import` — can still consume the new building blocks
- *   incrementally.
+ *   api domains, uiStore, constants, utils) on window.__CM__ so that legacy
+ *   /assets/app.js — which cannot use ESM `import` — can still consume the
+ *   new building blocks incrementally.
  *
  * What this does NOT do:
  *   - Replace window.ConfigMateApi or window.ConfigMateUi (those keep working).
@@ -14,6 +14,7 @@
  * Usage from legacy code:
  *   if (window.__CM__) {
  *       const services = await window.__CM__.api.service.list();
+ *       window.__CM__.uiStore.setLoading('services.refresh', true);
  *       window.__CM__.eventBus.emit('services:refreshed', services);
  *   }
  *
@@ -31,6 +32,11 @@ import { logger } from './core/logger.js';
 
 import { authApi, configApi, serviceApi, installApi, systemApi, legacyApi } from './api/index.js';
 
+import { uiStore } from './stores/index.js';
+
+import * as constants from './constants/index.js';
+import * as utils from './utils/index.js';
+
 const bridge = Object.freeze({
     http,
     createStore,
@@ -38,6 +44,7 @@ const bridge = Object.freeze({
     errors: { HttpError, BizError, TimeoutError },
     env,
     logger,
+
     api: {
         auth:    authApi,
         config:  configApi,
@@ -45,7 +52,12 @@ const bridge = Object.freeze({
         install: installApi,
         system:  systemApi,
         legacy:  legacyApi
-    }
+    },
+
+    stores: { uiStore },
+    uiStore,                  // shortcut
+    constants,
+    utils
 });
 
 if (typeof window !== 'undefined') {
