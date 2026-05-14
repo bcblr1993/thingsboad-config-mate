@@ -57,6 +57,7 @@ function getOperatorInitials(name) {
 
 function updateAuthUI(operator = '') {
     currentOperator = operator || '';
+    window.__CM__?.stateBridge.pushOperator(currentOperator);
     const userMenu = document.getElementById('user-menu');
     const operatorEl = document.getElementById('current-operator');
     const avatarEl = document.getElementById('user-avatar');
@@ -172,6 +173,8 @@ async function init() {
         const data = await res.json();
         configMeta = data.meta;
         configValues = data.values;
+        window.__CM__?.stateBridge.pushConfigMeta(configMeta);
+        window.__CM__?.stateBridge.pushConfigValues(configValues, { markClean: true });
 
         // Deep copy initial state
         initialConfigValues = JSON.parse(JSON.stringify(configValues));
@@ -468,6 +471,7 @@ async function loadDeploymentInfo() {
     const res = await ConfigMateApi.deployment();
     if (!res.ok) return;
     deploymentInfo = await res.json();
+    window.__CM__?.stateBridge.pushDeployment(deploymentInfo);
     const metaEl = document.getElementById('deployment-meta');
     if (!metaEl) return;
     const dockerText = deploymentInfo.docker.available ? 'Docker 可用' : (deploymentInfo.docker.message || 'Docker 不可用');
@@ -668,6 +672,7 @@ async function refreshServices() {
         const json = await res.json();
         if (json.status !== 'success') return;
         latestServices = json.services || [];
+        window.__CM__?.stateBridge.pushServices(latestServices);
         renderServices();
     } catch (e) {
         console.error('Service refresh failed', e);
@@ -738,6 +743,7 @@ function selectService(serviceId) {
     }
     selectedServiceId = serviceId;
     selectedServiceConfig = null;
+    window.__CM__?.stateBridge.pushSelectedService(serviceId, null);
     renderServices();
 }
 

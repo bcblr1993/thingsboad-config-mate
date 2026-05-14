@@ -29,6 +29,7 @@ import { eventBus } from './core/event-bus.js';
 import { HttpError, BizError, TimeoutError } from './core/errors.js';
 import { env } from './core/env.js';
 import { logger } from './core/logger.js';
+import { stateBridge } from './core/state-bridge.js';
 
 import { authApi, configApi, serviceApi, installApi, systemApi, legacyApi } from './api/index.js';
 
@@ -49,6 +50,7 @@ const bridge = Object.freeze({
     errors: { HttpError, BizError, TimeoutError },
     env,
     logger,
+    stateBridge,
 
     api: {
         auth:    authApi,
