@@ -37,6 +37,8 @@ import { uiStore } from './stores/index.js';
 import * as constants from './constants/index.js';
 import * as utils from './utils/index.js';
 
+import { createLogViewer } from './components/log-viewer/log-viewer.js';
+
 const bridge = Object.freeze({
     http,
     createStore,
@@ -57,7 +59,11 @@ const bridge = Object.freeze({
     stores: { uiStore },
     uiStore,                  // shortcut
     constants,
-    utils
+    utils,
+
+    components: {
+        logViewer: { createLogViewer }
+    }
 });
 
 if (typeof window !== 'undefined') {
