@@ -74,9 +74,9 @@ test('saveEnvFile writes scoped grouped config and keeps custom keys', () => {
     const content = fs.readFileSync(envPath, 'utf-8');
     assert.match(content, /# === 核心 ===/);
     assert.match(content, /CLOUD_ONLY=cloud-value/);
-    assert.doesNotMatch(content, /EDGE_ONLY=edge-value/);
     assert.match(content, /REDIS_ONLY=redis-value/);
     assert.match(content, /# === 自定义配置 \(其他\) ===/);
+    assert.match(content, /EDGE_ONLY=edge-value/);
     assert.match(content, /CUSTOM_KEY=custom/);
 });
 

@@ -39,13 +39,88 @@ function flattenYaml(obj, prefix = '', res = {}) {
     return res;
 }
 
+function findPlaceholderEnd(value, startIndex) {
+    let depth = 0;
+    for (let i = startIndex; i < value.length; i++) {
+        if (value[i] === '$' && value[i + 1] === '{') {
+            depth++;
+            i++;
+            continue;
+        }
+        if (value[i] === '}') {
+            depth--;
+            if (depth === 0) return i;
+        }
+    }
+    return -1;
+}
+
+function splitPlaceholderContent(content) {
+    let depth = 0;
+    for (let i = 0; i < content.length; i++) {
+        if (content[i] === '$' && content[i + 1] === '{') {
+            depth++;
+            i++;
+            continue;
+        }
+        if (content[i] === '}') {
+            depth = Math.max(0, depth - 1);
+            continue;
+        }
+        if (content[i] === ':' && depth === 0) {
+            return {
+                key: content.slice(0, i),
+                hasDefault: true,
+                defaultValue: content.slice(i + 1)
+            };
+        }
+    }
+    return {
+        key: content,
+        hasDefault: false,
+        defaultValue: ''
+    };
+}
+
+function extractEnvPlaceholders(value) {
+    if (typeof value !== 'string') return [];
+
+    const result = [];
+    let index = 0;
+    while (index < value.length) {
+        const start = value.indexOf('${', index);
+        if (start === -1) break;
+
+        const end = findPlaceholderEnd(value, start);
+        if (end === -1) break;
+
+        const raw = value.slice(start, end + 1);
+        const content = value.slice(start + 2, end);
+        const parsed = splitPlaceholderContent(content);
+        const key = parsed.key.trim();
+
+        if (/^[A-Z][A-Z0-9_]*$/.test(key)) {
+            result.push({
+                key,
+                raw,
+                hasDefault: parsed.hasDefault,
+                defaultValue: parsed.defaultValue
+            });
+        }
+
+        index = end + 1;
+    }
+
+    return result;
+}
+
 function resolveSpringPlaceholder(value) {
     if (typeof value !== 'string') return value;
     const val = value.trim();
-    const match = val.match(/^\$\{([^:]+):(.*)\}$/);
-    if (match) return match[2];
-    const matchNoDefault = val.match(/^\$\{([^:]+)\}$/);
-    if (matchNoDefault) return '';
+    const placeholders = extractEnvPlaceholders(val);
+    if (placeholders.length === 1 && placeholders[0].raw === val) {
+        return placeholders[0].hasDefault ? placeholders[0].defaultValue : '';
+    }
     return val;
 }
 
@@ -73,21 +148,29 @@ function buildReverseMapping(flattened) {
     const reverseMapping = {};
     Object.keys(flattened).forEach(flatKey => {
         const val = flattened[flatKey];
-        if (typeof val !== 'string') return;
-
-        const regex = /\$\{([A-Z0-9_]+)(?::[^}]*)?\}/g;
-        let match;
-        while ((match = regex.exec(val)) !== null) {
-            reverseMapping[match[1]] = val;
-        }
+        extractEnvPlaceholders(val).forEach(placeholder => {
+            reverseMapping[placeholder.key] = placeholder.raw;
+        });
     });
     return reverseMapping;
+}
+
+function extractAllPlaceholderConfig(flattened) {
+    const config = {};
+    Object.keys(flattened).forEach(flatKey => {
+        extractEnvPlaceholders(flattened[flatKey]).forEach(placeholder => {
+            if (Object.prototype.hasOwnProperty.call(config, placeholder.key)) return;
+            config[placeholder.key] = placeholder.hasDefault ? placeholder.defaultValue : '';
+        });
+    });
+    return config;
 }
 
 function extractConfigFromYaml({ data, flattened, configMeta, targetAppType }) {
     const reverseMapping = buildReverseMapping(flattened);
     const newConfig = {
-        APPTYPE: targetAppType
+        APPTYPE: targetAppType,
+        ...extractAllPlaceholderConfig(flattened)
     };
 
     Object.keys(configMeta).forEach(metaKey => {
@@ -213,7 +296,10 @@ function createYamlInitializer({
             return true;
         });
 
-        const missedExtraction = expectedKeys.filter(key => !newConfig[key] && !existingEnv[key]);
+        const missedExtraction = expectedKeys.filter(key => (
+            !Object.prototype.hasOwnProperty.call(newConfig, key)
+            && !Object.prototype.hasOwnProperty.call(existingEnv, key)
+        ));
         if (missedExtraction.length > 0) {
             logger.log?.(`[Info] ⚠️  The following ${missedExtraction.length} keys were expected but NOT found in YAML or .env. Using defaults:`);
             missedExtraction.forEach(key => {
@@ -257,7 +343,9 @@ function createYamlInitializer({
 module.exports = {
     buildReverseMapping,
     createYamlInitializer,
+    extractAllPlaceholderConfig,
     extractConfigFromYaml,
+    extractEnvPlaceholders,
     findYamlPath,
     flattenYaml,
     resolveSpringPlaceholder,

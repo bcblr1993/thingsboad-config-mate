@@ -180,6 +180,7 @@ async function init() {
         renderAll();
         checkAllDependencies(); // Initial check
         await refreshDeployment();
+        await checkInstallAvailability();
         initWorkbenchNavigation();
 
         // Start Polling Status
@@ -1951,14 +1952,19 @@ let installLogRemainder = '';
 let installHadError = false;
 
 async function checkInstallAvailability() {
+    const btn = document.getElementById('btn-install-init');
+    if (!btn) return;
+
     try {
         const res = await ConfigMateApi.checkInstall();
-        const data = await res.json();
-        if (data.exists) {
-            const btn = document.getElementById('btn-install-init');
-            if (btn) btn.style.display = 'block';
+        if (res.status === 401) {
+            btn.style.display = 'none';
+            return;
         }
+        const data = await res.json();
+        btn.style.display = data.exists ? 'block' : 'none';
     } catch (e) {
+        btn.style.display = 'none';
         console.error("Failed to check install availability", e);
     }
 }

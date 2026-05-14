@@ -155,7 +155,7 @@ function createEnvStore({
             outputLines.push('');
         });
 
-        const customKeys = Object.keys(config).filter(key => !processedKeys.has(key) && !metaSource[key]);
+        const customKeys = Object.keys(config).filter(key => !processedKeys.has(key));
         if (customKeys.length > 0) {
             outputLines.push('# === 自定义配置 (其他) ===');
             customKeys.forEach(key => outputLines.push(`${key}=${config[key]}`));
