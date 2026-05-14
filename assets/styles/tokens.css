@@ -1,0 +1,74 @@
+:root {
+    color-scheme: light;
+
+    /* Config Mate semantic palette. Keep business modules using these tokens only. */
+    --cm-background: #F6F8FB;
+    --cm-foreground: #111827;
+    --cm-muted: #667085;
+    --cm-muted-foreground: #7A8699;
+    --cm-surface: #FFFFFF;
+    --cm-surface-muted: #F8FAFC;
+    --cm-card: #FFFFFF;
+    --cm-card-foreground: #111827;
+    --cm-border: #D8E2EE;
+    --cm-border-subtle: #E7EDF5;
+    --cm-input: #D8E2EE;
+    --cm-ring: rgba(37, 99, 235, 0.22);
+
+    --cm-primary: #2563EB;
+    --cm-primary-hover: #1D4ED8;
+    --cm-primary-soft: #EFF6FF;
+    --cm-primary-foreground: #FFFFFF;
+
+    --cm-success: #059669;
+    --cm-success-soft: #ECFDF5;
+    --cm-success-border: #A7F3D0;
+    --cm-warning: #D97706;
+    --cm-warning-soft: #FFFBEB;
+    --cm-warning-border: #FDE68A;
+    --cm-danger: #DC2626;
+    --cm-danger-hover: #B91C1C;
+    --cm-danger-soft: #FEF2F2;
+    --cm-danger-border: #FECACA;
+    --cm-info: #0284C7;
+    --cm-info-soft: #F0F9FF;
+
+    --cm-radius-xs: 4px;
+    --cm-radius-sm: 6px;
+    --cm-radius-md: 8px;
+    --cm-radius-lg: 10px;
+    --cm-radius-xl: 14px;
+    --cm-radius-full: 999px;
+
+    --cm-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --cm-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --cm-shadow-lg: 0 18px 48px rgba(15, 23, 42, 0.14);
+
+    --cm-space-1: 4px;
+    --cm-space-2: 8px;
+    --cm-space-3: 12px;
+    --cm-space-4: 16px;
+    --cm-space-5: 20px;
+    --cm-space-6: 24px;
+    --cm-space-8: 32px;
+
+    --cm-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    --cm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --cm-text-xs: 12px;
+    --cm-text-sm: 13px;
+    --cm-text-base: 14px;
+    --cm-text-md: 15px;
+    --cm-text-lg: 18px;
+    --cm-text-xl: 22px;
+
+    /* Backward-compatible aliases for existing CSS. */
+    --primary: var(--cm-primary);
+    --bg: var(--cm-background);
+    --card-bg: var(--cm-card);
+    --text: var(--cm-foreground);
+    --muted: var(--cm-muted);
+    --border: var(--cm-border);
+    --success: var(--cm-success);
+    --danger: var(--cm-danger);
+    --radius: var(--cm-radius-md);
+}

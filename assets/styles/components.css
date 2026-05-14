@@ -1,0 +1,141 @@
+/* Shared component language inspired by shadcn/ui semantics. */
+
+.btn,
+.btn-header,
+.install-log-btn,
+.logs-btn,
+.history-action-btn,
+.service-actions button,
+.source-panel-actions button,
+.logout-btn {
+    border-radius: var(--cm-radius-md);
+    border: 1px solid var(--cm-border);
+    background: var(--cm-surface);
+    color: var(--cm-foreground);
+    box-shadow: var(--cm-shadow-sm);
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.btn:hover,
+.btn-header:hover,
+.install-log-btn:hover,
+.logs-btn:hover,
+.history-action-btn:hover,
+.service-actions button:hover,
+.source-panel-actions button:hover,
+.logout-btn:hover {
+    border-color: #B6C6DA;
+    background: var(--cm-surface-muted);
+    transform: translateY(-1px);
+}
+
+.btn:disabled,
+.btn-header:disabled,
+.install-log-btn:disabled,
+.logs-btn:disabled,
+.history-action-btn:disabled,
+.service-actions button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-primary,
+.btn-confirm {
+    border-color: var(--cm-primary);
+    background: var(--cm-primary);
+    color: var(--cm-primary-foreground);
+}
+
+.btn-primary:hover,
+.btn-confirm:hover {
+    border-color: var(--cm-primary-hover);
+    background: var(--cm-primary-hover);
+}
+
+.btn-danger,
+.cleanup-confirm-btn {
+    border-color: var(--cm-danger-border);
+    background: var(--cm-danger-soft);
+    color: var(--cm-danger);
+}
+
+.btn-danger:hover,
+.cleanup-confirm-btn:hover {
+    border-color: var(--cm-danger);
+    background: var(--cm-danger);
+    color: #FFFFFF;
+}
+
+.btn-ghost {
+    border-color: var(--cm-border);
+    background: var(--cm-surface);
+    color: var(--cm-foreground);
+}
+
+.field-input,
+.logs-search-input,
+.source-editor,
+.cleanup-confirm-label + input {
+    border-color: var(--cm-input);
+    border-radius: var(--cm-radius-md);
+    background: var(--cm-surface);
+    color: var(--cm-foreground);
+    transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.field-input:focus,
+.logs-search-input:focus,
+.source-editor:focus {
+    border-color: var(--cm-primary);
+    box-shadow: 0 0 0 3px var(--cm-ring);
+}
+
+.card,
+.service-card,
+.deployment-panel,
+.config-workspace,
+.group-section,
+.service-config-table,
+.modal-content,
+.confirm-box,
+.install-modal-content,
+.history-modal-content,
+.runtime-diff-table,
+.source-panel {
+    border-color: var(--cm-border);
+    border-radius: var(--cm-radius-xl);
+    background: var(--cm-card);
+    box-shadow: var(--cm-shadow-sm);
+}
+
+.service-status.running,
+.status-badge.running,
+.dependency-status-chip.running {
+    border-color: var(--cm-success-border);
+    background: var(--cm-success-soft);
+    color: var(--cm-success);
+}
+
+.service-status.stopped,
+.status-badge.stopped {
+    border-color: var(--cm-border);
+    background: var(--cm-surface-muted);
+    color: var(--cm-muted);
+}
+
+.dependency-status-chip.pending,
+.overview-warning,
+.install-state-badge.running {
+    border-color: var(--cm-warning-border);
+    background: var(--cm-warning-soft);
+    color: var(--cm-warning);
+}
+
+.toast,
+.alert-banner,
+.cleanup-warning,
+.info-banner,
+.validate-modal-msg {
+    border-radius: var(--cm-radius-lg);
+}

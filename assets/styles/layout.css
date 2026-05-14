@@ -1,0 +1,50 @@
+.header {
+    background: rgba(255, 255, 255, 0.92);
+    border-bottom-color: var(--cm-border);
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+.header-inner {
+    gap: var(--cm-space-4);
+}
+
+.content {
+    background:
+        linear-gradient(180deg, rgba(239, 246, 255, 0.58), rgba(246, 248, 251, 0) 260px),
+        var(--cm-background);
+}
+
+.deployment-header,
+.config-workspace-header,
+.source-panel-header,
+.install-header,
+.modal-header {
+    border-color: var(--cm-border-subtle);
+}
+
+.deployment-overview {
+    border-color: var(--cm-border);
+}
+
+.action-bar {
+    border-color: var(--cm-border);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: var(--cm-shadow-lg);
+}
+
+.action-title,
+.deployment-title,
+.config-workspace-title,
+.service-config-title,
+.source-panel-title {
+    color: var(--cm-foreground);
+    letter-spacing: 0;
+}
+
+.action-subtitle,
+.deployment-subtitle,
+.config-workspace-meta,
+.service-config-path,
+.source-panel-meta {
+    color: var(--cm-muted);
+}

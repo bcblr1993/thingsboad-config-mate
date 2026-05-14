@@ -1,0 +1,62 @@
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--cm-font-sans);
+    background: var(--cm-background);
+    color: var(--cm-foreground);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+button {
+    letter-spacing: 0;
+}
+
+code,
+pre,
+.var-code,
+.source-editor,
+.install-terminal,
+.logs-content {
+    font-family: var(--cm-font-mono);
+}
+
+*:focus-visible {
+    outline: 2px solid var(--cm-ring);
+    outline-offset: 2px;
+}
+
+::selection {
+    background: rgba(37, 99, 235, 0.18);
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border: 3px solid transparent;
+    border-radius: var(--cm-radius-full);
+    background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
