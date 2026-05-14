@@ -64,12 +64,6 @@ interface Window {
     /** Installed by /assets/modules/ui-core.js IIFE. */
     ConfigMateUi: LegacyConfigMateUi;
 
-    /** Installed by /assets/modules/logs-ui.js IIFE. */
-    ConfigMateLogsUi: { createLogViewer: (options: any) => any };
-
-    /** Installed by /assets/modules/history-ui.js IIFE. */
-    ConfigMateHistoryUi: { createHistoryUi: (options: any) => any };
-
     /** Backend-injected runtime config (see core/env.js). Optional. */
     __CM_ENV__?: BackendInjectedEnv;
 

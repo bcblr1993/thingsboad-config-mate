@@ -1426,9 +1426,7 @@ let logsController = null;
 
 function getLogsController() {
     if (!logsController) {
-        const factory = (window.__CM__ && window.__CM__.components.logViewer.createLogViewer)
-            || ConfigMateLogsUi.createLogViewer;
-        logsController = factory({
+        logsController = window.__CM__.components.logViewer.createLogViewer({
             logsUrl: serviceId => ConfigMateApi.logsUrl(serviceId),
             showToast
         });
@@ -1740,9 +1738,7 @@ let historyUi = null;
 
 function getHistoryUi() {
     if (!historyUi) {
-        const factory = (window.__CM__ && window.__CM__.components.historyViewer.createHistoryUi)
-            || ConfigMateHistoryUi.createHistoryUi;
-        historyUi = factory({
+        historyUi = window.__CM__.components.historyViewer.createHistoryUi({
             api: ConfigMateApi,
             customConfirm,
             getEnvPath: () => ({
