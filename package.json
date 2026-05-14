@@ -22,6 +22,10 @@
         "dev": "node tb-config-src.js --dev",
         "check": "node scripts/check.js",
         "type-check": "tsc --noEmit",
+        "lint": "eslint assets/src/",
+        "lint:fix": "eslint assets/src/ --fix",
+        "format": "prettier --write assets/src/",
+        "format:check": "prettier --check assets/src/",
         "dist:image-build": "bash scripts/prepare-image-build-dist.sh",
         "clean": "rm -rf dist node_modules/.cache",
         "build": "npm run clean && pkg .",
@@ -34,6 +38,10 @@
         "pkg": "^5.8.1"
     },
     "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "eslint": "^10.3.0",
+        "globals": "^17.6.0",
+        "prettier": "^3.8.3",
         "typescript": "^5.9.3"
     }
 }

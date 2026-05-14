@@ -2,8 +2,6 @@
  * Display formatters. Pure functions, locale-aware where it matters.
  */
 
-const ZH_LOCALE = 'zh-CN';
-
 /** Format bytes as B / KB / MB / GB / TB with 1 decimal. */
 export function formatBytes(bytes, decimals = 1) {
     if (bytes === null || bytes === undefined || Number.isNaN(Number(bytes))) return '--';

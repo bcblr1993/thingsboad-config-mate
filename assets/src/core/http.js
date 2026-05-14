@@ -77,7 +77,7 @@ async function parseBody(res) {
 }
 
 async function request(url, options = {}) {
-    let ctx = await runRequestInterceptors({
+    const ctx = await runRequestInterceptors({
         url,
         options: { ...options },
         method: (options.method || 'GET').toUpperCase(),

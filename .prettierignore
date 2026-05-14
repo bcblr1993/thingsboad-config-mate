@@ -1,0 +1,27 @@
+# Prettier scope mirrors ESLint scope: only the new ESM tree.
+# Legacy assets/{api,app}.js and assets/modules/* keep their existing style
+# until they're migrated.
+
+dist/
+node_modules/
+package-lock.json
+
+# Legacy frontend (unchanged)
+assets/api.js
+assets/app.js
+assets/modules/
+assets/styles.css
+
+# Backend
+src/
+tb-config-src.js
+config-meta.js
+scripts/
+conf/
+contexts/
+meta/
+test/
+
+# Docs
+docs/
+*.md
