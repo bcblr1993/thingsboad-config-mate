@@ -38,6 +38,7 @@ import * as constants from './constants/index.js';
 import * as utils from './utils/index.js';
 
 import { createLogViewer } from './components/log-viewer/log-viewer.js';
+import { createHistoryUi } from './components/history-viewer/history-viewer.js';
 
 const bridge = Object.freeze({
     http,
@@ -62,7 +63,8 @@ const bridge = Object.freeze({
     utils,
 
     components: {
-        logViewer: { createLogViewer }
+        logViewer:     { createLogViewer },
+        historyViewer: { createHistoryUi }
     }
 });
 
