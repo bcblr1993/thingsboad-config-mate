@@ -60,16 +60,12 @@ docker load -i images/tb-config-mate_linux_arm64.tar.gz
 
 ```bash
 cat > .config-mate.env <<EOF
-DEPLOY_ROOT=$(pwd)
-CONFIG_MATE_PORT=3300
 CONFIG_MATE_PASSWORD=请改成你的登录密码
 EOF
 ```
 
 说明：
 
-- `DEPLOY_ROOT`：当前安装包目录，保持 `$(pwd)` 即可。
-- `CONFIG_MATE_PORT`：Web 访问端口，默认用 `3300`。
 - `CONFIG_MATE_PASSWORD`：登录密码，必须设置。
 
 一般不需要配置 `APP_TYPE`，程序会自动识别 Cloud 或 Edge。
@@ -78,50 +74,45 @@ EOF
 
 如果安装包里已经有 Config Mate 的 compose 配置，可以跳过这一步。
 
-如果没有，在安装包根目录创建 `docker-compose.config-mate.yml`：
+如果没有，在安装包根目录创建 `docker-compose.yml`：
 
 ```yaml
 services:
   config-mate:
     image: tb-config-mate:latest
     container_name: tb-config-mate
+    env_file:
+      - .config-mate.env
     ports:
-      - "${CONFIG_MATE_PORT:-3300}:3300"
-    working_dir: "${DEPLOY_ROOT}"
+      - "3300:3300"
+    working_dir: "${PWD}"
     environment:
-      APP_ROOT: "${DEPLOY_ROOT}"
-      CONFIG_MATE_PASSWORD: "${CONFIG_MATE_PASSWORD}"
+      APP_ROOT: "${PWD}"
       PORT: "3300"
       NO_BROWSER: "1"
       TZ: Asia/Shanghai
     volumes:
-      - "${DEPLOY_ROOT}:${DEPLOY_ROOT}"
+      - "${PWD}:${PWD}"
       - /var/run/docker.sock:/var/run/docker.sock
     restart: always
 ```
 
 注意：
 
-- `DEPLOY_ROOT` 必须是整个 `sprixin-iotcloud` 或 `sprixin-iotedge` 安装包根目录。
+- 必须在整个 `sprixin-iotcloud` 或 `sprixin-iotedge` 安装包根目录执行 `docker compose`。
 - 不建议只映射 `services/iotcloud` 或 `services/iotedge`，否则页面无法统一管理 `postgres`、`redis`、`kafka`、`cassandra` 等服务。
 - `/var/run/docker.sock` 用于让 Config Mate 控制宿主机 Docker 容器，必须挂载。
 
 ## 6. 启动 Config Mate
 
 ```bash
-docker compose --env-file .config-mate.env -f docker-compose.config-mate.yml up -d
+docker compose up -d
 ```
 
 如果现场使用旧版命令：
 
 ```bash
-docker-compose --env-file .config-mate.env -f docker-compose.config-mate.yml up -d
-```
-
-如果安装包自带的 `docker-compose.yml` 里已经包含 `config-mate` 服务，也可以使用：
-
-```bash
-docker compose --env-file .config-mate.env up -d config-mate
+docker-compose up -d
 ```
 
 ## 7. 访问页面
@@ -172,7 +163,7 @@ docker stop tb-config-mate
 再次启动：
 
 ```bash
-docker compose --env-file .config-mate.env -f docker-compose.config-mate.yml up -d
+docker compose up -d
 ```
 
 ## 10. 更新 Config Mate
@@ -181,7 +172,7 @@ docker compose --env-file .config-mate.env -f docker-compose.config-mate.yml up 
 
 ```bash
 docker load -i images/tb-config-mate_linux_amd64.tar.gz
-docker compose --env-file .config-mate.env -f docker-compose.config-mate.yml up -d
+docker compose up -d
 ```
 
 ARM 服务器把文件名换成：

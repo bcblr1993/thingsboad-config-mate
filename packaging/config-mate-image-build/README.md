@@ -193,7 +193,7 @@ docker load -i images/tb-config-mate_latest.tar.gz
 复制启动文件：
 
 ```bash
-cp /opt/config-mate-image-build/deploy/docker-compose.yml ./docker-compose.config-mate.yml
+cp /opt/config-mate-image-build/deploy/docker-compose.yml ./docker-compose.yml
 cp /opt/config-mate-image-build/deploy/config-mate.env.example ./.config-mate.env
 ```
 
@@ -206,16 +206,12 @@ vi .config-mate.env
 最少需要修改：
 
 ```env
-DEPLOY_ROOT=/opt/sprixin-iotcloud
-CONFIG_MATE_PORT=3300
 CONFIG_MATE_PASSWORD=现场登录密码
 ```
 
 如果是 Edge 包：
 
 ```env
-DEPLOY_ROOT=/opt/sprixin-iotedge
-CONFIG_MATE_PORT=3300
 CONFIG_MATE_PASSWORD=现场登录密码
 ```
 
@@ -224,13 +220,13 @@ CONFIG_MATE_PASSWORD=现场登录密码
 启动：
 
 ```bash
-docker compose --env-file .config-mate.env -f docker-compose.config-mate.yml up -d
+docker compose up -d
 ```
 
 如果服务器只有旧命令：
 
 ```bash
-docker-compose --env-file .config-mate.env -f docker-compose.config-mate.yml up -d
+docker-compose up -d
 ```
 
 ## 5. 访问页面
@@ -269,13 +265,13 @@ docker restart tb-config-mate
 停止：
 
 ```bash
-docker compose --env-file .config-mate.env -f docker-compose.config-mate.yml down
+docker compose down
 ```
 
 ## 7. 注意事项
 
-- `DEPLOY_ROOT` 必须填写安装包绝对路径。
-- `DEPLOY_ROOT` 必须挂载到容器内相同绝对路径，不能改成 `/app` 之类的路径。
+- 必须在安装包根目录执行 `docker compose up -d`。
+- `docker-compose.yml` 会用当前目录 `$PWD` 作为 `APP_ROOT`，并挂载到容器内相同绝对路径，不能改成 `/app` 之类的路径。
 - 必须挂载 `/var/run/docker.sock`，否则页面只能查看配置，不能控制宿主机容器。
 - 这个容器拥有宿主机 Docker 管理权限，必须设置强登录密码。
 - 不建议只映射 `services/iotcloud` 或 `services/iotedge`，否则无法管理 PostgreSQL、Redis、Kafka、Cassandra 等依赖服务。

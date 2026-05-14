@@ -23,13 +23,11 @@ ThingBoard Config Mate 是一个专为 ThingsBoard Docker 部署环境设计的�
 ```bash
 # 在 sprixin-iotcloud 或 sprixin-iotedge 根目录执行
 cat > .config-mate.env <<EOF
-DEPLOY_ROOT=$(pwd)
-CONFIG_MATE_PORT=3300
 CONFIG_MATE_PASSWORD=请替换为强口令
 EOF
 
 docker load -i images/tb-config-mate_latest.tar.gz
-docker compose --env-file .config-mate.env up -d config-mate
+docker compose up -d
 ```
 
 访问 `http://服务器IP:3300` 后可在 Web 控制台中管理 `postgres`、`redis`、`kafka`、`cassandra`、`netdata`、`wechat` 以及 `iotcloud/iotedge`。

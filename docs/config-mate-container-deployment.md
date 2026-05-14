@@ -8,7 +8,7 @@ Config Mate 已从“安装包目录里的本地配置工具”改造成“容�
 - 容器内包含 Node.js、项目代码、Docker CLI、Docker Compose v2 插件。
 - 容器不运行 Docker daemon，而是通过挂载宿主机 `/var/run/docker.sock` 管理宿主机 Docker。
 - 容器挂载整个安装包根目录，并通过 `APP_ROOT` 识别 `services/iotcloud/.env` 或 `services/iotedge/.env`。
-- Web 默认端口为 `3300`，实际宿主机端口由 `CONFIG_MATE_PORT` 控制。
+- Web 默认端口为 `3300`，如需调整宿主机端口，直接修改 `docker-compose.yml` 的端口映射。
 - Web 必须使用 `CONFIG_MATE_PASSWORD` 登录，因为挂载 docker.sock 后权限很高。
 
 ## 2. install.sh 当前职责
@@ -32,8 +32,6 @@ Cloud 包和 Edge 包的 `install.sh` 现在职责一致。`APP_TYPE` 可以写�
 `.config-mate.env` 内容示例：
 
 ```env
-DEPLOY_ROOT=/opt/sprixin-iotcloud
-CONFIG_MATE_PORT=3300
 CONFIG_MATE_PASSWORD=自动生成或已有密码
 ```
 
@@ -115,23 +113,23 @@ services:
   config-mate:
     image: tb-config-mate:latest
     container_name: tb-config-mate
+    env_file:
+      - .config-mate.env
     ports:
-      - "${CONFIG_MATE_PORT:-3300}:3300"
-    working_dir: "${DEPLOY_ROOT:?DEPLOY_ROOT is required}"
+      - "3300:3300"
+    working_dir: "${PWD:?Please run docker compose from the deploy package root}"
     environment:
-      APP_ROOT: "${DEPLOY_ROOT:?DEPLOY_ROOT is required}"
-      APP_TYPE: "${APP_TYPE:-}"
-      CONFIG_MATE_PASSWORD: "${CONFIG_MATE_PASSWORD:?CONFIG_MATE_PASSWORD is required}"
+      APP_ROOT: "${PWD:?Please run docker compose from the deploy package root}"
       PORT: "3300"
       NO_BROWSER: "1"
       TZ: Asia/Shanghai
     volumes:
-      - "${DEPLOY_ROOT:?DEPLOY_ROOT is required}:${DEPLOY_ROOT:?DEPLOY_ROOT is required}"
+      - "${PWD:?Please run docker compose from the deploy package root}:${PWD:?Please run docker compose from the deploy package root}"
       - /var/run/docker.sock:/var/run/docker.sock
     restart: always
 ```
 
-关键点：`DEPLOY_ROOT` 必须映射到容器内相同绝对路径，避免业务 compose 里的 `./data`、`./conf` 相对路径解析错误。
+关键点：必须在安装包根目录执行 `docker compose up -d`，让 `$PWD` 映射到容器内相同绝对路径，避免业务 compose 里的 `./data`、`./conf` 相对路径解析错误。
 
 ## 6. 有 install.sh 的推荐启动方式
 
@@ -169,18 +167,16 @@ cd /opt/sprixin-iotcloud
 docker load -i images/tb-config-mate_latest.tar.gz
 
 cat > .config-mate.env <<EOF
-DEPLOY_ROOT=$(pwd)
-CONFIG_MATE_PORT=3300
 CONFIG_MATE_PASSWORD=$(openssl rand -hex 12)
 EOF
 
-docker compose --env-file .config-mate.env up -d config-mate
+docker compose up -d
 ```
 
 如果服务器只有 `docker-compose` 命令：
 
 ```bash
-docker-compose --env-file .config-mate.env up -d config-mate
+docker-compose up -d
 ```
 
 查看密码：
@@ -198,13 +194,13 @@ Edge 包同样可以使用这套命令。只要安装包内存在 `services/iote
 ```bash
 cd /opt/sprixin-iotcloud
 docker load -i images/tb-config-mate_latest.tar.gz
-docker compose --env-file .config-mate.env up -d config-mate
+docker compose up -d
 ```
 
 如果仍使用旧 `docker-compose`：
 
 ```bash
-docker-compose --env-file .config-mate.env up -d config-mate
+docker-compose up -d
 ```
 
 确认运行：
@@ -232,17 +228,14 @@ docker inspect tb-config-mate --format '{{json .Mounts}}'
 
 ### 页面提示 APP_ROOT 路径错误
 
-检查 `.config-mate.env`：
+通常是没有在安装包根目录执行启动命令。请确认：
 
 ```bash
-cat .config-mate.env
+pwd
+ls services
 ```
 
-`DEPLOY_ROOT` 必须是安装包根目录的绝对路径，例如：
-
-```env
-DEPLOY_ROOT=/opt/sprixin-iotcloud
-```
+目录下应能看到 `services/iotcloud` 或 `services/iotedge`。
 
 ### 镜像架构不匹配
 
@@ -278,5 +271,5 @@ cat .config-mate.env
 修改 `CONFIG_MATE_PASSWORD` 后重启：
 
 ```bash
-docker compose --env-file .config-mate.env up -d config-mate
+docker compose up -d
 ```
