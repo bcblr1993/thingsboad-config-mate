@@ -13,7 +13,7 @@ Config Mate 已从“安装包目录里的本地配置工具”改造成“容�
 
 ## 2. install.sh 当前职责
 
-Cloud 包和 Edge 包的 `install.sh` 现在职责一致。`APP_TYPE` 可以写入 `.config-mate.env`，但不是必须项；Config Mate 会自动识别安装包类型。
+Cloud 包和 Edge 包的 `install.sh` 现在职责一致。`APP_TYPE` 可以写入 `services/config-mate/.env`，但不是必须项；Config Mate 会自动识别安装包类型。
 
 现在 `install.sh` 做这些事：
 
@@ -24,12 +24,12 @@ Cloud 包和 Edge 包的 `install.sh` 现在职责一致。`APP_TYPE` 可以写�
 5. 创建 `proxy` 网络。
 6. 确保 docker 组存在，并重启 Docker。
 7. 确保 `/etc/timezone` 存在。
-8. 生成或复用 `.config-mate.env`。
+8. 生成或复用 `services/config-mate/.env`。
 9. 只启动 `config-mate` 容器。
 
 现在 `install.sh` 不再自动启动 iotcloud/iotedge 业务服务。业务服务、依赖服务、初始化安装、日志查看等都进入 Web 控制台处理。
 
-`.config-mate.env` 内容示例：
+`services/config-mate/.env` 内容示例：
 
 ```env
 CONFIG_MATE_PASSWORD=自动生成或已有密码
@@ -106,7 +106,7 @@ cp tb-config-mate_latest.tar.gz /opt/sprixin-iotedge/images/
 
 ## 5. 现场安装包需要有 config-mate compose
 
-安装包根目录的 `docker-compose.yml` 需要包含：
+推荐在安装包中创建 `services/config-mate/docker-compose.yml`：
 
 ```yaml
 services:
@@ -114,22 +114,22 @@ services:
     image: tb-config-mate:latest
     container_name: tb-config-mate
     env_file:
-      - .config-mate.env
+      - .env
     ports:
       - "3300:3300"
-    working_dir: "${PWD:?Please run docker compose from the deploy package root}"
+    working_dir: "${PWD:?Please run docker compose from services/config-mate}/../.."
     environment:
-      APP_ROOT: "${PWD:?Please run docker compose from the deploy package root}"
+      APP_ROOT: "${PWD:?Please run docker compose from services/config-mate}/../.."
       PORT: "3300"
       NO_BROWSER: "1"
       TZ: Asia/Shanghai
     volumes:
-      - "${PWD:?Please run docker compose from the deploy package root}:${PWD:?Please run docker compose from the deploy package root}"
+      - "${PWD:?Please run docker compose from services/config-mate}/../..:${PWD:?Please run docker compose from services/config-mate}/../.."
       - /var/run/docker.sock:/var/run/docker.sock
     restart: always
 ```
 
-关键点：必须在安装包根目录执行 `docker compose up -d`，让 `$PWD` 映射到容器内相同绝对路径，避免业务 compose 里的 `./data`、`./conf` 相对路径解析错误。
+关键点：必须在 `services/config-mate` 目录执行 `docker compose up -d`。这样 `${PWD}/../..` 会自动指向整个安装包根目录，并映射到容器内相同绝对路径，避免业务 compose 里的 `./data`、`./conf` 相对路径解析错误。
 
 ## 6. 有 install.sh 的推荐启动方式
 
@@ -166,7 +166,10 @@ cd /opt/sprixin-iotcloud
 
 docker load -i images/tb-config-mate_latest.tar.gz
 
-cat > .config-mate.env <<EOF
+mkdir -p services/config-mate
+cd services/config-mate
+
+cat > .env <<EOF
 CONFIG_MATE_PASSWORD=$(openssl rand -hex 12)
 EOF
 
@@ -182,7 +185,7 @@ docker-compose up -d
 查看密码：
 
 ```bash
-cat .config-mate.env
+cat .env
 ```
 
 Edge 包同样可以使用这套命令。只要安装包内存在 `services/iotedge`，或者 `services/iotedge/.env` 中存在 `APP_TYPE=EDGE` / `APPTYPE=EDGE`，Config Mate 会自动识别为 Edge。
@@ -194,6 +197,7 @@ Edge 包同样可以使用这套命令。只要安装包内存在 `services/iote
 ```bash
 cd /opt/sprixin-iotcloud
 docker load -i images/tb-config-mate_latest.tar.gz
+cd services/config-mate
 docker compose up -d
 ```
 
@@ -228,14 +232,14 @@ docker inspect tb-config-mate --format '{{json .Mounts}}'
 
 ### 页面提示 APP_ROOT 路径错误
 
-通常是没有在安装包根目录执行启动命令。请确认：
+通常是没有在 `services/config-mate` 目录执行启动命令。请确认：
 
 ```bash
 pwd
-ls services
+ls ../..
 ```
 
-目录下应能看到 `services/iotcloud` 或 `services/iotedge`。
+`../..` 下应能看到 `services/iotcloud` 或 `services/iotedge`。
 
 ### 镜像架构不匹配
 
@@ -265,11 +269,13 @@ docker build --platform linux/amd64 -t tb-config-mate:latest .
 查看安装包根目录：
 
 ```bash
-cat .config-mate.env
+cd /opt/sprixin-iotcloud
+cat services/config-mate/.env
 ```
 
 修改 `CONFIG_MATE_PASSWORD` 后重启：
 
 ```bash
+cd services/config-mate
 docker compose up -d
 ```

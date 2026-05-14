@@ -3,16 +3,16 @@ services:
     image: tb-config-mate:latest
     container_name: tb-config-mate
     env_file:
-      - .config-mate.env
+      - .env
     ports:
       - "3300:3300"
-    working_dir: "${PWD:?Please run docker compose from the deploy package root}"
+    working_dir: "${PWD:?Please run docker compose from services/config-mate}/../.."
     environment:
-      APP_ROOT: "${PWD:?Please run docker compose from the deploy package root}"
+      APP_ROOT: "${PWD:?Please run docker compose from services/config-mate}/../.."
       PORT: "3300"
       NO_BROWSER: "1"
       TZ: Asia/Shanghai
     volumes:
-      - "${PWD:?Please run docker compose from the deploy package root}:${PWD:?Please run docker compose from the deploy package root}"
+      - "${PWD:?Please run docker compose from services/config-mate}/../..:${PWD:?Please run docker compose from services/config-mate}/../.."
       - /var/run/docker.sock:/var/run/docker.sock
     restart: always

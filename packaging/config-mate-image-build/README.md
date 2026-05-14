@@ -22,13 +22,13 @@ config-mate-image-build/
 ├── save-image.sh
 └── deploy/
     ├── docker-compose.yml
-    └── config-mate.env.example
+    └── .env.example
 ```
 
 - `Dockerfile.base`：构建基础镜像，包含 Node、Docker CLI、Docker Compose、npm 依赖。
 - `Dockerfile`：构建应用镜像，只复制 Config Mate 代码和静态资源。
 - `deploy/docker-compose.yml`：现场生产启动 Config Mate 的 compose 文件。
-- `deploy/config-mate.env.example`：现场环境变量模板。
+- `deploy/.env.example`：现场环境变量模板。
 - `build-base.sh`：构建基础镜像，依赖变化或首次构建时执行。
 - `build-image.sh`：构建应用镜像，日常改代码后只执行这个。
 - `build-all.sh`：一次性构建基础镜像和应用镜像。
@@ -193,14 +193,15 @@ docker load -i images/tb-config-mate_latest.tar.gz
 复制启动文件：
 
 ```bash
-cp /opt/config-mate-image-build/deploy/docker-compose.yml ./docker-compose.yml
-cp /opt/config-mate-image-build/deploy/config-mate.env.example ./.config-mate.env
+mkdir -p services/config-mate
+cp /opt/config-mate-image-build/deploy/docker-compose.yml services/config-mate/docker-compose.yml
+cp /opt/config-mate-image-build/deploy/.env.example services/config-mate/.env
 ```
 
-编辑 `.config-mate.env`：
+编辑 `services/config-mate/.env`：
 
 ```bash
-vi .config-mate.env
+vi services/config-mate/.env
 ```
 
 最少需要修改：
@@ -217,7 +218,11 @@ CONFIG_MATE_PASSWORD=现场登录密码
 
 `APP_TYPE` 一般留空即可。程序会自动按 `services/iotcloud` 或 `services/iotedge` 识别 Cloud/Edge。
 
-启动：
+进入 `services/config-mate` 启动：
+
+```bash
+cd services/config-mate
+```
 
 ```bash
 docker compose up -d
@@ -240,7 +245,7 @@ http://服务器IP:3300
 登录：
 
 - 操作员名称：现场操作人名称，例如 `admin`
-- 管理口令：`.config-mate.env` 中的 `CONFIG_MATE_PASSWORD`
+- 管理口令：`services/config-mate/.env` 中的 `CONFIG_MATE_PASSWORD`
 
 ## 6. 常用维护命令
 
@@ -265,13 +270,14 @@ docker restart tb-config-mate
 停止：
 
 ```bash
+cd /opt/sprixin-iotcloud/services/config-mate
 docker compose down
 ```
 
 ## 7. 注意事项
 
-- 必须在安装包根目录执行 `docker compose up -d`。
-- `docker-compose.yml` 会用当前目录 `$PWD` 作为 `APP_ROOT`，并挂载到容器内相同绝对路径，不能改成 `/app` 之类的路径。
+- 必须在 `services/config-mate` 目录执行 `docker compose up -d`。
+- 不需要配置 `DEPLOY_ROOT`；`docker-compose.yml` 会用当前目录 `$PWD/../..` 作为 `APP_ROOT`，并挂载到容器内相同绝对路径，不能改成 `/app` 之类的路径。
 - 必须挂载 `/var/run/docker.sock`，否则页面只能查看配置，不能控制宿主机容器。
 - 这个容器拥有宿主机 Docker 管理权限，必须设置强登录密码。
 - 不建议只映射 `services/iotcloud` 或 `services/iotedge`，否则无法管理 PostgreSQL、Redis、Kafka、Cassandra 等依赖服务。
