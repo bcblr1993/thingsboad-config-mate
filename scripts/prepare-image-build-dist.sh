@@ -4,9 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="${ROOT_DIR}/dist/config-mate-image-build"
 TEMPLATE_DIR="${ROOT_DIR}/packaging/config-mate-image-build"
+VERSION="$(node -p "require('${ROOT_DIR}/package.json').version")"
+VERSIONED_ARCHIVE="${ROOT_DIR}/dist/config-mate-image-build-v${VERSION}.tar.gz"
+LEGACY_ARCHIVE="${ROOT_DIR}/dist/config-mate-image-build.tar.gz"
 
 rm -rf "${OUT_DIR}"
 mkdir -p "${OUT_DIR}"
+rm -f "${ROOT_DIR}"/dist/config-mate-image-build*.tar.gz
 
 copy_path() {
   local source="$1"
@@ -37,7 +41,9 @@ copy_path "${TEMPLATE_DIR}/scripts/save-image.sh" "${OUT_DIR}/save-image.sh"
 
 chmod +x "${OUT_DIR}/build-base.sh" "${OUT_DIR}/build-image.sh" "${OUT_DIR}/build-all.sh" "${OUT_DIR}/save-image.sh"
 
-tar -czf "${ROOT_DIR}/dist/config-mate-image-build.tar.gz" -C "${ROOT_DIR}/dist" config-mate-image-build
+tar -czf "${VERSIONED_ARCHIVE}" -C "${ROOT_DIR}/dist" config-mate-image-build
+cp "${VERSIONED_ARCHIVE}" "${LEGACY_ARCHIVE}"
 
 echo "Prepared ${OUT_DIR}"
-echo "Prepared ${ROOT_DIR}/dist/config-mate-image-build.tar.gz"
+echo "Prepared ${VERSIONED_ARCHIVE}"
+echo "Prepared ${LEGACY_ARCHIVE}"
