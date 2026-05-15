@@ -30,6 +30,7 @@ import { HttpError, BizError, TimeoutError } from './core/errors.js';
 import { env } from './core/env.js';
 import { logger } from './core/logger.js';
 import { stateBridge } from './core/state-bridge.js';
+import { router } from './core/router.js';
 
 import { authApi, configApi, serviceApi, installApi, systemApi, legacyApi } from './api/index.js';
 
@@ -42,6 +43,14 @@ import * as utils from './utils/index.js';
 
 import { createLogViewer } from './components/log-viewer/log-viewer.js';
 import { createHistoryUi } from './components/history-viewer/history-viewer.js';
+import * as formValidator from './components/form/validator.js';
+import * as formField from './components/form/field.js';
+
+import * as deploymentPage from './pages/deployment.page.js';
+import * as configPage from './pages/config.page.js';
+import * as loginPage from './pages/login.page.js';
+
+import { permission } from './utils/permission.js';
 
 const bridge = Object.freeze({
     http,
@@ -51,6 +60,8 @@ const bridge = Object.freeze({
     env,
     logger,
     stateBridge,
+    router,
+    permission,
 
     api: {
         auth:    authApi,
@@ -74,7 +85,17 @@ const bridge = Object.freeze({
 
     components: {
         logViewer:     { createLogViewer },
-        historyViewer: { createHistoryUi }
+        historyViewer: { createHistoryUi },
+        form: {
+            validator: formValidator,
+            field:     formField
+        }
+    },
+
+    pages: {
+        deployment: deploymentPage,
+        config:     configPage,
+        login:      loginPage
     }
 });
 

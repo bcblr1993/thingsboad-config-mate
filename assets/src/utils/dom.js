@@ -31,6 +31,10 @@ export function $$(selector, scope = document) {
  *     el('h3', {}, 'Title'),
  *     'plain text'
  *   ])
+ *
+ * @param {string} tag
+ * @param {Record<string, any>} [attrs]
+ * @param {Node | string | number | null | false | Array<Node | string | number | null | false>} [children]
  */
 export function el(tag, attrs = {}, children = []) {
     const node = document.createElement(tag);
