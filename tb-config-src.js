@@ -118,10 +118,19 @@ const systemRoutes = createSystemRoutes({
 let serviceRoutes = null;
 let serviceComposeConfigBuilder = null;
 
-function buildDiagnosticItem(id, label, ok, detail, severity = 'error') {
+function shortDiagnosticPath(value) {
+    if (!value) return '';
+    const normalized = String(value).replace(/\\/g, '/');
+    const parts = normalized.split('/').filter(Boolean);
+    if (parts.length <= 3) return normalized;
+    return `.../${parts.slice(-3).join('/')}`;
+}
+
+function buildDiagnosticItem(id, label, target, ok, detail, severity = 'error') {
     return {
         id,
         label,
+        target,
         state: ok ? 'ok' : severity,
         detail
     };
@@ -137,18 +146,21 @@ function buildDeploymentDiagnostics() {
         buildDiagnosticItem(
             'app-root',
             '安装包目录',
+            shortDiagnosticPath(APP_ROOT),
             fs.existsSync(APP_ROOT),
             fs.existsSync(APP_ROOT) ? APP_ROOT : `目录不存在：${APP_ROOT}`
         ),
         buildDiagnosticItem(
             'app-env',
-            '业务配置',
+            '业务配置 .env',
+            shortDiagnosticPath(ENV_FILE_PATH),
             fs.existsSync(ENV_FILE_PATH),
             fs.existsSync(ENV_FILE_PATH) ? ENV_FILE_PATH : `未找到 .env：${ENV_FILE_PATH}`
         ),
         buildDiagnosticItem(
             'yaml-config',
             'YAML 模板',
+            YAML_CONFIG_PATH ? shortDiagnosticPath(YAML_CONFIG_PATH) : 'conf/*.yml',
             !!YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH),
             YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH) ? YAML_CONFIG_PATH : '未找到 YAML 模板，首次补全配置可能不完整。',
             'warning'
@@ -156,24 +168,28 @@ function buildDeploymentDiagnostics() {
         buildDiagnosticItem(
             'docker-socket',
             'Docker Socket',
+            '/var/run/docker.sock',
             socketMounted,
             socketMounted ? '/var/run/docker.sock 已挂载' : '未挂载 /var/run/docker.sock，无法控制宿主机 Docker。'
         ),
         buildDiagnosticItem(
             'docker-compose',
             'Docker Compose',
+            dockerRuntime.dockerComposeCmd || 'docker compose',
             !dockerMessage,
             dockerMessage || `${dockerRuntime.dockerComposeCmd || 'docker compose'} 可用`
         ),
         buildDiagnosticItem(
             'app-compose',
             '业务 Compose',
+            appDef?.composePath ? shortDiagnosticPath(appDef.composePath) : '业务 docker-compose.yml',
             !!appDef?.exists,
             appDef?.exists ? appDef.composePath : `未找到 ${appDef?.composePath || '业务 compose'}`
         ),
         buildDiagnosticItem(
             'service-compose',
             '服务 Compose',
+            `${existingServices.length}/${serviceDefs.length} 个 compose`,
             existingServices.length > 0,
             `${existingServices.length}/${serviceDefs.length} 个服务 compose 可用`,
             'warning'
@@ -181,6 +197,7 @@ function buildDeploymentDiagnostics() {
         buildDiagnosticItem(
             'auth',
             '登录保护',
+            'CONFIG_MATE_PASSWORD',
             AUTH_REQUIRED,
             AUTH_REQUIRED ? '已启用管理口令' : '未配置 CONFIG_MATE_PASSWORD，高权限控制台未受保护。',
             'warning'
