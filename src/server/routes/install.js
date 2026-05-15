@@ -104,8 +104,9 @@ function createInstallRoutes({
             return;
         }
 
-        const argsDown = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'down'];
-        const argsUp = [...dockerRuntime.dockerComposeCmdArgs, '-f', appDef.installComposeAbsPath, 'up'];
+        const installDef = { ...appDef, composeAbsPath: appDef.installComposeAbsPath };
+        const argsDown = dockerRuntime.composeArgsFor(installDef, ['down']);
+        const argsUp = dockerRuntime.composeArgsFor(installDef, ['up']);
         logger.log?.(`[Info] Starting Installation (Mode: Down then Up): ${appDef.installComposePath}`);
 
         res.writeHead(200, {

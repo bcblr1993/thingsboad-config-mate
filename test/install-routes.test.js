@@ -133,3 +133,82 @@ test('install route checks dependencies instead of requiring app service running
     assert.equal(body.statusCode, 409);
     assert.equal(JSON.parse(body.payload).code, 'DEPENDENCIES_NOT_RUNNING');
 });
+
+test('install route uses docker runtime compose args for install compose file', async () => {
+    const root = tempRoot();
+    const installCompose = path.join(root, 'docker-compose-install.yml');
+    fs.writeFileSync(installCompose, 'services:\n  install:\n    env_file:\n      - ./.env\n');
+
+    const spawnCalls = [];
+    const spawnedChildren = [];
+    function spawn(cmd, args, options) {
+        const child = new EventEmitter();
+        child.stdout = new EventEmitter();
+        child.stderr = new EventEmitter();
+        child.killed = false;
+        child.kill = () => {
+            child.killed = true;
+        };
+        spawnCalls.push({ cmd, args, options });
+        spawnedChildren.push(child);
+        setImmediate(() => child.emit('close', 0));
+        return child;
+    }
+
+    const routes = createInstallRoutes({
+        appRoot: root,
+        appDir: root,
+        dockerRuntime: {
+            dockerComposeCmd: 'docker',
+            composeArgsFor(def, args) {
+                return ['compose', '--prepared', def.composeAbsPath, ...args];
+            }
+        },
+        getServiceDefinition: () => ({
+            id: 'iotcloud',
+            composeService: 'iotcloud',
+            installComposePath: 'services/iotcloud/docker-compose-install.yml',
+            installComposeAbsPath: installCompose
+        }),
+        getPackageServiceId: () => 'iotcloud',
+        guardAppServiceDependencies: async () => null,
+        spawn
+    });
+
+    const req = new EventEmitter();
+    const body = await new Promise(resolve => {
+        const chunks = [];
+        const res = {
+            writeHead(statusCode, headers) {
+                this.statusCode = statusCode;
+                this.headers = headers;
+            },
+            write(chunk) {
+                chunks.push(String(chunk));
+            },
+            end(payload = '') {
+                chunks.push(String(payload));
+                resolve({ statusCode: this.statusCode, headers: this.headers, payload: chunks.join('') });
+            }
+        };
+
+        const handled = routes.handle(req, res, {
+            method: 'POST',
+            pathname: '/api/install',
+            headers: {}
+        });
+        assert.equal(handled, true);
+    });
+
+    assert.equal(body.statusCode, 200);
+    assert.match(body.payload, /\[SUCCESS\] 安装完成/);
+    assert.deepEqual(spawnCalls.map(call => call.args), [
+        ['compose', '--prepared', installCompose, 'down'],
+        ['compose', '--prepared', installCompose, 'up']
+    ]);
+    assert.deepEqual(spawnCalls.map(call => call.options), [
+        { cwd: root },
+        { cwd: root }
+    ]);
+    assert.equal(spawnedChildren.length, 2);
+});

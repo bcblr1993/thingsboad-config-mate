@@ -1,13 +1,65 @@
 const fs = require('fs');
 const os = require('os');
+const path = require('path');
 const { execFile, execFileSync } = require('child_process');
+const yaml = require('js-yaml');
 
-function createDockerComposeRuntime({ appRoot, env = process.env, platform = os.platform(), logger = console }) {
+function quoteEnvValueForCompose(value) {
+    const text = String(value ?? '');
+    if (!text.includes('$')) return text;
+    return `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function sanitizeEnvFileForCompose(content) {
+    return String(content || '').split(/\r?\n/).map(line => {
+        if (!line || /^\s*#/.test(line) || !line.includes('=')) return line;
+        const match = line.match(/^(\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=\s*)(.*)$/);
+        if (!match) return line;
+        return match[1] + quoteEnvValueForCompose(match[2]);
+    }).join('\n');
+}
+
+function shouldReplaceEnvFile(entry) {
+    if (typeof entry === 'string') {
+        return path.basename(entry.replace(/^['"]|['"]$/g, '')) === '.env';
+    }
+    if (entry && typeof entry === 'object' && typeof entry.path === 'string') {
+        return path.basename(entry.path.replace(/^['"]|['"]$/g, '')) === '.env';
+    }
+    return false;
+}
+
+function replaceServiceEnvFile(composeDoc, serviceName, safeEnvFile) {
+    const service = composeDoc?.services?.[serviceName];
+    if (!service) return false;
+
+    if (Array.isArray(service.env_file)) {
+        let replaced = false;
+        service.env_file = service.env_file.map(entry => {
+            if (!shouldReplaceEnvFile(entry)) return entry;
+            replaced = true;
+            return typeof entry === 'string' ? safeEnvFile : { ...entry, path: safeEnvFile };
+        });
+        return replaced;
+    }
+
+    if (service.env_file && shouldReplaceEnvFile(service.env_file)) {
+        service.env_file = typeof service.env_file === 'string'
+            ? safeEnvFile
+            : { ...service.env_file, path: safeEnvFile };
+        return true;
+    }
+
+    return false;
+}
+
+function createDockerComposeRuntime({ appRoot, runtimeDir = path.join(appRoot, '.config-mate'), env = process.env, platform = os.platform(), logger = console }) {
     const state = {
         dockerPath: null,
         dockerComposeCmd: null,
         dockerComposeCmdArgs: []
     };
+    const preparedComposeCache = new Map();
 
     function detect() {
         state.dockerPath = null;
@@ -79,8 +131,63 @@ function createDockerComposeRuntime({ appRoot, env = process.env, platform = os.
         return null;
     }
 
+    function prepareComposeDefinition(def) {
+        const composeAbsPath = def?.composeAbsPath;
+        if (!composeAbsPath) return { composeAbsPath, projectDirectory: appRoot, envFile: null };
+
+        const projectDirectory = path.dirname(composeAbsPath);
+        const envFile = path.join(projectDirectory, '.env');
+        if (!fs.existsSync(envFile)) {
+            return { composeAbsPath, projectDirectory, envFile: null };
+        }
+
+        const cacheKey = `${composeAbsPath}\n${def.composeService || ''}\n${envFile}`;
+        const composeStat = fs.statSync(composeAbsPath);
+        const envStat = fs.statSync(envFile);
+        const cached = preparedComposeCache.get(cacheKey);
+        if (cached && cached.composeMtimeMs === composeStat.mtimeMs && cached.envMtimeMs === envStat.mtimeMs) {
+            return cached.result;
+        }
+
+        const serviceName = def.composeService || def.id;
+        const safeDir = path.join(runtimeDir, 'compose');
+        fs.mkdirSync(safeDir, { recursive: true });
+
+        const safeEnvFile = path.join(safeDir, `${def.id || serviceName}.env.compose`);
+        fs.writeFileSync(safeEnvFile, sanitizeEnvFileForCompose(fs.readFileSync(envFile, 'utf8')), 'utf8');
+
+        let preparedComposeAbsPath = composeAbsPath;
+        try {
+            const composeDoc = yaml.load(fs.readFileSync(composeAbsPath, 'utf8')) || {};
+            if (replaceServiceEnvFile(composeDoc, serviceName, safeEnvFile)) {
+                preparedComposeAbsPath = path.join(safeDir, `${def.id || serviceName}-${path.basename(composeAbsPath)}`);
+                fs.writeFileSync(preparedComposeAbsPath, yaml.dump(composeDoc, { lineWidth: 120 }), 'utf8');
+            }
+        } catch (e) {
+            logger.error?.(`[Error] Failed to prepare compose file ${composeAbsPath}: ${e.message}`);
+            preparedComposeAbsPath = composeAbsPath;
+        }
+
+        const result = {
+            composeAbsPath: preparedComposeAbsPath,
+            originalComposeAbsPath: composeAbsPath,
+            projectDirectory,
+            envFile: safeEnvFile
+        };
+        preparedComposeCache.set(cacheKey, {
+            composeMtimeMs: composeStat.mtimeMs,
+            envMtimeMs: envStat.mtimeMs,
+            result
+        });
+        return result;
+    }
+
     function composeArgsFor(def, args) {
-        return [...state.dockerComposeCmdArgs, '-f', def.composeAbsPath, ...args];
+        const prepared = prepareComposeDefinition(def);
+        const composeArgs = [...state.dockerComposeCmdArgs];
+        if (prepared.envFile) composeArgs.push('--env-file', prepared.envFile);
+        if (prepared.projectDirectory) composeArgs.push('--project-directory', prepared.projectDirectory);
+        return [...composeArgs, '-f', prepared.composeAbsPath, ...args];
     }
 
     function exec(cmd, args, options = {}) {
@@ -95,6 +202,7 @@ function createDockerComposeRuntime({ appRoot, env = process.env, platform = os.
         detect,
         readyMessage,
         composeArgsFor,
+        prepareComposeDefinition,
         exec,
         get dockerPath() {
             return state.dockerPath;
@@ -109,5 +217,7 @@ function createDockerComposeRuntime({ appRoot, env = process.env, platform = os.
 }
 
 module.exports = {
-    createDockerComposeRuntime
+    createDockerComposeRuntime,
+    quoteEnvValueForCompose,
+    sanitizeEnvFileForCompose
 };

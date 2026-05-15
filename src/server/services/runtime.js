@@ -1,3 +1,33 @@
+const path = require('path');
+
+function splitComposeConfigFiles(value) {
+    return String(value || '')
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean);
+}
+
+function composeContainerMatchesDefinition(def, inspectData, preparedDefinition = null) {
+    const labels = inspectData?.Config?.Labels || {};
+    const service = labels['com.docker.compose.service'];
+    if (service && def.composeService && service !== def.composeService) return false;
+
+    const workingDir = labels['com.docker.compose.project.working_dir'];
+    if (workingDir && path.resolve(workingDir) !== path.resolve(path.dirname(def.composeAbsPath))) return false;
+
+    const configFiles = splitComposeConfigFiles(labels['com.docker.compose.project.config_files']);
+    if (configFiles.length > 0) {
+        const expectedComposes = [
+            def.composeAbsPath,
+            preparedDefinition?.composeAbsPath,
+            preparedDefinition?.originalComposeAbsPath
+        ].filter(Boolean).map(file => path.resolve(file));
+        return configFiles.some(file => expectedComposes.includes(path.resolve(file)));
+    }
+
+    return true;
+}
+
 function createServiceRuntime({ docker, getServiceDefinition }) {
     async function getServiceStatus(def) {
         if (!def) {
@@ -12,6 +42,9 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
             return { ...def, status: 'unknown', running: false, containerId: '', message: dockerIssue };
         }
 
+        const preparedDefinition = typeof docker.prepareComposeDefinition === 'function'
+            ? docker.prepareComposeDefinition(def)
+            : null;
         const ps = await docker.exec(docker.dockerComposeCmd, docker.composeArgsFor(def, ['ps', '-q', def.composeService]));
         const containerId = ps.stdout.trim().split('\n').filter(Boolean)[0] || '';
 
@@ -26,8 +59,29 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
             return { ...def, status: 'stopped', running: false, containerId: '' };
         }
 
-        const inspect = await docker.exec(docker.dockerPath, ['inspect', '-f', '{{.State.Running}}', containerId]);
-        const running = inspect.stdout.trim() === 'true';
+        const inspect = await docker.exec(docker.dockerPath, ['inspect', containerId]);
+        if (inspect.error) {
+            return { ...def, status: 'unknown', running: false, containerId, message: inspect.error.message };
+        }
+
+        let inspectData = null;
+        try {
+            inspectData = JSON.parse(inspect.stdout || '[]')?.[0] || null;
+        } catch (e) {
+            return { ...def, status: 'unknown', running: false, containerId, message: 'Failed to parse container inspect output' };
+        }
+
+        if (!composeContainerMatchesDefinition(def, inspectData, preparedDefinition)) {
+            return {
+                ...def,
+                status: 'stopped',
+                running: false,
+                containerId: '',
+                message: 'matched container belongs to another compose project'
+            };
+        }
+
+        const running = !!inspectData?.State?.Running;
         return { ...def, status: running ? 'running' : 'stopped', running, containerId };
     }
 
@@ -71,5 +125,6 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
 }
 
 module.exports = {
+    composeContainerMatchesDefinition,
     createServiceRuntime
 };

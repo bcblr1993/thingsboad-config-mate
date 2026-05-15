@@ -1,7 +1,10 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { createServiceRuntime } = require('../src/server/services/runtime');
+const {
+    composeContainerMatchesDefinition,
+    createServiceRuntime
+} = require('../src/server/services/runtime');
 
 function createDockerMock(overrides = {}) {
     const calls = [];
@@ -95,7 +98,22 @@ test('getServiceStatus inspects running container', async () => {
         async exec(cmd, args) {
             this.calls.push({ cmd, args });
             if (args.includes('ps')) return { stdout: 'container-1\n', stderr: '', error: null };
-            if (args.includes('inspect')) return { stdout: 'true\n', stderr: '', error: null };
+            if (args.includes('inspect')) {
+                return {
+                    stdout: JSON.stringify([{
+                        State: { Running: true },
+                        Config: {
+                            Labels: {
+                                'com.docker.compose.service': 'postgres',
+                                'com.docker.compose.project.working_dir': '/tmp/services/postgres',
+                                'com.docker.compose.project.config_files': '/tmp/services/postgres/docker-compose.yml'
+                            }
+                        }
+                    }]),
+                    stderr: '',
+                    error: null
+                };
+            }
             return { stdout: '', stderr: '', error: null };
         }
     });
@@ -106,6 +124,55 @@ test('getServiceStatus inspects running container', async () => {
     assert.equal(status.status, 'running');
     assert.equal(status.running, true);
     assert.equal(status.containerId, 'container-1');
+});
+
+test('getServiceStatus ignores a same-name container from another compose project', async () => {
+    const docker = createDockerMock({
+        async exec(cmd, args) {
+            this.calls.push({ cmd, args });
+            if (args.includes('ps')) return { stdout: 'container-1\n', stderr: '', error: null };
+            if (args.includes('inspect')) {
+                return {
+                    stdout: JSON.stringify([{
+                        State: { Running: true },
+                        Config: {
+                            Labels: {
+                                'com.docker.compose.service': 'postgres',
+                                'com.docker.compose.project.working_dir': '/Users/chenxu/Documents/docker/postgres',
+                                'com.docker.compose.project.config_files': '/Users/chenxu/Documents/docker/postgres/docker-compose.yml'
+                            }
+                        }
+                    }]),
+                    stderr: '',
+                    error: null
+                };
+            }
+            return { stdout: '', stderr: '', error: null };
+        }
+    });
+    const runtime = createServiceRuntime({ docker, getServiceDefinition: () => postgresDef });
+
+    const status = await runtime.getServiceStatus(postgresDef);
+
+    assert.equal(status.status, 'stopped');
+    assert.equal(status.running, false);
+    assert.equal(status.containerId, '');
+    assert.equal(status.message, 'matched container belongs to another compose project');
+});
+
+test('composeContainerMatchesDefinition accepts sanitized runtime compose file', () => {
+    assert.equal(composeContainerMatchesDefinition(postgresDef, {
+        Config: {
+            Labels: {
+                'com.docker.compose.service': 'postgres',
+                'com.docker.compose.project.working_dir': '/tmp/services/postgres',
+                'com.docker.compose.project.config_files': '/tmp/.config-mate/compose/postgres-docker-compose.yml'
+            }
+        }
+    }, {
+        composeAbsPath: '/tmp/.config-mate/compose/postgres-docker-compose.yml',
+        originalComposeAbsPath: '/tmp/services/postgres/docker-compose.yml'
+    }), true);
 });
 
 test('runComposeAction lets docker decide whether existing image can run', async () => {
