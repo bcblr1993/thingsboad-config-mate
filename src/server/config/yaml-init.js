@@ -155,22 +155,10 @@ function buildReverseMapping(flattened) {
     return reverseMapping;
 }
 
-function extractAllPlaceholderConfig(flattened) {
-    const config = {};
-    Object.keys(flattened).forEach(flatKey => {
-        extractEnvPlaceholders(flattened[flatKey]).forEach(placeholder => {
-            if (Object.prototype.hasOwnProperty.call(config, placeholder.key)) return;
-            config[placeholder.key] = placeholder.hasDefault ? placeholder.defaultValue : '';
-        });
-    });
-    return config;
-}
-
 function extractConfigFromYaml({ data, flattened, configMeta, targetAppType }) {
     const reverseMapping = buildReverseMapping(flattened);
     const newConfig = {
-        APPTYPE: targetAppType,
-        ...extractAllPlaceholderConfig(flattened)
+        APPTYPE: targetAppType
     };
 
     Object.keys(configMeta).forEach(metaKey => {
@@ -343,7 +331,6 @@ function createYamlInitializer({
 module.exports = {
     buildReverseMapping,
     createYamlInitializer,
-    extractAllPlaceholderConfig,
     extractConfigFromYaml,
     extractEnvPlaceholders,
     findYamlPath,

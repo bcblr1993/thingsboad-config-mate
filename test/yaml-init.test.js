@@ -2,7 +2,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
     buildReverseMapping,
-    extractAllPlaceholderConfig,
     extractConfigFromYaml,
     extractEnvPlaceholders,
     flattenYaml,
@@ -58,19 +57,6 @@ test('extractEnvPlaceholders reads all uppercase spring env keys from yaml value
     ]);
 });
 
-test('extractAllPlaceholderConfig keeps non-ui yaml placeholders for first env generation', () => {
-    assert.deepEqual(extractAllPlaceholderConfig({
-        SERVER_PORT: '${HTTP_BIND_PORT:8080}',
-        JDBC_URL: 'jdbc:postgresql://${PG_HOST:postgres}:${PG_PORT:5432}/thingsboard',
-        NO_DEFAULT: '${CUSTOM_REQUIRED_KEY}'
-    }), {
-        HTTP_BIND_PORT: '8080',
-        PG_HOST: 'postgres',
-        PG_PORT: '5432',
-        CUSTOM_REQUIRED_KEY: ''
-    });
-});
-
 test('extractConfigFromYaml uses reverse mapping, manual mapping, and edge legacy values', () => {
     const flattened = {
         SPRING_DATASOURCE_URL: '${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/thingsboard}',
@@ -102,10 +88,25 @@ test('extractConfigFromYaml uses reverse mapping, manual mapping, and edge legac
         SPRING_DATASOURCE_URL: 'jdbc:postgresql://postgres:5432/thingsboard',
         REDIS_HOST: 'redis',
         MQTT_BIND_PORT: '1883',
-        HTTP_BIND_PORT: '8080',
-        CUSTOM_RUNTIME_KEY: 'custom-value',
         CLOUD_CHECK_STATUS_BASE_URL: 'https://cloud.example.com',
         EDGES_STORAGE_HISTORY_STATUS: 'true',
         TELEMETRY_SEPARATION_ENABLED: 'false'
+    });
+});
+
+test('extractConfigFromYaml ignores placeholders outside the supported config metadata', () => {
+    const flattened = {
+        SPRING_DATASOURCE_URL: '${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/thingsboard}',
+        SERVER_PORT: '${HTTP_BIND_PORT:8080}',
+        JDBC_URL: 'jdbc:postgresql://${PG_HOST:postgres}:${PG_PORT:5432}/thingsboard',
+        CUSTOM_RUNTIME_KEY: '${CUSTOM_RUNTIME_KEY:custom-value}'
+    };
+    const configMeta = {
+        SPRING_DATASOURCE_URL: { scope: 'common' }
+    };
+
+    assert.deepEqual(extractConfigFromYaml({ data: {}, flattened, configMeta, targetAppType: 'CLOUD' }), {
+        APPTYPE: 'CLOUD',
+        SPRING_DATASOURCE_URL: 'jdbc:postgresql://postgres:5432/thingsboard'
     });
 });
