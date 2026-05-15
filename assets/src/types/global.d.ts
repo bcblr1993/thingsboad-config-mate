@@ -42,7 +42,7 @@ interface LegacyConfigMateApi {
 
 interface LegacyConfigMateUi {
     escapeHtml: (text: unknown) => string;
-    showToast: (message: string, type?: string) => void;
+    showToast: (message: string, type?: string, duration?: number) => void;
     openModal: (modalOrId: HTMLElement | string, display?: string) => HTMLElement | null;
     closeModal: (modalOrId: HTMLElement | string, options?: any) => void;
     customConfirm: (message: string, btnText?: string, btnColor?: string) => Promise<boolean>;

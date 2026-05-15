@@ -1,4 +1,5 @@
 (function () {
+    const DEFAULT_TOAST_DURATION_MS = 5000;
     let confirmResolver = null;
 
     function escapeHtml(text) {
@@ -13,26 +14,56 @@
 
     function toastIcon(type) {
         if (type === 'success') {
-            return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            return '<svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
         }
         if (type === 'error') {
-            return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+            return '<svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
         }
-        return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+        if (type === 'warning') {
+            return '<svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+        }
+        return '<svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
     }
 
-    function showToast(message, type = 'info') {
+    function toastTitle(type) {
+        if (type === 'success') return '操作成功';
+        if (type === 'error') return '操作失败';
+        if (type === 'warning') return '需要注意';
+        return '提示信息';
+    }
+
+    function showToast(message, type = 'info', duration = DEFAULT_TOAST_DURATION_MS) {
         const container = document.getElementById('toast-container');
         if (!container) return;
+        const displayDuration = Math.max(Number(duration) || DEFAULT_TOAST_DURATION_MS, DEFAULT_TOAST_DURATION_MS);
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = `${toastIcon(type)}<div class="toast-content">${escapeHtml(message).replace(/\n/g, '<br>')}</div>`;
+        toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+        toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+        toast.style.setProperty('--toast-duration', `${displayDuration}ms`);
+        toast.innerHTML = `
+            <div class="toast-status" aria-hidden="true">${toastIcon(type)}</div>
+            <div class="toast-content">
+                <div class="toast-title">${toastTitle(type)}</div>
+                <div class="toast-message">${escapeHtml(message).replace(/\n/g, '<br>')}</div>
+            </div>
+            <button class="toast-close" type="button" aria-label="关闭提示">&times;</button>
+            <div class="toast-progress" aria-hidden="true"></div>
+        `;
         container.appendChild(toast);
 
-        setTimeout(() => {
+        let removed = false;
+        const dismiss = () => {
+            if (removed) return;
+            removed = true;
             toast.style.animation = 'fadeOut 0.3s forwards';
             setTimeout(() => toast.remove(), 300);
-        }, 3000);
+        };
+        const timer = setTimeout(dismiss, displayDuration);
+        toast.querySelector('.toast-close')?.addEventListener('click', () => {
+            clearTimeout(timer);
+            dismiss();
+        });
     }
 
     function openModal(modalOrId, display = 'flex') {
@@ -59,15 +90,37 @@
         }, delay);
     }
 
+    function confirmVariantFromColor(color) {
+        const value = String(color || '').toLowerCase();
+        if (value.includes('danger') || value.includes('d63031') || value.includes('dc2626') || value.includes('ef4444')) {
+            return 'danger';
+        }
+        if (value.includes('success') || value.includes('00b894') || value.includes('0f766e') || value.includes('059669')) {
+            return 'success';
+        }
+        if (value.includes('warning') || value.includes('fdcb6e') || value.includes('e6a23c') || value.includes('d97706')) {
+            return 'warning';
+        }
+        return 'primary';
+    }
+
     function customConfirm(message, confirmBtnText = '确定', confirmBtnColor = 'var(--primary)') {
         return new Promise((resolve) => {
             confirmResolver = resolve;
             const messageEl = document.getElementById('confirm-message');
             const btnYes = document.getElementById('btn-confirm-yes');
+            const modal = document.getElementById('confirm-modal');
+            const box = modal?.querySelector('.confirm-box');
+            const variant = confirmVariantFromColor(confirmBtnColor);
             if (messageEl) messageEl.innerHTML = String(message || '').replace(/\n/g, '<br>');
+            if (box) {
+                box.classList.remove('is-primary', 'is-success', 'is-warning', 'is-danger');
+                box.classList.add(`is-${variant}`);
+            }
             if (btnYes) {
                 btnYes.innerText = confirmBtnText;
-                btnYes.style.background = confirmBtnColor;
+                btnYes.className = `btn-confirm btn-confirm-${variant}`;
+                btnYes.style.background = variant === 'primary' ? confirmBtnColor : '';
             }
             openModal('confirm-modal');
         });

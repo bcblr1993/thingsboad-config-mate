@@ -36,6 +36,11 @@ export function createHistoryUi(options = {}) {
         return options.api || window.ConfigMateApi;
     }
 
+    function notify(message, type = 'info') {
+        const showToast = options.showToast || window.ConfigMateUi?.showToast;
+        if (typeof showToast === 'function') showToast(message, type);
+    }
+
     function open() {
         const modal = document.getElementById('history-modal');
         if (!modal) return;
@@ -263,10 +268,10 @@ export function createHistoryUi(options = {}) {
                 }
                 openDiff(`文件内容: ${filename}`);
             } else {
-                alert('获取失败: ' + json.message);
+                notify('获取失败: ' + json.message, 'error');
             }
         } catch (e) {
-            alert('请求失败: ' + e.message);
+            notify('请求失败: ' + e.message, 'error');
         }
     }
 
@@ -281,10 +286,10 @@ export function createHistoryUi(options = {}) {
                 renderDiff(jsonHist.content, textCurr);
                 openDiff(`配置对比 (${filename} vs 当前)`);
             } else {
-                alert('获取历史文件失败: ' + jsonHist.message);
+                notify('获取历史文件失败: ' + jsonHist.message, 'error');
             }
         } catch (e) {
-            alert('请求失败: ' + e.message);
+            notify('请求失败: ' + e.message, 'error');
         }
     }
 
@@ -337,14 +342,14 @@ export function createHistoryUi(options = {}) {
             const json = await res.json();
 
             if (json.status === 'success') {
-                alert('回滚成功！页面将刷新以加载新配置。');
+                notify('回滚成功，页面将刷新以加载新配置。', 'success');
                 if (typeof options.reload === 'function') options.reload();
                 else location.reload();
             } else {
-                alert('回滚失败: ' + json.message);
+                notify('回滚失败: ' + json.message, 'error');
             }
         } catch (e) {
-            alert('请求失败: ' + e.message);
+            notify('请求失败: ' + e.message, 'error');
         }
     }
 

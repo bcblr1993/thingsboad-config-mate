@@ -15,7 +15,7 @@ export const DEBOUNCE_MS = Object.freeze({
 
 export const MODAL_CLOSE_DELAY_MS = 200;
 
-export const TOAST_DEFAULT_DURATION_MS = 3000;
+export const TOAST_DEFAULT_DURATION_MS = 5000;
 
 /** Storage keys (localStorage / sessionStorage). */
 export const STORAGE_KEY = Object.freeze({

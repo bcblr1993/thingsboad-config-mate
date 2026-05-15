@@ -67,9 +67,10 @@ function isAnyLoading() {
 function pushToast(opts) {
     const { message = '', type = TOAST_TYPE.INFO, duration = TOAST_DEFAULT_DURATION_MS } = opts || {};
     const id = nextToastId();
-    const toast = { id, message: String(message), type, duration };
+    const displayDuration = Math.max(Number(duration) || TOAST_DEFAULT_DURATION_MS, TOAST_DEFAULT_DURATION_MS);
+    const toast = { id, message: String(message), type, duration: displayDuration };
     store.set(s => ({ toasts: [...s.toasts, toast] }));
-    if (duration > 0) setTimeout(() => dismissToast(id), duration);
+    if (displayDuration > 0) setTimeout(() => dismissToast(id), displayDuration);
     return id;
 }
 
