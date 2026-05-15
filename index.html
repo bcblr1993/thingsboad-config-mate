@@ -7,9 +7,9 @@
     <title>Config Mate | ThingsBoard 部署控制台</title>
     <link rel="icon" type="image/svg+xml"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232A7DEC'/%3E%3Cpath d='M18 18l14-7 14 7-14 7-14-7z' fill='white'/%3E%3Cpath d='M18 31l14 7 14-7' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M18 43l14 7 14-7' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="assets/styles.css">
     <link rel="stylesheet" href="assets/styles/tokens.css">
     <link rel="stylesheet" href="assets/styles/base.css">
+    <link rel="stylesheet" href="assets/styles.css">
     <link rel="stylesheet" href="assets/styles/components.css">
     <link rel="stylesheet" href="assets/styles/layout.css">
     <link rel="stylesheet" href="assets/styles/pages/install.css">
@@ -17,17 +17,15 @@
     <link rel="stylesheet" href="assets/styles/pages/logs.css">
 </head>
 
-<body>
+<body data-workbench-page="deployment-panel">
 
     <div id="login-overlay" class="login-overlay">
         <form class="login-box" onsubmit="login(event)">
             <div class="login-title">登录 Config Mate</div>
             <div class="login-desc">此控制台可以操作宿主机 Docker，请输入操作员名称和安装时生成的管理口令。</div>
-            <input id="login-operator" class="field-input" type="text" placeholder="操作员名称" autocomplete="username"
-                style="margin-bottom: 10px;">
-            <input id="login-password" class="field-input" type="password" placeholder="管理口令" autocomplete="current-password"
-                style="margin-bottom: 12px;">
-            <button id="btn-login" class="btn btn-primary" type="submit" style="width:100%;">登录</button>
+            <input id="login-operator" class="field-input login-field" type="text" placeholder="操作员名称" autocomplete="username">
+            <input id="login-password" class="field-input" type="password" placeholder="管理口令" autocomplete="current-password">
+            <button id="btn-login" class="btn btn-primary w-full" type="submit">登录</button>
         </form>
     </div>
 
@@ -56,7 +54,7 @@
                 </div>
                 <nav class="workbench-nav" aria-label="工作区导航">
                     <a class="workbench-nav-item active" href="#deployment-panel" data-workbench-target="deployment-panel"
-                        onclick="scrollToWorkbenchSection(event, 'deployment-panel')">
+                        aria-current="page" onclick="scrollToWorkbenchSection(event, 'deployment-panel')">
                         <span class="workbench-nav-title">部署控制台</span>
                         <span class="workbench-nav-desc">服务启停与运行配置</span>
                     </a>
@@ -141,8 +139,7 @@
                             <button class="btn-header" onclick="checkRuntimeSync()" title="检查运行配置同步状态">
                                 运行检查
                             </button>
-                            <button class="btn-header" id="btn-header-logs" onclick="showLogs(true)" title="查看业务服务实时日志"
-                                style="color: var(--primary); border-color: var(--primary);">
+                            <button class="btn-header btn-active" id="btn-header-logs" onclick="showLogs(true)" title="查看业务服务实时日志">
                                 实时日志
                             </button>
                             <button class="btn-header" id="btn-header-history" onclick="openHistoryModal()"
@@ -192,18 +189,13 @@
             </div>
             <div class="action-buttons">
                 <button id="btn-install-init" class="btn-install-init" onclick="checkInstallAndConfirm()">初始化安装</button>
-                <button id="btn-edit" class="btn" style="background:var(--primary); color:white; border:none;"
-                    onclick="setEditMode(true)">开启编辑</button>
-                <button id="btn-cancel-edit" class="btn"
-                    style="background:#636E72; color:white; border:none; display:none;"
-                    onclick="cancelEdit()">取消修改</button>
+                <button id="btn-edit" class="btn btn-primary" onclick="setEditMode(true)">开启编辑</button>
+                <button id="btn-cancel-edit" class="btn btn-ghost is-hidden" onclick="cancelEdit()">取消修改</button>
 
 
 
-                <button id="btn-save-only" class="btn btn-primary" style="display:none;"
-                    onclick="saveConfig()">仅保存配置</button>
-                <button id="btn-save-apply" class="btn btn-primary" style="display:none; background:#00B894;"
-                    onclick="saveAndApplyPlan()">保存并重启</button>
+                <button id="btn-save-only" class="btn btn-primary is-hidden" onclick="saveConfig()">仅保存配置</button>
+                <button id="btn-save-apply" class="btn btn-success is-hidden" onclick="saveAndApplyPlan()">保存并重启</button>
             </div>
         </div>
 
@@ -280,14 +272,13 @@
 
     <!-- Comparison / View Modal -->
     <div id="diff-modal" class="modal-overlay">
-        <div class="modal-content"
-            style="width: 900px; max-width: 95vw; height: auto; min-height: 400px; max-height: 85vh;">
+        <div class="modal-content modal-wide modal-tall">
             <div class="modal-header">
                 <div class="modal-title" id="diff-title">内容对比</div>
                 <div class="close-btn" onclick="closeDiffModal()">&times;</div>
             </div>
-            <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; height: 100%;">
-                <div id="diff-content" class="diff-container" style="flex: 1; border: none; border-radius: 0;">
+            <div class="modal-body modal-body-flush">
+                <div id="diff-content" class="diff-container flex-fill">
                     <!-- Diff content loaded here -->
                 </div>
             </div>
@@ -367,9 +358,9 @@
             <div class="logs-footer">
                 <div id="logs-meta" class="logs-meta">0 行</div>
                 <div class="logs-footer-actions">
-                    <button class="btn-logs btn-logs-secondary" onclick="copyVisibleLogs()">复制当前</button>
-                    <button class="btn-logs btn-logs-secondary" onclick="clearLogs()">清空日志</button>
-                    <button class="btn-logs btn-logs-primary" onclick="closeLogs()">关闭</button>
+                    <button class="btn btn-ghost" onclick="copyVisibleLogs()">复制当前</button>
+                    <button class="btn btn-ghost" onclick="clearLogs()">清空日志</button>
+                    <button class="btn btn-primary" onclick="closeLogs()">关闭</button>
                 </div>
             </div>
         </div>
@@ -377,8 +368,8 @@
 
     <!-- Startup Missing Alert Modal -->
     <div id="missing-alert-modal" class="modal-overlay">
-        <div class="confirm-box">
-            <div class="confirm-title" style="color: #D63031;">
+        <div class="confirm-box is-danger">
+            <div class="confirm-title">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
@@ -388,20 +379,17 @@
                 文件缺失提示
             </div>
             <div class="confirm-message">
-                <div
-                    style="text-align: left; background: #FFF5F5; padding: 12px; border-radius: 6px; border: 1px solid #FED7D7;">
+                <div class="confirm-callout confirm-callout-danger">
                     当前目录缺失关键配置文件：<br>
-                    <b style="color: #D63031;">docker-compose.yml</b> 和 <b
-                        style="color: #D63031;">docker-compose-install.yml</b>
+                    <b>docker-compose.yml</b> 和 <b>docker-compose-install.yml</b>
                 </div>
-                <div style="text-align: left; margin-top: 12px; color: #555; font-size: 13px; line-height: 1.6;">
-                    • 核心功能（如启动、停止服务）将 <b>不可用</b>。<br>
-                    • 但您仍可继续 <b>浏览或编辑</b> 历史配置与模板。
+                <div class="confirm-note-list">
+                    <div>核心功能（如启动、停止服务）将 <b>不可用</b>。</div>
+                    <div>但您仍可继续 <b>浏览或编辑</b> 历史配置与模板。</div>
                 </div>
             </div>
             <div class="confirm-actions">
-                <button class="btn-confirm" style="background: #D63031;"
-                    onclick="closeMissingAlertModal()">确认并继续</button>
+                <button class="btn-confirm btn-confirm-danger" onclick="closeMissingAlertModal()">确认并继续</button>
             </div>
         </div>
     </div>
@@ -503,9 +491,9 @@
 
     <!-- Custom Confirm Modal -->
     <div id="confirm-modal" class="modal-overlay">
-        <div class="confirm-box">
+        <div class="confirm-box is-primary">
             <div class="confirm-title" id="confirm-title">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FDCB6E" stroke-width="2"
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round">
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
                     </path>
@@ -523,9 +511,9 @@
     </div>
 
     <div id="cleanup-modal" class="modal-overlay">
-        <div class="confirm-box cleanup-box">
+        <div class="confirm-box cleanup-box is-danger">
             <div class="confirm-title">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D63031" stroke-width="2"
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 6h18"></path>
                     <path d="M8 6V4h8v2"></path>
@@ -556,7 +544,7 @@
             <div id="cleanup-block-note" class="cleanup-block-note" style="display:none;"></div>
             <div class="confirm-actions">
                 <button class="btn-ghost" type="button" onclick="resolveCleanupConfirm(false)">取消</button>
-                <button class="btn-confirm cleanup-confirm-btn" id="btn-cleanup-confirm" type="button"
+                <button class="btn-confirm btn-confirm-danger cleanup-confirm-btn" id="btn-cleanup-confirm" type="button"
                     onclick="resolveCleanupConfirm(true)" disabled>确认清理</button>
             </div>
         </div>
@@ -579,9 +567,9 @@
 
     <!-- Validation Warning Modal -->
     <!-- Validation Warning Modal -->
-    <div id="validate-modal" class="modal-overlay" style="display: none;">
-        <div class="confirm-box">
-            <div class="confirm-title" id="validate-modal-title" style="color: #ef4444;">
+    <div id="validate-modal" class="modal-overlay">
+        <div class="confirm-box is-danger">
+            <div class="confirm-title" id="validate-modal-title">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round">
                     <path
@@ -598,56 +586,50 @@
             </div>
 
             <!-- List container (hidden by default in JS for critical error) -->
-            <div id="validate-files-list-container" class="diff-container"
-                style="background: rgba(0,0,0,0.05); padding: 10px; margin: 10px 0; border-radius: 4px; display: none;">
-                <ul id="validate-files-list" style="margin: 0; padding-left: 20px; color: #f87171;"></ul>
+            <div id="validate-files-list-container" class="confirm-callout confirm-callout-danger" style="display: none;">
+                <ul id="validate-files-list"></ul>
             </div>
 
-            <p id="validate-modal-hint" style="font-size: 0.9em; color: #9ca3af; margin: 10px 0 20px 0; display: none;">
+            <p id="validate-modal-hint" class="confirm-hint" style="display: none;">
                 建议检查上述文件，确保 <code>env_file:</code> 配置项存在且未被注释。</p>
 
             <div class="confirm-actions">
                 <!-- Close button logic handles visibility -->
                 <button class="btn btn-ghost" id="validate-modal-close" onclick="closeValidateModal()"
                     style="display: none;">取消</button>
-                <button class="btn btn-confirm" id="validate-modal-btn" onclick="closeValidateModal()"
-                    style="background: #ef4444;">我知道了</button>
+                <button class="btn btn-confirm btn-confirm-danger" id="validate-modal-btn" onclick="closeValidateModal()">我知道了</button>
             </div>
         </div>
     </div>
 
-    <div id="runtime-diff-modal" class="modal-overlay" style="display:none;">
-        <div class="modal-content"
-            style="width: 900px; max-width: 95vw; height: auto; min-height: 400px; max-height: 80vh;">
+    <div id="runtime-diff-modal" class="modal-overlay">
+        <div class="modal-content modal-wide">
             <div class="modal-header">
                 <div class="modal-title">运行环境配置检查</div>
                 <div class="close-btn" onclick="closeRuntimeDiffModal()">&times;</div>
             </div>
-            <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; height: 100%;">
-                <div id="runtime-diff-loading"
-                    style="text-align: center; padding: 60px 20px; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <div class="modal-body modal-body-flush">
+                <div id="runtime-diff-loading" class="runtime-loading">
                     <svg class="spinner" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" style="animation: spin 1s linear infinite; color: var(--primary);">
+                        stroke-width="2">
                         <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
                     </svg>
-                    <p style="margin-top: 16px; color: #64748b; font-size: 15px;">正在分析运行环境...</p>
+                    <p class="runtime-loading-text">正在分析运行环境...</p>
                 </div>
 
-                <div id="runtime-diff-result"
-                    style="display:none; flex: 1; overflow: hidden; padding: 24px; display: flex; flex-direction: column;">
-                    <div id="diff-status-bar" style="margin-bottom: 24px;">
+                <div id="runtime-diff-result" class="runtime-result is-hidden">
+                    <div id="diff-status-bar">
                         <!-- Injected by JS -->
                     </div>
 
-                    <div
-                        style="flex: 1; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+                    <div class="runtime-table-shell">
                         <table class="runtime-diff-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 30%;">变量名 (Key)</th>
-                                    <th style="width: 30%;">运行中 (Runtime)</th>
-                                    <th style="width: 30%;">本地文件 (Local)</th>
-                                    <th style="width: 10%;">状态</th>
+                                    <th class="table-col-30">变量名 (Key)</th>
+                                    <th class="table-col-30">运行中 (Runtime)</th>
+                                    <th class="table-col-30">本地文件 (Local)</th>
+                                    <th class="table-col-10">状态</th>
                                 </tr>
                             </thead>
                             <tbody id="runtime-diff-tbody">
@@ -656,10 +638,10 @@
                         </table>
                     </div>
 
-                    <div class="info-banner" style="margin-top: 20px; flex-shrink: 0;">
+                    <div class="info-banner info-banner-spaced">
                         <strong>说明：</strong>
-                        <ul style="margin: 4px 0 0 16px; padding: 0;">
-                            <li><span style="color:#ef4444">红色</span>：需要重启才能生效的变更。</li>
+                        <ul class="compact-note-list">
+                            <li><span class="danger-text">红色</span>：需要重启才能生效的变更。</li>
                             <li>比较的是 <code>docker inspect</code> (运行真值) 与 <code>.env</code> (本地定义)。</li>
                         </ul>
                     </div>

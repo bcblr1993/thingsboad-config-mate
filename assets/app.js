@@ -12,10 +12,9 @@ let cleanupConfirmPlan = null;
 let cleanupInFlightService = null;
 let configScrollObserver = null;
 let workbenchNavInitialized = false;
-let workbenchNavFrame = null;
-let workbenchNavPinnedTarget = null;
-let workbenchNavPinnedTimer = null;
+let activeWorkbenchPage = 'deployment-panel';
 let activeConfigGroupId = null;
+const ALL_CONFIG_GROUPS_ID = '__all_config_groups__';
 let servicePollTimer = null;
 let statusPollTimer = null;
 let currentOperator = '';
@@ -196,84 +195,57 @@ async function init() {
 function setWorkbenchNavActive(targetId) {
     document.querySelectorAll('.workbench-nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.workbenchTarget === targetId);
+        item.setAttribute('aria-current', item.dataset.workbenchTarget === targetId ? 'page' : 'false');
     });
 }
 
-function pinWorkbenchNav(targetId) {
-    workbenchNavPinnedTarget = targetId;
-    if (workbenchNavPinnedTimer) clearTimeout(workbenchNavPinnedTimer);
-    workbenchNavPinnedTimer = setTimeout(() => {
-        workbenchNavPinnedTarget = null;
-    }, 1200);
-}
+function setWorkbenchPage(targetId, options = {}) {
+    if (targetId !== 'deployment-panel' && targetId !== 'config-workspace') return;
+    const deployment = document.getElementById('deployment-panel');
+    const config = document.getElementById('config-workspace');
+    if (!deployment || !config) return;
 
-function getSectionTopWithinContent(target, content) {
-    let top = 0;
-    let node = target;
-    while (node && node !== content) {
-        top += node.offsetTop || 0;
-        node = node.offsetParent;
+    activeWorkbenchPage = targetId;
+    document.body.dataset.workbenchPage = targetId;
+    deployment.classList.toggle('workbench-page-hidden', targetId !== 'deployment-panel');
+    config.classList.toggle('workbench-page-hidden', targetId !== 'config-workspace');
+    deployment.setAttribute('aria-hidden', targetId !== 'deployment-panel' ? 'true' : 'false');
+    config.setAttribute('aria-hidden', targetId !== 'config-workspace' ? 'true' : 'false');
+    setWorkbenchNavActive(targetId);
+
+    const content = document.querySelector('.content');
+    if (content) content.scrollTo({ top: 0, behavior: 'auto' });
+
+    if (options.updateHash !== false && location.hash !== `#${targetId}`) {
+        history.replaceState(null, '', `#${targetId}`);
     }
-    if (node === content) return top;
-
-    const contentRect = content.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    return content.scrollTop + targetRect.top - contentRect.top;
 }
 
 function scrollToWorkbenchSection(event, targetId) {
     if (event) event.preventDefault();
-    const target = document.getElementById(targetId);
-    if (!target) return;
-    setWorkbenchNavActive(targetId);
-    pinWorkbenchNav(targetId);
-    const content = document.querySelector('.content');
-    if (content) {
-        const nextTop = targetId === 'deployment-panel'
-            ? 0
-            : Math.max(0, target.offsetTop - content.offsetTop - 10);
-        content.scrollTo({ top: nextTop, behavior: 'auto' });
-    } else {
-        target.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' });
-    }
-    history.replaceState(null, '', `#${targetId}`);
+    setWorkbenchPage(targetId);
 }
 
 function initWorkbenchNavigation() {
-    const content = document.querySelector('.content');
     const deployment = document.getElementById('deployment-panel');
     const config = document.getElementById('config-workspace');
-    if (!content || !deployment || !config) return;
-
-    const syncActive = () => {
-        if (workbenchNavPinnedTarget) {
-            setWorkbenchNavActive(workbenchNavPinnedTarget);
-            return;
-        }
-        const contentTop = content.getBoundingClientRect().top;
-        const configTop = config.getBoundingClientRect().top;
-        setWorkbenchNavActive(configTop <= contentTop + 80 ? 'config-workspace' : 'deployment-panel');
-    };
+    if (!deployment || !config) return;
 
     if (!workbenchNavInitialized) {
-        content.addEventListener('scroll', () => {
-            if (workbenchNavFrame) cancelAnimationFrame(workbenchNavFrame);
-            workbenchNavFrame = requestAnimationFrame(syncActive);
-        }, { passive: true });
-        window.addEventListener('resize', syncActive);
+        window.addEventListener('hashchange', () => {
+            const hashTarget = (location.hash || '').replace('#', '');
+            if (hashTarget === 'deployment-panel' || hashTarget === 'config-workspace') {
+                setWorkbenchPage(hashTarget, { updateHash: false });
+            }
+        });
         workbenchNavInitialized = true;
     }
 
     const hashTarget = (location.hash || '').replace('#', '');
     if (hashTarget === 'deployment-panel' || hashTarget === 'config-workspace') {
-        setTimeout(() => {
-            const currentHashTarget = (location.hash || '').replace('#', '');
-            if (currentHashTarget === hashTarget) {
-                scrollToWorkbenchSection(null, hashTarget);
-            }
-        }, 80);
+        setWorkbenchPage(hashTarget, { updateHash: false });
     } else {
-        syncActive();
+        setWorkbenchPage(activeWorkbenchPage, { updateHash: true });
     }
 }
 
@@ -305,11 +277,22 @@ function renderAll() {
     const configNavCount = document.getElementById('config-nav-count');
     if (configNavCount) configNavCount.textContent = `${visibleGroupNames.length}/${groupNames.length}`;
     const visibleGroupIds = visibleGroupNames.map(groupDomId);
-    if (!activeConfigGroupId || !visibleGroupIds.includes(activeConfigGroupId)) {
+    const isAllConfigMode = activeConfigGroupId === ALL_CONFIG_GROUPS_ID;
+    if (!activeConfigGroupId || (!isAllConfigMode && !visibleGroupIds.includes(activeConfigGroupId))) {
         activeConfigGroupId = visibleGroupIds[0] || null;
     }
     if (configNavList) {
-        configNavList.innerHTML = visibleGroupNames.map((g, index) => {
+        const totalVisibleFields = visibleGroupNames.reduce((total, g) =>
+            total + groups[g].filter(key => !configMeta[key].hidden).length, 0);
+        const allConfigItem = `
+            <button class="config-nav-item config-nav-item-all ${activeConfigGroupId === ALL_CONFIG_GROUPS_ID ? 'active' : ''}"
+                type="button" data-target="${ALL_CONFIG_GROUPS_ID}" onclick="showAllConfigGroups(this)"
+                title="查看全部业务配置项">
+                <span class="config-nav-name">全部配置</span>
+                <span class="config-nav-item-count">${totalVisibleFields}</span>
+            </button>
+        `;
+        const groupItems = visibleGroupNames.map((g) => {
             const groupId = groupDomId(g);
             const count = groups[g].filter(key => !configMeta[key].hidden).length;
             return `
@@ -320,31 +303,41 @@ function renderAll() {
                 </button>
             `;
         }).join('');
+        configNavList.innerHTML = allConfigItem + groupItems;
         configNavList.onclick = (event) => {
             const item = event.target.closest('.config-nav-item');
             if (item && configNavList.contains(item)) {
                 event.preventDefault();
-                scrollToConfigGroup(item.dataset.target, item);
+                if (item.dataset.target === ALL_CONFIG_GROUPS_ID) {
+                    showAllConfigGroups(item);
+                } else {
+                    scrollToConfigGroup(item.dataset.target, item);
+                }
             }
         };
     }
 
     // Render Form
     const formContainer = document.getElementById('form-container');
-    formContainer.classList.add('single-group-mode');
+    formContainer.classList.toggle('single-group-mode', activeConfigGroupId !== ALL_CONFIG_GROUPS_ID);
     formContainer.innerHTML = visibleGroupNames.map((g) => {
-        const fieldsHtml = groups[g]
-            .filter(key => !configMeta[key].hidden)
+        const visibleKeys = groups[g].filter(key => !configMeta[key].hidden);
+        const fieldsHtml = visibleKeys
             .map(key => renderField(key)).join('');
 
         if (!fieldsHtml) return '';
         const groupId = groupDomId(g);
-        const groupStateClass = groupId === activeConfigGroupId ? 'active-group' : 'inactive-group';
+        const isActiveGroup = activeConfigGroupId === ALL_CONFIG_GROUPS_ID || groupId === activeConfigGroupId;
+        const groupStateClass = isActiveGroup ? 'active-group' : 'inactive-group';
 
         return `
             <div id="${groupId}" class="group-section ${groupStateClass}" data-group-name="${escapeHtml(g)}">
                 <div class="group-header" onclick="toggleGroup(this.parentNode)">
-                    <div class="group-title">${escapeHtml(g)}</div>
+                    <div class="group-title-block">
+                        <div class="group-title">${escapeHtml(g)}</div>
+                        <div class="group-subtitle">当前分组 ${visibleKeys.length} 个配置项</div>
+                    </div>
+                    <span class="group-field-count">${visibleKeys.length}</span>
                     <svg class="icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </div>
                 <div class="group-content">
@@ -374,10 +367,32 @@ function groupDomId(groupName) {
 }
 
 function activateConfigGroup(groupId, button, options = {}) {
+    if (groupId === ALL_CONFIG_GROUPS_ID) {
+        activeConfigGroupId = ALL_CONFIG_GROUPS_ID;
+        const formContainer = document.getElementById('form-container');
+        if (formContainer) formContainer.classList.remove('single-group-mode');
+        setActiveConfigNav(ALL_CONFIG_GROUPS_ID);
+        document.querySelectorAll('.group-section').forEach(section => {
+            section.classList.add('active-group');
+            section.classList.remove('inactive-group', 'collapsed');
+        });
+        const toggleAllBtn = document.getElementById('btn-toggle-all');
+        if (toggleAllBtn) toggleAllBtn.innerText = '折叠全部';
+        isAllCollapsed = false;
+        const scroller = document.querySelector('.config-detail-pane');
+        if (scroller && options.scroll !== false) {
+            scroller.scrollTop = 0;
+        }
+        initConfigScrollSpy();
+        return;
+    }
+
     const target = document.getElementById(groupId);
     if (!target || target.classList.contains('hidden')) return;
 
     activeConfigGroupId = groupId;
+    const formContainer = document.getElementById('form-container');
+    if (formContainer) formContainer.classList.add('single-group-mode');
     setActiveConfigNav(groupId);
     if (button) button.classList.add('active');
     document.querySelectorAll('.group-section').forEach(section => {
@@ -391,37 +406,61 @@ function activateConfigGroup(groupId, button, options = {}) {
     if (scroller && options.scroll !== false) {
         scroller.scrollTop = 0;
     }
+    initConfigScrollSpy();
 }
 
 function scrollToConfigGroup(groupId, button) {
     activateConfigGroup(groupId, button, { scroll: true });
 }
 
+function showAllConfigGroups(button) {
+    activateConfigGroup(ALL_CONFIG_GROUPS_ID, button, { scroll: true });
+}
+
 function updateConfigNavVisibility() {
     const items = Array.from(document.querySelectorAll('.config-nav-item'));
+    const groupItems = items.filter(item => item.dataset.target !== ALL_CONFIG_GROUPS_ID);
+    const allItem = items.find(item => item.dataset.target === ALL_CONFIG_GROUPS_ID);
     let visibleCount = 0;
-    items.forEach((item, index) => {
+    let visibleFieldCount = 0;
+    groupItems.forEach((item) => {
         const target = document.getElementById(item.dataset.target || '');
-        const isVisible = target && !target.classList.contains('hidden');
+        const visibleCards = target ? Array.from(target.querySelectorAll('.card'))
+            .filter(card => !card.classList.contains('hidden') && !card.classList.contains('filtered-out')) : [];
+        const isVisible = target && visibleCards.length > 0 && !target.classList.contains('hidden');
         item.classList.toggle('hidden', !isVisible);
-        if (isVisible) visibleCount += 1;
+        const countBadge = item.querySelector('.config-nav-item-count');
+        if (countBadge) countBadge.textContent = String(visibleCards.length);
+        if (isVisible) {
+            visibleCount += 1;
+            visibleFieldCount += visibleCards.length;
+        }
         if (!isVisible) item.classList.remove('active');
     });
-    const currentVisible = items.find(item =>
-        item.dataset.target === activeConfigGroupId && !item.classList.contains('hidden')
-    );
-    const nextActive = currentVisible || items.find(item => !item.classList.contains('hidden'));
-    if (nextActive) {
-        activateConfigGroup(nextActive.dataset.target, nextActive, { scroll: false });
+    if (allItem) {
+        allItem.classList.toggle('hidden', visibleCount === 0);
+        const allCountBadge = allItem.querySelector('.config-nav-item-count');
+        if (allCountBadge) allCountBadge.textContent = String(visibleFieldCount);
+    }
+    if (activeConfigGroupId === ALL_CONFIG_GROUPS_ID && visibleCount > 0) {
+        activateConfigGroup(ALL_CONFIG_GROUPS_ID, allItem, { scroll: false });
     } else {
-        activeConfigGroupId = null;
-        document.querySelectorAll('.group-section').forEach(section => {
-            section.classList.add('inactive-group');
-            section.classList.remove('active-group');
-        });
+        const currentVisible = groupItems.find(item =>
+            item.dataset.target === activeConfigGroupId && !item.classList.contains('hidden')
+        );
+        const nextActive = currentVisible || groupItems.find(item => !item.classList.contains('hidden'));
+        if (nextActive) {
+            activateConfigGroup(nextActive.dataset.target, nextActive, { scroll: false });
+        } else {
+            activeConfigGroupId = null;
+            document.querySelectorAll('.group-section').forEach(section => {
+                section.classList.add('inactive-group');
+                section.classList.remove('active-group');
+            });
+        }
     }
     const countEl = document.getElementById('config-nav-count');
-    if (countEl) countEl.textContent = `${visibleCount}/${items.length}`;
+    if (countEl) countEl.textContent = `${visibleCount}/${groupItems.length}`;
 }
 
 function initConfigScrollSpy() {
@@ -431,6 +470,7 @@ function initConfigScrollSpy() {
     }
     const formContainer = document.getElementById('form-container');
     if (formContainer && formContainer.classList.contains('single-group-mode')) return;
+    if (activeConfigGroupId === ALL_CONFIG_GROUPS_ID) return;
     if (!('IntersectionObserver' in window)) return;
 
     const sections = Array.from(document.querySelectorAll('.group-section'));
@@ -506,9 +546,12 @@ function renderDeploymentDiagnostics(diagnostics) {
         </div>
         <div class="diagnostics-list">
             ${checks.map(check => `
-                <span class="diagnostic-chip ${escapeHtml(check.state || 'unknown')}" title="${escapeHtml(check.detail || '')}">
+                <span class="diagnostic-chip ${escapeHtml(check.state || 'unknown')}" title="${escapeHtml(check.detail || check.target || '')}">
                     <span class="diagnostic-chip-dot"></span>
-                    ${escapeHtml(check.label || check.id || '')}
+                    <span class="diagnostic-chip-text">
+                        <span class="diagnostic-chip-label">${escapeHtml(check.label || check.id || '')}</span>
+                        ${check.target ? `<span class="diagnostic-chip-target">${escapeHtml(check.target)}</span>` : ''}
+                    </span>
                 </span>
             `).join('')}
         </div>
@@ -937,41 +980,45 @@ function renderField(key) {
     const meta = configMeta[key];
     const val = configValues[key] || '';
     const reqClass = 'required'; // Force all fields to be visually required per user request
+    const safeKey = escapeHtml(key);
+    const safeValue = escapeHtml(val);
+    const safeLabel = escapeHtml(meta.label || key);
+    const safeComment = escapeHtml(meta.comment || '');
 
     let inputHtml = '';
     if (meta.type === 'select') {
         inputHtml = `<select class="field-input" onchange="updateValue('${key}', this.value)">
-            ${meta.options.map(o => `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`).join('')}
+            ${meta.options.map(o => `<option value="${escapeHtml(o)}" ${val === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
         </select>`;
     } else if (meta.type === 'password') {
         inputHtml = `
         <div class="password-wrapper">
-            <input type="password" id="input-${key}" class="field-input" value="${val}" onchange="updateValue('${key}', this.value)" style="padding-right: 35px;">
+            <input type="password" id="input-${key}" class="field-input field-input-secret" value="${safeValue}" onchange="updateValue('${key}', this.value)">
             <button class="toggle-btn" tabindex="-1" onclick="togglePassword('input-${key}', this)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
             </button>
         </div>`;
     } else if (meta.type === 'readonly') {
-        inputHtml = `<input type="text" class="field-input" value="${val}" disabled style="background:#eee; cursor:not-allowed; color:#666;">`;
+        inputHtml = `<input type="text" class="field-input field-input-readonly" value="${safeValue}" disabled>`;
     } else {
         const minAttr = meta.min !== undefined ? `min="${meta.min}"` : '';
         const maxAttr = meta.max !== undefined ? `max="${meta.max}"` : '';
-        inputHtml = `<input type="${meta.type || 'text'}" class="field-input" value="${val}" ${minAttr} ${maxAttr} 
-            oninput="validateField('${key}', this)" 
+        inputHtml = `<input type="${meta.type || 'text'}" class="field-input" value="${safeValue}" ${minAttr} ${maxAttr}
+            oninput="validateField('${key}', this)"
             onchange="updateValue('${key}', this.value)">`;
     }
 
     return `
-    <div class="card" id="card-${key}">
+    <div class="card config-field-card" id="card-${key}">
         <div class="form-row">
             <div class="label-area">
-                <div class="field-label ${reqClass}">${meta.label}</div>
-                <span class="var-code" title="${key}">${key}</span>
+                <div class="field-label ${reqClass}">${safeLabel}</div>
+                <span class="var-code" title="${safeKey}">${safeKey}</span>
             </div>
              <div>
                 ${inputHtml}
-                <div class="field-error" id="error-${key}" style="color: #ff4d4f; font-size: 12px; margin-top: 4px; display: none;"></div>
-                <div class="field-desc">${meta.comment || ''}</div>
+                <div class="field-error" id="error-${key}"></div>
+                <div class="field-desc">${safeComment}</div>
             </div>
         </div>
     </div>`;
@@ -988,21 +1035,21 @@ function validateField(key, input) {
     if (val === undefined || val === null || (typeof input.value === 'string' && input.value.trim() === '')) {
         errorEl.innerText = `${meta.label} 不能为空`;
         errorEl.style.display = 'block';
-        input.style.borderColor = '#ff4d4f';
+        input.classList.add('is-invalid');
         return;
     }
 
     if (meta.min !== undefined && val < meta.min) {
         errorEl.innerText = `值不能小于 ${meta.min}`;
         errorEl.style.display = 'block';
-        input.style.borderColor = '#ff4d4f';
+        input.classList.add('is-invalid');
     } else if (meta.max !== undefined && val > meta.max) {
         errorEl.innerText = `值不能大于 ${meta.max}`;
         errorEl.style.display = 'block';
-        input.style.borderColor = '#ff4d4f';
+        input.classList.add('is-invalid');
     } else {
         errorEl.style.display = 'none';
-        input.style.borderColor = '';
+        input.classList.remove('is-invalid');
     }
 }
 
@@ -1082,23 +1129,15 @@ function setDirty(dirty) {
         // Enabled
         btnSaveOnly.disabled = false;
         btnSaveOnly.textContent = "保存配置 *";
-        btnSaveOnly.style.opacity = "1";
-        btnSaveOnly.style.cursor = "pointer";
         if (btnSaveApply) {
             btnSaveApply.disabled = false;
-            btnSaveApply.style.opacity = "1";
-            btnSaveApply.style.cursor = "pointer";
         }
     } else {
         // Disabled
         btnSaveOnly.disabled = true;
         btnSaveOnly.textContent = "仅保存配置";
-        btnSaveOnly.style.opacity = "0.5";
-        btnSaveOnly.style.cursor = "not-allowed";
         if (btnSaveApply) {
             btnSaveApply.disabled = false;
-            btnSaveApply.style.opacity = "1";
-            btnSaveApply.style.cursor = "pointer";
         }
     }
 }
@@ -1264,8 +1303,7 @@ async function toggleSourceMode() {
             isSourceMode = true;
 
             btn.innerText = "UI 模式";
-            btn.style.background = "#E3F2FD";
-            btn.style.color = "var(--primary)";
+            btn.classList.add('btn-active');
 
             if (searchInput) searchInput.disabled = true;
             if (toggleAllBtn) toggleAllBtn.style.display = 'none';
@@ -1280,8 +1318,7 @@ async function toggleSourceMode() {
         setSourceFullscreen(false);
 
         btn.innerText = "源码模式";
-        btn.style.background = "";
-        btn.style.color = "";
+        btn.classList.remove('btn-active');
 
         if (searchInput) searchInput.disabled = false;
         if (toggleAllBtn) toggleAllBtn.style.display = 'block';
@@ -1346,11 +1383,9 @@ function validateConfig() {
     function highlightError(card) {
         const input = card.querySelector('.field-input');
         if (input) {
-            input.style.borderColor = 'var(--danger)';
-            input.style.backgroundColor = '#FFF0F0';
+            input.classList.add('is-invalid');
             input.addEventListener('input', function () {
-                this.style.borderColor = '';
-                this.style.backgroundColor = '';
+                this.classList.remove('is-invalid');
             }, { once: true });
         }
     }
@@ -1523,16 +1558,16 @@ async function checkStatus() {
                 const msgEl = modal.querySelector('.confirm-message');
 
                 // Dynamic message
-                const fileList = data.missingFiles.map(f => `<b style="color: #D63031;">${f}</b>`).join(' 和 ');
+                const fileList = data.missingFiles.map(f => `<b>${escapeHtml(f)}</b>`).join(' 和 ');
                 if (msgEl) {
                     msgEl.innerHTML = `
-                        <div style="text-align: left; background: #FFF5F5; padding: 12px; border-radius: 6px; border: 1px solid #FED7D7;">
+                        <div class="confirm-callout confirm-callout-danger">
                             当前目录缺失关键配置文件：<br>
                             ${fileList}
                         </div>
-                        <div style="text-align: left; margin-top: 12px; color: #555; font-size: 13px; line-height: 1.6;">
-                            • 核心功能（如启动、停止服务）将 <b>不可用</b>。<br>
-                            • 但您仍可继续 <b>浏览或编辑</b> 历史配置与模板。
+                        <div class="confirm-note-list">
+                            <div>核心功能（如启动、停止服务）将 <b>不可用</b>。</div>
+                            <div>但您仍可继续 <b>浏览或编辑</b> 历史配置与模板。</div>
                         </div>
                     `;
                 }
@@ -1582,8 +1617,8 @@ async function checkStatus() {
                 btnRestart.style.display = 'inline-block';
                 btnRestart.disabled = false;
                 btnRestart.innerText = "重启服务";
-                btnRestart.style.background = "#FDCB6E";
-                btnRestart.style.color = "#333";
+                btnRestart.classList.remove('btn-success');
+                btnRestart.classList.add('btn-warning');
                 btnRestart.style.opacity = '1';
                 btnRestart.style.cursor = 'pointer';
             }
@@ -1606,8 +1641,8 @@ async function checkStatus() {
                 btnRestart.style.display = 'inline-block';
                 btnRestart.disabled = false;
                 btnRestart.innerText = "启动服务";
-                btnRestart.style.background = "#2ecc71";
-                btnRestart.style.color = "white";
+                btnRestart.classList.remove('btn-warning');
+                btnRestart.classList.add('btn-success');
                 btnRestart.style.opacity = '1';
                 btnRestart.style.cursor = 'pointer';
             }
@@ -1751,6 +1786,7 @@ function getHistoryUi() {
                 full: deploymentInfo?.envPath || '.env',
                 short: deploymentInfo?.envPath ? shortPath(deploymentInfo.envPath) : '.env'
             }),
+            showToast,
             reload: () => location.reload()
         });
     }
@@ -1818,10 +1854,10 @@ function setEditMode(enabled) {
     const btnSaveOnly = document.getElementById('btn-save-only');
     const btnSaveApply = document.getElementById('btn-save-apply');
 
-    if (btnEdit) btnEdit.style.display = enabled ? 'none' : 'block';
-    if (btnCancel) btnCancel.style.display = enabled ? 'block' : 'none';
-    if (btnSaveOnly) btnSaveOnly.style.display = enabled ? 'block' : 'none';
-    if (btnSaveApply) btnSaveApply.style.display = enabled ? 'block' : 'none';
+    if (btnEdit) btnEdit.classList.toggle('is-hidden', enabled);
+    if (btnCancel) btnCancel.classList.toggle('is-hidden', !enabled);
+    if (btnSaveOnly) btnSaveOnly.classList.toggle('is-hidden', !enabled);
+    if (btnSaveApply) btnSaveApply.classList.toggle('is-hidden', !enabled);
 
     // 2. Toggle Inputs State
     // Select all inputs, selects, textareas 
@@ -1851,7 +1887,7 @@ async function checkRuntimeSync() {
 
     try {
         // Loading State
-        btn.innerHTML = `<svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
+        btn.innerHTML = '<svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>';
         btn.disabled = true;
 
         const res = await ConfigMateApi.runtimeDiff();
@@ -1884,8 +1920,8 @@ function renderRuntimeDiff(data) {
 
     openModal(modal);
 
-    loadingDiv.style.display = 'none';
-    resultDiv.style.display = 'flex';
+    loadingDiv.classList.add('is-hidden');
+    resultDiv.classList.remove('is-hidden');
     tbody.innerHTML = '';
 
     const diffs = data.diffs || [];
@@ -1897,7 +1933,7 @@ function renderRuntimeDiff(data) {
                 运行配置与本地文件完全一致 (Synced)
             </div>
         `;
-        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 40px; color: #64748b;">✅ 所有配置项均已同步生效。</td></tr>`;
+        tbody.innerHTML = '<tr><td colspan="4" class="runtime-empty-cell">所有配置项均已同步生效。</td></tr>';
         restartBtn.style.display = 'none';
     } else {
         // Has Diffs
@@ -1930,7 +1966,7 @@ function renderRuntimeDiff(data) {
 
             return `
                 <tr>
-                    <td style="font-weight:600; color:#1e293b;">${diff.key}</td>
+                    <td class="runtime-key-cell">${diff.key}</td>
                     <td><span class="${runtimeClass}">${escapeHtml(diff.runtimeVal)}</span></td>
                     <td><span class="${localClass}">${escapeHtml(diff.localVal)}</span></td>
                     <td>${stateTag}</td>
@@ -1943,8 +1979,8 @@ function renderRuntimeDiff(data) {
 function closeRuntimeDiffModal() {
     closeModal('runtime-diff-modal', {
         afterClose: () => {
-            document.getElementById('runtime-diff-result').style.display = 'none';
-            document.getElementById('runtime-diff-loading').style.display = 'flex';
+            document.getElementById('runtime-diff-result').classList.add('is-hidden');
+            document.getElementById('runtime-diff-loading').classList.remove('is-hidden');
         }
     });
 }
@@ -2354,19 +2390,18 @@ async function checkEnvConfigValidation() {
             listEl.style.display = 'none';
             hintEl.style.display = 'none';
 
-            titleEl.textContent = '⛔️ 关键配置缺失 (Critical Configuration Missing)';
-            titleEl.style.color = '#ef4444';
+            titleEl.textContent = '关键配置缺失';
 
             msgEl.innerHTML = `
-                <div style="text-align: left; background: #FFF5F5; padding: 12px; border-radius: 6px; border: 1px solid #FED7D7; font-size: 13px;">
-                    <div style="font-weight: 600; margin-bottom: 6px; color: #C0392B;">未找到 ThingsBoard 配置文件：</div>
-                     <div style="margin-bottom: 4px;">• 请确保 <code>conf/thingsboard.yml</code></div>
-                     <div style="margin-bottom: 4px;">• 或 <code>conf/tb-edge.yml</code> 存在。</div>
+                <div class="confirm-callout confirm-callout-danger">
+                    <div class="confirm-callout-title">未找到 ThingsBoard 配置文件：</div>
+                    <div>请确保 <code>conf/thingsboard.yml</code></div>
+                    <div>或 <code>conf/tb-edge.yml</code> 存在。</div>
                 </div>
-                <div style="text-align: left; margin-top: 12px; color: #555; font-size: 13px; line-height: 1.6;">
-                    • 本工具依赖配置文件来生成元数据。<br>
-                    • 请检查 <code>conf/</code> 目录是否完整。<br>
-                    • <b>工具将会暂停</b>，直到问题修复。
+                <div class="confirm-note-list">
+                    <div>本工具依赖配置文件来生成元数据。</div>
+                    <div>请检查 <code>conf/</code> 目录是否完整。</div>
+                    <div><b>工具将会暂停</b>，直到问题修复。</div>
                 </div>
             `;
 
@@ -2374,8 +2409,8 @@ async function checkEnvConfigValidation() {
 
             actionBtn.textContent = '已修复，刷新页面重试 (Reload)';
             actionBtn.classList.remove('btn-ghost');
-            actionBtn.classList.add('btn-confirm');
-            actionBtn.style.backgroundColor = '#ef4444';
+            actionBtn.classList.add('btn-confirm', 'btn-confirm-danger');
+            actionBtn.style.backgroundColor = '';
             actionBtn.onclick = () => location.reload();
 
             openModal(modal);
@@ -2387,22 +2422,21 @@ async function checkEnvConfigValidation() {
 
             // Build styled error list
             const errorItems = data.errors.map(err =>
-                `<div style="margin-bottom: 4px;">• <b style="color: #D63031;">${err.file}</b>: ${err.msg.replace('Missing env_file property', '未配置 env_file')}</div>`
+                `<div><b>${ConfigMateUi.escapeHtml(err.file)}</b>: ${ConfigMateUi.escapeHtml(err.msg.replace('Missing env_file property', '未配置 env_file'))}</div>`
             ).join('');
 
             // Blocking Mode
-            titleEl.textContent = '⛔️ 严重配置错误 (Critical Configuration Error)';
-            titleEl.style.color = '#ef4444';
+            titleEl.textContent = '严重配置错误';
 
             msgEl.innerHTML = `
-                <div style="text-align: left; background: #FFF5F5; padding: 12px; border-radius: 6px; border: 1px solid #FED7D7; font-size: 13px;">
-                    <div style="font-weight: 600; margin-bottom: 6px; color: #C0392B;">检测到以下文件配置不正确：</div>
+                <div class="confirm-callout confirm-callout-danger">
+                    <div class="confirm-callout-title">检测到以下文件配置不正确：</div>
                     ${errorItems}
                 </div>
-                <div style="text-align: left; margin-top: 12px; color: #555; font-size: 13px; line-height: 1.6;">
-                    • 本工具依赖 <code>env_file</code> 配置来加载环境变量。<br>
-                    • 请在上述文件中添加 <code>env_file: [.env]</code> 配置项。<br>
-                    • 为了数据安全，<b>工具将暂停运行</b>，直到问题修复。
+                <div class="confirm-note-list">
+                    <div>本工具依赖 <code>env_file</code> 配置来加载环境变量。</div>
+                    <div>请在上述文件中添加 <code>env_file: [.env]</code> 配置项。</div>
+                    <div>为了数据安全，<b>工具将暂停运行</b>，直到问题修复。</div>
                 </div>
             `;
 
@@ -2412,8 +2446,8 @@ async function checkEnvConfigValidation() {
             // Change action button to Reload
             actionBtn.textContent = '已修复，刷新页面重试 (Reload)';
             actionBtn.classList.remove('btn-ghost');
-            actionBtn.classList.add('btn-confirm');
-            actionBtn.style.backgroundColor = '#ef4444';
+            actionBtn.classList.add('btn-confirm', 'btn-confirm-danger');
+            actionBtn.style.backgroundColor = '';
             actionBtn.onclick = () => location.reload();
 
             openModal(modal);

@@ -325,31 +325,3 @@
     flex-wrap: wrap;
     justify-content: flex-end;
 }
-
-.btn-logs {
-    padding: 8px 20px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    border: none;
-    transition: all 0.2s;
-}
-
-.btn-logs-primary {
-    background: var(--primary);
-    color: white;
-}
-
-.btn-logs-primary:hover {
-    background: #1E5BB0;
-}
-
-.btn-logs-secondary {
-    background: #3A3A3A;
-    color: #FFF;
-}
-
-.btn-logs-secondary:hover {
-    background: #4A4A4A;
-}
