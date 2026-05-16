@@ -2460,6 +2460,7 @@ function renderRuntimeDiff(data) {
     const modal = document.getElementById('runtime-diff-modal');
     const tbody = document.getElementById('runtime-diff-tbody');
     const statusDiv = document.getElementById('diff-status-bar');
+    const banner = document.getElementById('cm-diff-banner');
     const loadingDiv = document.getElementById('runtime-diff-loading');
     const resultDiv = document.getElementById('runtime-diff-result');
     const restartBtn = document.getElementById('btn-restart-from-diff');
@@ -2471,48 +2472,96 @@ function renderRuntimeDiff(data) {
     tbody.innerHTML = '';
 
     const diffs = data.diffs || [];
-    if (diffs.length === 0) {
-        // Synced
-        statusDiv.innerHTML = `
-            <div class="diff-status-sync">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                运行配置与本地文件完全一致 (Synced)
-            </div>
-        `;
-        tbody.innerHTML = '<tr><td colspan="4" class="runtime-empty-cell">所有配置项均已同步生效。</td></tr>';
-        restartBtn.style.display = 'none';
-    } else {
-        // Has Diffs
-        statusDiv.innerHTML = `
-            <div class="diff-status-diff">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                检测到 ${diffs.length} 个配置项不一致 (需重启生效)
-            </div>
-        `;
-        restartBtn.style.display = 'block';
+    const counts = { mod: 0, new: 0, deleted: 0 };
+    diffs.forEach(d => {
+        if (d.state === 'MODIFIED') counts.mod += 1;
+        else if (d.state === 'NEW') counts.new += 1;
+        else if (d.state === 'DELETED') counts.deleted += 1;
+    });
+    // 与 C 方案 4 KPI 对齐 (MATCH / MODIFIED / ONLY LOCAL / ONLY RUNTIME):
+    // - MODIFIED 对应 state="MODIFIED"
+    // - ONLY LOCAL = NEW (本地存在但运行时缺失)
+    // - ONLY RUNTIME = DELETED (运行时仍存在但本地已删)
+    const setKpi = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(val);
+    };
+    // 真实"一致" count 未由后端返回, 这里用 0 占位; 横幅 + 表格已表达状态.
+    setKpi('cm-diff-kpi-match', '—');
+    setKpi('cm-diff-kpi-mod', counts.mod);
+    setKpi('cm-diff-kpi-onlylocal', counts.new);
+    setKpi('cm-diff-kpi-onlyruntime', counts.deleted);
 
+    const needRestart = counts.mod > 0;
+    const synced = diffs.length === 0;
+
+    if (banner) {
+        banner.className = 'cm-diff-banner';
+        if (synced) {
+            banner.classList.add('is-ok');
+            banner.innerHTML = `
+                <div class="cm-diff-banner-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </div>
+                <div class="cm-diff-banner-body">
+                    <div class="cm-diff-banner-title">本地配置与运行时一致 · 无需操作</div>
+                    <div class="cm-diff-banner-desc">所有比对项均已同步生效</div>
+                </div>`;
+        } else if (needRestart) {
+            banner.classList.add('is-warn');
+            banner.innerHTML = `
+                <div class="cm-diff-banner-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                </div>
+                <div class="cm-diff-banner-body">
+                    <div class="cm-diff-banner-title">检测到运行时配置漂移 · 需要重启服务才能生效</div>
+                    <div class="cm-diff-banner-desc">${counts.mod} 项已修改 · ${counts.new} 项仅本地 · ${counts.deleted} 项仅运行时</div>
+                </div>`;
+        } else {
+            banner.classList.add('is-info');
+            banner.innerHTML = `
+                <div class="cm-diff-banner-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                </div>
+                <div class="cm-diff-banner-body">
+                    <div class="cm-diff-banner-title">${diffs.length} 个键存在差异 · 无需重启</div>
+                    <div class="cm-diff-banner-desc">${counts.new} 项仅本地 · ${counts.deleted} 项仅运行时</div>
+                </div>`;
+        }
+    }
+    if (statusDiv) statusDiv.innerHTML = '';
+
+    if (synced) {
+        tbody.innerHTML = '<tr><td colspan="4" class="runtime-empty-cell">所有配置项均已同步生效。</td></tr>';
+        if (restartBtn) restartBtn.style.display = 'none';
+    } else {
+        if (restartBtn) restartBtn.style.display = needRestart ? '' : 'none';
         tbody.innerHTML = diffs.map(diff => {
             let runtimeClass = '';
             let localClass = '';
             let stateTag = '';
+            let rowState = 'mod';
 
             if (diff.state === 'MODIFIED') {
                 runtimeClass = 'diff-val-del';
                 localClass = 'diff-val-new';
                 stateTag = '<span class="diff-tag diff-tag-mod">MODIFIED</span>';
+                rowState = 'mod';
             } else if (diff.state === 'NEW') {
-                runtimeClass = ''; // Missing
+                runtimeClass = '';
                 localClass = 'diff-val-new';
-                stateTag = '<span class="diff-tag diff-tag-new">NEW</span>';
+                stateTag = '<span class="diff-tag diff-tag-new">ONLY LOCAL</span>';
+                rowState = 'missing_runtime';
             } else if (diff.state === 'DELETED') {
                 runtimeClass = 'diff-val-del';
-                localClass = ''; // Missing
-                stateTag = '<span class="diff-tag diff-tag-del">DELETED</span>';
+                localClass = '';
+                stateTag = '<span class="diff-tag diff-tag-del">ONLY RUNTIME</span>';
+                rowState = 'missing_local';
             }
 
             return `
-                <tr>
-                    <td class="runtime-key-cell">${diff.key}</td>
+                <tr data-state="${rowState}">
+                    <td class="runtime-key-cell"><code>${escapeHtml(diff.key)}</code></td>
                     <td><span class="${runtimeClass}">${escapeHtml(diff.runtimeVal)}</span></td>
                     <td><span class="${localClass}">${escapeHtml(diff.localVal)}</span></td>
                     <td>${stateTag}</td>

@@ -676,93 +676,84 @@
     </div>
 
     <!-- Install Progress Modal -->
-    <div id="install-modal" class="modal-overlay" data-route-breadcrumb="Config Mate › 初始化向导">
-        <div class="install-modal-content">
-            <div class="install-header">
-                <div class="install-heading">
-                    <span class="install-icon">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <div id="install-modal" class="modal-overlay cm-install-route" data-route-breadcrumb="Config Mate › 初始化向导">
+        <div class="install-modal-content cm-install-container">
+            <div class="cm-breadcrumb cm-install-breadcrumb">
+                <span>Config Mate</span>
+                <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                <span class="cm-breadcrumb-current">初始化向导</span>
+            </div>
+            <div class="cm-page-header cm-install-page-header">
+                <div class="cm-page-header-titles">
+                    <h2 class="cm-page-title">初始化安装 <span id="install-state-badge" class="install-state-badge">准备就绪</span></h2>
+                    <p id="install-subtitle" class="cm-page-subtitle">执行 <code>docker-compose-install.yml</code> · 应用数据库迁移与系统数据</p>
+                </div>
+                <div class="cm-page-header-actions">
+                    <button class="btn btn-ghost" type="button" onclick="copyInstallLogs()">复制日志</button>
+                    <button class="btn btn-primary" id="btn-close-install" onclick="navigateRoute('deployment')" disabled>运行中</button>
+                </div>
+            </div>
+
+            <div class="cm-install-kpis" aria-label="任务指标">
+                <div class="cm-install-kpi">
+                    <div class="cm-install-kpi-label">任务文件</div>
+                    <div id="install-compose-label" class="cm-install-kpi-value">install.yml</div>
+                    <div class="cm-install-kpi-sub">docker-compose-</div>
+                </div>
+                <div class="cm-install-kpi" data-tone="primary">
+                    <div class="cm-install-kpi-label">当前阶段</div>
+                    <div id="install-current-stage" class="cm-install-kpi-value">等待开始</div>
+                    <div class="cm-install-kpi-sub">0 / 6</div>
+                </div>
+                <div class="cm-install-kpi" data-tone="primary">
+                    <div class="cm-install-kpi-label">进度</div>
+                    <div id="install-percent" class="cm-install-kpi-value">0%</div>
+                    <div class="cm-install-kpi-sub" id="install-status-text">等待开始</div>
+                </div>
+                <div class="cm-install-kpi">
+                    <div class="cm-install-kpi-label">运行时间</div>
+                    <div id="install-elapsed" class="cm-install-kpi-value">00:00</div>
+                    <div class="cm-install-kpi-sub" id="install-footer-note">完成后可关闭窗口</div>
+                </div>
+            </div>
+
+            <div class="cm-install-progress-card">
+                <div class="progress-container">
+                    <div class="progress-bar-wrapper">
+                        <div id="install-progress-bar" class="progress-bar-fill"></div>
+                    </div>
+                </div>
+                <ol id="install-steps" class="install-steps cm-install-steps-grid">
+                    <li class="install-step" data-step="cleanup"><span class="install-step-dot">1</span><span class="install-step-label">清理旧任务</span></li>
+                    <li class="install-step" data-step="compose"><span class="install-step-dot">2</span><span class="install-step-label">启动安装容器</span></li>
+                    <li class="install-step" data-step="schema"><span class="install-step-dot">3</span><span class="install-step-label">数据库结构</span></li>
+                    <li class="install-step" data-step="data"><span class="install-step-dot">4</span><span class="install-step-label">系统数据</span></li>
+                    <li class="install-step" data-step="assets"><span class="install-step-dot">5</span><span class="install-step-label">资源加载</span></li>
+                    <li class="install-step" data-step="finish"><span class="install-step-dot">6</span><span class="install-step-label">完成校验</span></li>
+                </ol>
+            </div>
+
+            <div class="cm-install-log-card">
+                <div class="cm-install-log-toolbar">
+                    <div class="cm-install-log-title">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 2v4"></path>
-                            <path d="M12 18v4"></path>
-                            <path d="m4.93 4.93 2.83 2.83"></path>
-                            <path d="m16.24 16.24 2.83 2.83"></path>
-                            <path d="M2 12h4"></path>
-                            <path d="M18 12h4"></path>
-                            <path d="m4.93 19.07 2.83-2.83"></path>
-                            <path d="m16.24 7.76 2.83-2.83"></path>
+                            <polyline points="4 17 10 11 4 5"></polyline>
+                            <line x1="12" y1="19" x2="20" y2="19"></line>
                         </svg>
-                    </span>
-                    <div>
-                        <div class="install-eyebrow">Install Task</div>
-                        <div class="install-title">初始化安装</div>
-                        <div id="install-subtitle" class="install-subtitle">执行当前业务包的安装初始化任务</div>
+                        <span>执行日志</span>
+                        <span class="cm-install-log-sub">tb-install · stdout + stderr</span>
+                    </div>
+                    <div class="cm-install-log-actions">
+                        <button id="btn-install-follow" class="cm-install-log-btn active" type="button" onclick="toggleInstallFollow()">跟随</button>
+                        <button class="cm-install-log-btn" type="button" onclick="copyInstallLogs()">复制</button>
+                        <button class="cm-install-log-btn" type="button" onclick="clearInstallLogs()">清空</button>
                     </div>
                 </div>
-                <div id="install-state-badge" class="install-state-badge">准备就绪</div>
-            </div>
-            <div class="install-body">
-                <div class="install-summary">
-                    <div class="install-summary-card">
-                        <div class="install-summary-label">任务文件</div>
-                        <div id="install-compose-label" class="install-summary-value">docker-compose-install.yml</div>
-                    </div>
-                    <div class="install-summary-card">
-                        <div class="install-summary-label">当前阶段</div>
-                        <div id="install-current-stage" class="install-summary-value">等待开始</div>
-                    </div>
-                    <div class="install-summary-card">
-                        <div class="install-summary-label">运行时间</div>
-                        <div id="install-elapsed" class="install-summary-value">00:00</div>
-                    </div>
-                </div>
-                <div class="install-progress-card">
-                    <div class="install-progress-main">
-                        <div class="progress-status">
-                            <span id="install-status-text">等待开始</span>
-                            <span id="install-percent">0%</span>
-                        </div>
-                        <div class="progress-container">
-                            <div class="progress-bar-wrapper">
-                                <div id="install-progress-bar" class="progress-bar-fill"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <ol id="install-steps" class="install-steps">
-                        <li class="install-step" data-step="cleanup"><span class="install-step-dot">1</span><span>清理旧任务</span></li>
-                        <li class="install-step" data-step="compose"><span class="install-step-dot">2</span><span>启动安装容器</span></li>
-                        <li class="install-step" data-step="schema"><span class="install-step-dot">3</span><span>数据库结构</span></li>
-                        <li class="install-step" data-step="data"><span class="install-step-dot">4</span><span>系统数据</span></li>
-                        <li class="install-step" data-step="assets"><span class="install-step-dot">5</span><span>资源加载</span></li>
-                        <li class="install-step" data-step="finish"><span class="install-step-dot">6</span><span>完成校验</span></li>
-                    </ol>
-                </div>
-                <div class="install-log-card">
-                    <div class="install-log-toolbar">
-                        <div class="install-log-title">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                <path d="M14 2v6h6"></path>
-                                <path d="M16 13H8"></path>
-                                <path d="M16 17H8"></path>
-                                <path d="M10 9H8"></path>
-                            </svg>
-                            <span>执行日志</span>
-                        </div>
-                        <div class="install-log-actions">
-                            <button id="btn-install-follow" class="install-log-btn active" type="button"
-                                onclick="toggleInstallFollow()">跟随</button>
-                            <button class="install-log-btn" type="button" onclick="copyInstallLogs()">复制</button>
-                            <button class="install-log-btn" type="button" onclick="clearInstallLogs()">清空</button>
-                        </div>
-                    </div>
-                    <div id="install-logs" class="install-terminal"></div>
-                </div>
-            </div>
-            <div class="install-footer">
-                <div id="install-footer-note" class="install-footer-note">初始化执行期间请保持页面打开；完成后可关闭窗口。</div>
-                <button id="btn-close-install" class="btn btn-primary" onclick="navigateRoute('deployment')" disabled>运行中</button>
+                <div id="install-logs" class="install-terminal"></div>
             </div>
         </div>
     </div>
@@ -885,54 +876,81 @@
         </div>
     </div>
 
-    <div id="runtime-diff-modal" class="modal-overlay" data-route-breadcrumb="Config Mate › 运行检查">
-        <div class="modal-content modal-wide">
-            <div class="modal-header">
-                <div class="modal-title">运行环境配置检查</div>
-                <div class="close-btn" onclick="navigateRoute('deployment')">&times;</div>
+    <div id="runtime-diff-modal" class="modal-overlay cm-diff-route" data-route-breadcrumb="Config Mate › 运行检查">
+        <div class="modal-content modal-wide cm-diff-container">
+            <div class="cm-breadcrumb cm-diff-breadcrumb">
+                <span>Config Mate</span>
+                <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                <span class="cm-breadcrumb-current">运行检查</span>
             </div>
-            <div class="modal-body modal-body-flush">
-                <div id="runtime-diff-loading" class="runtime-loading">
-                    <svg class="spinner" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2">
-                        <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
-                    </svg>
-                    <p class="runtime-loading-text">正在分析运行环境...</p>
+            <div class="cm-page-header cm-diff-page-header">
+                <div class="cm-page-header-titles">
+                    <h2 class="cm-page-title">运行配置检查</h2>
+                    <p class="cm-page-subtitle">通过 <code>docker inspect</code> 读取容器真实环境变量，与本地 <code>.env</code> 比对</p>
                 </div>
-
-                <div id="runtime-diff-result" class="runtime-result is-hidden">
-                    <div id="diff-status-bar">
-                        <!-- Injected by JS -->
-                    </div>
-
-                    <div class="runtime-table-shell">
-                        <table class="runtime-diff-table">
-                            <thead>
-                                <tr>
-                                    <th class="table-col-30">变量名 (Key)</th>
-                                    <th class="table-col-30">运行中 (Runtime)</th>
-                                    <th class="table-col-30">本地文件 (Local)</th>
-                                    <th class="table-col-10">状态</th>
-                                </tr>
-                            </thead>
-                            <tbody id="runtime-diff-tbody">
-                                <!-- Injected by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="info-banner info-banner-spaced">
-                        <strong>说明：</strong>
-                        <ul class="compact-note-list">
-                            <li><span class="danger-text">红色</span>：需要重启才能生效的变更。</li>
-                            <li>比较的是 <code>docker inspect</code> (运行真值) 与 <code>.env</code> (本地定义)。</li>
-                        </ul>
-                    </div>
+                <div class="cm-page-header-actions">
+                    <button class="btn btn-ghost" type="button" onclick="checkRuntimeSync()">重新检查</button>
+                    <button class="btn btn-primary" type="button" id="btn-restart-from-diff" onclick="restartService()">立即重启服务</button>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-ghost" onclick="navigateRoute('deployment')">关闭</button>
-                <button class="btn btn-confirm" id="btn-restart-from-diff" onclick="restartService()">立即重启服务</button>
+
+            <div id="runtime-diff-loading" class="runtime-loading cm-diff-loading">
+                <svg class="spinner" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                </svg>
+                <p class="runtime-loading-text">正在分析运行环境...</p>
+            </div>
+
+            <div id="runtime-diff-result" class="runtime-result is-hidden cm-diff-result">
+                <div id="cm-diff-banner" class="cm-diff-banner" aria-live="polite">
+                    <!-- 状态横幅 by JS -->
+                </div>
+
+                <div id="cm-diff-kpis" class="cm-diff-kpis" aria-label="差异统计">
+                    <div class="cm-diff-kpi" data-tone="ok">
+                        <div class="cm-diff-kpi-label">一致</div>
+                        <div class="cm-diff-kpi-value" id="cm-diff-kpi-match">0</div>
+                        <div class="cm-diff-kpi-sub">Runtime ≡ Local</div>
+                    </div>
+                    <div class="cm-diff-kpi" data-tone="warn">
+                        <div class="cm-diff-kpi-label">已修改</div>
+                        <div class="cm-diff-kpi-value" id="cm-diff-kpi-mod">0</div>
+                        <div class="cm-diff-kpi-sub">需要重启服务</div>
+                    </div>
+                    <div class="cm-diff-kpi" data-tone="info">
+                        <div class="cm-diff-kpi-label">仅本地</div>
+                        <div class="cm-diff-kpi-value" id="cm-diff-kpi-onlylocal">0</div>
+                        <div class="cm-diff-kpi-sub">容器未应用</div>
+                    </div>
+                    <div class="cm-diff-kpi" data-tone="purple">
+                        <div class="cm-diff-kpi-label">仅运行时</div>
+                        <div class="cm-diff-kpi-value" id="cm-diff-kpi-onlyruntime">0</div>
+                        <div class="cm-diff-kpi-sub">镜像默认值</div>
+                    </div>
+                </div>
+
+                <!-- Legacy single bar (kept hidden — JS may still target it). -->
+                <div id="diff-status-bar" class="is-legacy-hidden" aria-hidden="true"></div>
+
+                <div class="cm-diff-table-shell">
+                    <table class="runtime-diff-table cm-diff-table">
+                        <thead>
+                            <tr>
+                                <th class="table-col-30">变量名 (Key)</th>
+                                <th class="table-col-30">运行中 (Runtime)</th>
+                                <th class="table-col-30">本地文件 (Local)</th>
+                                <th class="table-col-10">状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="runtime-diff-tbody">
+                            <!-- by JS -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

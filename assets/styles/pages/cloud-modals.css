@@ -233,3 +233,615 @@
 @media (max-width: 960px) {
     .modal-overlay.route-active { padding: 18px 16px !important; }
 }
+
+/* ========================================================================
+   Stage G — runtime diff & install route-page refinements (Cloud Console).
+   ====================================================================== */
+
+/* ---- Runtime diff: 状态横幅 + 4 KPI + 表格 ------------------------ */
+
+.cm-diff-route::before {
+    /* Replace the auto-injected breadcrumb (data-route-breadcrumb) with
+       our explicit .cm-breadcrumb above. */
+    display: none !important;
+}
+
+.cm-diff-route.modal-overlay {
+    background: var(--cm-cloud-bg);
+}
+
+.cm-diff-route.modal-overlay.route-active {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0 !important;
+}
+
+.cm-diff-route .cm-diff-container {
+    width: 100%;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 22px 32px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: auto;
+    color: var(--cm-cloud-fg);
+    font-family: var(--cm-font-sans);
+}
+
+.cm-diff-page-header {
+    margin-bottom: 4px;
+}
+
+.cm-diff-loading {
+    margin: 40px auto;
+    text-align: center;
+}
+
+.cm-diff-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    border: 1px solid var(--cm-cloud-border);
+    background: var(--cm-cloud-surface);
+}
+
+.cm-diff-banner.is-warn {
+    background: var(--cm-cloud-warning-soft);
+    border-color: var(--cm-cloud-warning-border);
+}
+
+.cm-diff-banner.is-ok {
+    background: var(--cm-cloud-success-soft);
+    border-color: var(--cm-cloud-success-border);
+}
+
+.cm-diff-banner.is-info {
+    background: var(--cm-cloud-info-soft);
+    border-color: var(--cm-cloud-info-border);
+}
+
+.cm-diff-banner-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 9px;
+    background: #fff;
+    border: 1px solid currentColor;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cm-diff-banner.is-warn .cm-diff-banner-icon { color: var(--cm-cloud-warning); }
+.cm-diff-banner.is-ok   .cm-diff-banner-icon { color: var(--cm-cloud-success); }
+.cm-diff-banner.is-info .cm-diff-banner-icon { color: var(--cm-cloud-info); }
+
+.cm-diff-banner-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--cm-cloud-fg);
+}
+
+.cm-diff-banner.is-warn .cm-diff-banner-title { color: #92400E; }
+.cm-diff-banner.is-ok   .cm-diff-banner-title { color: #065F46; }
+.cm-diff-banner.is-info .cm-diff-banner-title { color: #075985; }
+
+.cm-diff-banner-desc {
+    font-size: 12px;
+    color: var(--cm-cloud-muted);
+    margin-top: 4px;
+    line-height: 1.55;
+}
+
+.cm-diff-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.cm-diff-kpi {
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: var(--cm-cloud-shadow-sm);
+}
+
+.cm-diff-kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--cm-cloud-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.cm-diff-kpi-value {
+    font-family: var(--cm-font-mono);
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--cm-cloud-fg);
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+}
+
+.cm-diff-kpi-sub {
+    font-size: 11px;
+    color: var(--cm-cloud-muted);
+    margin-top: 2px;
+}
+
+.cm-diff-kpi[data-tone="ok"]     .cm-diff-kpi-value { color: var(--cm-cloud-success); }
+.cm-diff-kpi[data-tone="warn"]   .cm-diff-kpi-value { color: var(--cm-cloud-warning); }
+.cm-diff-kpi[data-tone="danger"] .cm-diff-kpi-value { color: var(--cm-cloud-danger); }
+.cm-diff-kpi[data-tone="info"]   .cm-diff-kpi-value { color: var(--cm-cloud-info); }
+.cm-diff-kpi[data-tone="purple"] .cm-diff-kpi-value { color: #7C3AED; }
+
+.cm-diff-table-shell {
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--cm-cloud-shadow-sm);
+}
+
+.cm-diff-route .runtime-diff-table.cm-diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+.cm-diff-route .runtime-diff-table thead tr {
+    background: var(--cm-cloud-surface-muted);
+}
+
+.cm-diff-route .runtime-diff-table thead th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--cm-cloud-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
+}
+
+.cm-diff-route .runtime-diff-table tbody tr {
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
+}
+
+.cm-diff-route .runtime-diff-table tbody tr[data-state="mod"] {
+    background: rgba(217, 119, 6, 0.06);
+}
+
+.cm-diff-route .runtime-diff-table tbody tr[data-state="missing_runtime"] {
+    background: rgba(2, 132, 199, 0.04);
+}
+
+.cm-diff-route .runtime-diff-table tbody tr[data-state="missing_local"] {
+    background: rgba(124, 58, 237, 0.04);
+}
+
+.cm-diff-route .runtime-diff-table td {
+    padding: 10px 16px;
+    font-family: var(--cm-font-mono);
+}
+
+.cm-diff-route .runtime-diff-table .runtime-key-cell code {
+    font-family: var(--cm-font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--cm-cloud-fg);
+    background: transparent;
+}
+
+.cm-diff-route .diff-val-del {
+    color: var(--cm-cloud-danger);
+    background: var(--cm-cloud-danger-soft);
+    padding: 2px 7px;
+    border-radius: 4px;
+}
+
+.cm-diff-route .diff-val-new {
+    color: var(--cm-cloud-success);
+    background: var(--cm-cloud-success-soft);
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.cm-diff-route .diff-tag {
+    font-family: var(--cm-font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+}
+
+.cm-diff-route .diff-tag-mod {
+    color: var(--cm-cloud-warning);
+    background: var(--cm-cloud-warning-soft);
+    border: 1px solid var(--cm-cloud-warning-border);
+}
+
+.cm-diff-route .diff-tag-new {
+    color: var(--cm-cloud-info);
+    background: var(--cm-cloud-info-soft);
+    border: 1px solid var(--cm-cloud-info-border);
+}
+
+.cm-diff-route .diff-tag-del {
+    color: #7C3AED;
+    background: #F5F3FF;
+    border: 1px solid #DDD6FE;
+}
+
+.cm-diff-route .is-legacy-hidden {
+    display: none !important;
+}
+
+.cm-diff-route .runtime-empty-cell {
+    text-align: center;
+    color: var(--cm-cloud-muted);
+    padding: 22px;
+    font-family: var(--cm-font-sans);
+}
+
+@media (max-width: 1024px) {
+    .cm-diff-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+    .cm-diff-kpis { grid-template-columns: 1fr; }
+}
+
+/* ---- Install wizard: KPI + 6 列 step grid + 彩色终端 -------------- */
+
+.cm-install-route::before {
+    display: none !important;
+}
+
+.cm-install-route.modal-overlay {
+    background: var(--cm-cloud-bg);
+}
+
+.cm-install-route.modal-overlay.route-active {
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0 !important;
+}
+
+.cm-install-route .cm-install-container {
+    width: 100%;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 22px 32px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: auto;
+    color: var(--cm-cloud-fg);
+    font-family: var(--cm-font-sans);
+}
+
+.cm-install-page-header {
+    margin-bottom: 4px;
+}
+
+.cm-install-page-header .install-state-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 10px;
+    font-family: var(--cm-font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: var(--cm-radius-full);
+    border: 1px solid var(--cm-cloud-border);
+    background: var(--cm-cloud-surface);
+    color: var(--cm-cloud-muted);
+    vertical-align: middle;
+}
+
+.cm-install-page-header .install-state-badge.running {
+    color: var(--cm-cloud-info);
+    background: var(--cm-cloud-info-soft);
+    border-color: var(--cm-cloud-info-border);
+}
+
+.cm-install-page-header .install-state-badge.success {
+    color: var(--cm-cloud-success);
+    background: var(--cm-cloud-success-soft);
+    border-color: var(--cm-cloud-success-border);
+}
+
+.cm-install-page-header .install-state-badge.error {
+    color: var(--cm-cloud-danger);
+    background: var(--cm-cloud-danger-soft);
+    border-color: var(--cm-cloud-danger-border);
+}
+
+.cm-install-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.cm-install-kpi {
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    box-shadow: var(--cm-cloud-shadow-sm);
+}
+
+.cm-install-kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--cm-cloud-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.cm-install-kpi-value {
+    font-family: var(--cm-font-mono);
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--cm-cloud-fg);
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cm-install-kpi-sub {
+    font-size: 11px;
+    color: var(--cm-cloud-muted);
+    margin-top: 2px;
+}
+
+.cm-install-kpi[data-tone="primary"] .cm-install-kpi-value {
+    color: var(--cm-cloud-primary);
+}
+
+.cm-install-progress-card {
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--cm-cloud-shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cm-install-progress-card .progress-container {
+    width: 100%;
+}
+
+.cm-install-progress-card .progress-bar-wrapper {
+    height: 10px;
+    background: var(--cm-cloud-surface-muted);
+    border-radius: var(--cm-radius-full);
+    overflow: hidden;
+}
+
+.cm-install-progress-card .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #14B8A6, #22C55E);
+    border-radius: inherit;
+    transition: width 0.3s ease;
+}
+
+.cm-install-steps-grid {
+    display: grid !important;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.cm-install-route .install-step {
+    display: flex !important;
+    flex-direction: column;
+    gap: 6px;
+    padding: 11px 13px;
+    border-radius: 9px;
+    border: 1px solid var(--cm-cloud-border);
+    background: var(--cm-cloud-surface);
+    color: var(--cm-cloud-muted);
+    font-size: 11px;
+    line-height: 1.4;
+    min-width: 0;
+}
+
+.cm-install-route .install-step.active {
+    border-color: var(--cm-cloud-primary-border);
+    background: var(--cm-cloud-primary-soft);
+    color: var(--cm-cloud-primary);
+}
+
+.cm-install-route .install-step.done {
+    border-color: var(--cm-cloud-success-border);
+    background: var(--cm-cloud-success-soft);
+    color: var(--cm-cloud-success);
+}
+
+.cm-install-route .install-step.error {
+    border-color: var(--cm-cloud-danger-border);
+    background: var(--cm-cloud-danger-soft);
+    color: var(--cm-cloud-danger);
+}
+
+.cm-install-route .install-step-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border-strong);
+    color: var(--cm-cloud-muted);
+    font-family: var(--cm-font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    flex-shrink: 0;
+}
+
+.cm-install-route .install-step.active .install-step-dot {
+    background: var(--cm-cloud-primary);
+    border-color: var(--cm-cloud-primary);
+    color: #fff;
+}
+
+.cm-install-route .install-step.done .install-step-dot {
+    background: var(--cm-cloud-success);
+    border-color: var(--cm-cloud-success);
+    color: #fff;
+}
+
+.cm-install-route .install-step.error .install-step-dot {
+    background: var(--cm-cloud-danger);
+    border-color: var(--cm-cloud-danger);
+    color: #fff;
+}
+
+.cm-install-route .install-step-label {
+    font-family: var(--cm-font-sans);
+    font-size: 12px;
+    font-weight: 800;
+    color: inherit;
+}
+
+.cm-install-log-card {
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 12px;
+    overflow: hidden;
+    flex: 1;
+    min-height: 280px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--cm-cloud-shadow-sm);
+}
+
+.cm-install-log-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--cm-cloud-surface);
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
+}
+
+.cm-install-log-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--cm-cloud-fg);
+}
+
+.cm-install-log-sub {
+    font-family: var(--cm-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--cm-cloud-muted);
+    margin-left: 4px;
+}
+
+.cm-install-log-actions {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.cm-install-log-btn {
+    padding: 5px 10px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 6px;
+    background: var(--cm-cloud-surface);
+    color: var(--cm-cloud-fg);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--cm-font-sans);
+}
+
+.cm-install-log-btn:hover,
+.cm-install-log-btn.active {
+    border-color: var(--cm-cloud-primary-border);
+    background: var(--cm-cloud-primary-soft);
+    color: var(--cm-cloud-primary);
+}
+
+.cm-install-route #install-logs.install-terminal {
+    flex: 1;
+    overflow: auto;
+    background: var(--cm-term-bg);
+    color: var(--cm-term-fg);
+    padding: 8px 0;
+    font-family: var(--cm-font-mono);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.cm-install-route .install-log-line {
+    padding: 2px 18px;
+    border-left: 2px solid transparent;
+    white-space: pre-wrap;
+}
+
+.cm-install-route .install-log-line.error {
+    color: #FDA4AF;
+    background: rgba(239, 68, 68, 0.10);
+    border-left-color: #EF4444;
+}
+
+.cm-install-route .install-log-line.warn {
+    color: #FCD34D;
+    background: rgba(245, 158, 11, 0.08);
+    border-left-color: #F59E0B;
+}
+
+.cm-install-route .install-log-line.success {
+    color: #6EE7B7;
+    background: rgba(16, 185, 129, 0.08);
+    border-left-color: #10B981;
+}
+
+.cm-install-route .install-log-line.system,
+.cm-install-route .install-log-line.info {
+    color: #C9D1D9;
+}
+
+@media (max-width: 1280px) {
+    .cm-install-steps-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 1024px) {
+    .cm-install-kpis { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+    .cm-install-kpis { grid-template-columns: 1fr; }
+    .cm-install-steps-grid { grid-template-columns: repeat(2, 1fr); }
+}
