@@ -200,7 +200,6 @@ async function init() {
 function navigateRoute(key) {
     if (window.ConfigMateRouter && ConfigMateRouter.navigate(key)) return;
     const fallbacks = {
-        overview:   () => showToast('总览仪表盘即将上线。', 'info'),
         deployment: () => showToast('部署控制台尚未挂载到当前页面。', 'error'),
         config:     () => showToast('业务配置尚未挂载到当前页面。', 'error'),
         diff:       () => (typeof checkRuntimeSync === 'function' && checkRuntimeSync()),
@@ -209,6 +208,47 @@ function navigateRoute(key) {
         install:    () => (typeof checkInstallAndConfirm === 'function' && checkInstallAndConfirm()),
     };
     if (fallbacks[key]) fallbacks[key]();
+}
+
+let overviewLastFetched = 0;
+const OVERVIEW_TTL_MS = 30 * 1000;
+
+async function refreshOverview(force) {
+    if (!window.ConfigMateOverviewUi) return;
+    if (!force && Date.now() - overviewLastFetched < OVERVIEW_TTL_MS) {
+        ConfigMateOverviewUi.mount(buildOverviewSnapshot());
+        return;
+    }
+    overviewLastFetched = Date.now();
+    ConfigMateOverviewUi.mount(buildOverviewSnapshot()); // immediate render with cached state
+
+    const [diskRes, driftRes, historyRes] = await Promise.allSettled([
+        ConfigMateApi.diskUsage().then(r => r.json()).catch(() => null),
+        ConfigMateApi.runtimeDiff().then(r => r.json()).catch(() => null),
+        ConfigMateApi.history().then(r => r.json()).catch(() => null)
+    ]);
+
+    const disk = diskRes.status === 'fulfilled' ? (diskRes.value?.usage || diskRes.value) : null;
+    const driftJson = driftRes.status === 'fulfilled' ? driftRes.value : null;
+    const drift = driftJson ? {
+        modifiedCount: Array.isArray(driftJson.diffs)
+            ? driftJson.diffs.filter(d => d.state === 'MODIFIED').length
+            : 0
+    } : null;
+    const historyJson = historyRes.status === 'fulfilled' ? historyRes.value : null;
+    const history = Array.isArray(historyJson?.data) ? historyJson.data
+        : Array.isArray(historyJson?.versions) ? historyJson.versions
+        : Array.isArray(historyJson) ? historyJson : [];
+
+    ConfigMateOverviewUi.mount(buildOverviewSnapshot({ disk, drift, history }));
+}
+
+function buildOverviewSnapshot(extra) {
+    return Object.assign({
+        services: latestServices || [],
+        plan: latestPlan,
+        deployment: deploymentInfo || null,
+    }, extra || {});
 }
 
 function initWorkbenchNavigation() {
@@ -222,6 +262,9 @@ function initWorkbenchNavigation() {
             : activeWorkbenchPage;
         const content = document.querySelector('.content');
         if (content) content.scrollTo({ top: 0, behavior: 'auto' });
+        if (key === 'overview') {
+            refreshOverview(false);
+        }
     });
     ConfigMateRouter.init();
 }

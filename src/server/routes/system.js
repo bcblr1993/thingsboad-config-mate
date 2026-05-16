@@ -1,6 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const { readRequestBody, writeJson } = require('../http');
+const { getDiskUsageForPath } = require('../services/disk-usage');
 
 function createSystemRoutes({
     appRoot,
@@ -116,6 +117,18 @@ function createSystemRoutes({
                 },
                 diagnostics: buildDeploymentDiagnostics()
             }, headers);
+            return true;
+        }
+
+        if (pathname === '/api/disk-usage' && method === 'GET') {
+            getDiskUsageForPath(appRoot).then(usage => {
+                writeJson(res, 200, { status: 'success', usage }, headers);
+            }).catch(err => {
+                writeJson(res, 200, {
+                    status: 'success',
+                    usage: { available: false, reason: err.message || 'unknown' }
+                }, headers);
+            });
             return true;
         }
 

@@ -92,6 +92,7 @@
         restoreHistory: filename => postJson('/api/history/restore', { filename }),
         version: () => request('/api/version'),
         runtimeDiff: () => request('/api/diff-runtime'),
+        diskUsage: () => request('/api/disk-usage'),
         checkInstall: () => request('/api/check-install'),
         install: () => request('/api/install', { method: 'POST' }),
         validateCompose: () => request('/api/validate-compose?t=' + Date.now())
