@@ -381,6 +381,13 @@
     grid-template-columns: 1fr 1fr 36px;
     gap: 6px;
     margin-top: 4px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.cm-svc-actions > button {
+    width: 100%;
+    min-width: 0;
 }
 
 .cm-svc-actions button {

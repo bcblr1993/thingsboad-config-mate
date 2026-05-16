@@ -341,6 +341,18 @@
     box-shadow: var(--cm-shadow-lg);
 }
 
+/* "业务配置动作" 条只在 #/config 业务配置路由显示。
+   旧 styles.css 用 [data-workbench-page="deployment-panel"] 反向隐藏的方式
+   无法覆盖新路由 (overview / diff / history / logs / install),
+   这里改为正向白名单 — 默认隐藏, 仅 config-workspace 显示. */
+.action-bar {
+    display: none !important;
+}
+
+body[data-workbench-page="config-workspace"] .action-bar {
+    display: flex !important;
+}
+
 .action-title,
 .deployment-title,
 .config-workspace-title,
