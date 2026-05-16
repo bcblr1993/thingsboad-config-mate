@@ -1931,11 +1931,97 @@ function showLogs(isManual = false, serviceId = null) {
 function mountLogsRoute() {
     const params = pendingLogsParams || { isManual: true, serviceId: null };
     pendingLogsParams = null;
+    const targetServiceId = params.serviceId || deploymentInfo?.appService || null;
     getLogsController().show({
         isManual: params.isManual,
         serviceId: params.serviceId,
         defaultServiceId: deploymentInfo?.appService || null
     });
+    renderLogsSourceList(targetServiceId);
+    updateLogsPageSubtitle(targetServiceId);
+    resetLogsLevelDistribution();
+    // 监听 #logs-content 变化以更新统计 (一次性绑定).
+    ensureLogsLevelObserver();
+}
+
+function renderLogsSourceList(currentServiceId) {
+    const list = document.getElementById('cm-logs-sources-list');
+    const sub = document.getElementById('cm-logs-sources-sub');
+    if (!list) return;
+    const services = (latestServices || []);
+    if (sub) sub.textContent = `${services.length} 个容器`;
+    if (services.length === 0) {
+        list.innerHTML = '<div class="cm-logs-empty">暂无服务可选</div>';
+        return;
+    }
+    list.innerHTML = services.map(s => {
+        const id = String(s.id || '');
+        const idArg = JSON.stringify(id).replace(/"/g, '&quot;');
+        const isActive = currentServiceId === id;
+        const running = !!s.running;
+        const image = s.image || s.composeService || s.label || '';
+        return `<button type="button" class="cm-logs-source-item${isActive ? ' active' : ''}" data-service-id="${escapeHtml(id)}" onclick="showLogs(true, ${idArg})">
+            <span class="cm-logs-source-running ${running ? 'on' : 'off'}"></span>
+            <span class="cm-logs-source-meta">
+                <span class="cm-logs-source-name">${escapeHtml(id)}</span>
+                <span class="cm-logs-source-desc">${escapeHtml(image)}</span>
+            </span>
+        </button>`;
+    }).join('');
+}
+
+function updateLogsPageSubtitle(serviceId) {
+    const text = document.getElementById('logs-page-subtitle-text');
+    if (!text) return;
+    if (!serviceId) {
+        text.textContent = '选择左侧服务源开始查看实时日志';
+        return;
+    }
+    text.textContent = `${serviceId} · stdout`;
+}
+
+function resetLogsLevelDistribution() {
+    ['error', 'warn', 'success', 'info'].forEach(lvl => {
+        const el = document.getElementById('cm-logs-level-count-' + lvl);
+        if (el) el.textContent = '0';
+    });
+}
+
+let logsLevelObserverBound = false;
+function ensureLogsLevelObserver() {
+    if (logsLevelObserverBound) return;
+    const content = document.getElementById('logs-content');
+    if (!content) return;
+    logsLevelObserverBound = true;
+    const counts = { error: 0, warn: 0, success: 0, info: 0 };
+    const writeCounts = () => {
+        Object.entries(counts).forEach(([lvl, n]) => {
+            const el = document.getElementById('cm-logs-level-count-' + lvl);
+            if (el) el.textContent = String(n);
+        });
+    };
+    const observer = new MutationObserver(records => {
+        for (const r of records) {
+            r.addedNodes.forEach(n => {
+                if (!(n instanceof Element)) return;
+                if (!n.classList || !n.classList.contains('log-line')) return;
+                if (n.classList.contains('error')) counts.error += 1;
+                else if (n.classList.contains('warn')) counts.warn += 1;
+                else if (n.classList.contains('success')) counts.success += 1;
+                else counts.info += 1;
+            });
+        }
+        writeCounts();
+    });
+    observer.observe(content, { childList: true });
+    // Reset hook when clearLogs sets innerHTML = ''.
+    const resetObserver = new MutationObserver(records => {
+        if (content.children.length === 0) {
+            counts.error = counts.warn = counts.success = counts.info = 0;
+            writeCounts();
+        }
+    });
+    resetObserver.observe(content, { childList: true });
 }
 
 function closeLogs() {

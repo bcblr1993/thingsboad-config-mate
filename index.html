@@ -521,80 +521,108 @@
         </div>
     </div>
 
-    <!-- Logs Viewer Modal -->
-    <div id="logs-modal" class="logs-modal modal-overlay" data-route-breadcrumb="Config Mate › 实时日志">
-        <div class="logs-container">
-            <div class="logs-header">
-                <div class="logs-title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                    </svg>
-                    <span id="logs-title-text">容器日志</span>
+    <!-- Realtime Logs (Cloud Console full-page) -->
+    <div id="logs-modal" class="logs-modal modal-overlay cm-logs-route" data-route-breadcrumb="Config Mate › 实时日志">
+        <div class="logs-container cm-logs-container">
+            <div class="cm-breadcrumb cm-logs-breadcrumb">
+                <span>Config Mate</span>
+                <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                <span>实时日志</span>
+                <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                <span class="cm-breadcrumb-current" id="logs-title-text">容器日志</span>
+            </div>
+            <div class="cm-page-header cm-logs-page-header">
+                <div class="cm-page-header-titles">
+                    <h2 class="cm-page-title">实时日志</h2>
+                    <p class="cm-page-subtitle" id="logs-page-subtitle">
+                        <span id="logs-page-subtitle-text">选择左侧服务源开始查看实时日志</span>
+                        <span id="logs-status" class="cm-logs-live">
+                            <span class="logs-status-dot"></span>
+                            <span>实时监听中</span>
+                        </span>
+                    </p>
                 </div>
-                <div id="logs-status" class="logs-status">
-                    <div class="logs-status-dot"></div>
-                    <span>实时监听中...</span>
+                <div class="cm-page-header-actions">
+                    <select id="logs-level-filter" class="cm-logs-level-select" onchange="setLogLevelFilter(this.value)" title="日志级别">
+                        <option value="all">全部级别</option>
+                        <option value="error">Error</option>
+                        <option value="warn">Warn</option>
+                        <option value="success">Success</option>
+                        <option value="info">Info</option>
+                    </select>
+                    <button class="btn btn-ghost" onclick="copyVisibleLogs()">复制</button>
+                    <button class="btn btn-ghost" id="btn-log-pause" onclick="toggleLogPause()">暂停</button>
+                    <button class="btn btn-primary" onclick="navigateRoute('deployment')">返回部署</button>
                 </div>
             </div>
-            <div class="logs-toolbar">
-                <label class="logs-search" for="logs-search-input">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                    <input id="logs-search-input" type="search" placeholder="搜索日志" oninput="handleLogSearch(this.value)">
-                    <button id="logs-search-clear" class="logs-search-clear" onclick="clearLogSearch()" title="清空搜索" type="button">×</button>
-                </label>
-                <select id="logs-level-filter" class="logs-select" onchange="setLogLevelFilter(this.value)" title="日志级别">
-                    <option value="all">全部级别</option>
-                    <option value="error">Error</option>
-                    <option value="warn">Warn</option>
-                    <option value="success">Success</option>
-                    <option value="info">Info</option>
-                </select>
-                <button id="btn-log-pause" class="logs-tool-btn" onclick="toggleLogPause()" title="暂停或继续实时刷新">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <rect x="6" y="4" width="4" height="16"></rect>
-                        <rect x="14" y="4" width="4" height="16"></rect>
-                    </svg>
-                    <span>暂停</span>
-                </button>
-                <button id="btn-log-follow" class="logs-tool-btn active" onclick="toggleLogFollow()" title="跟随最新日志">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 5v14"></path>
-                        <path d="m19 12-7 7-7-7"></path>
-                    </svg>
-                    <span>跟随</span>
-                </button>
-                <button id="btn-wrap-toggle" class="logs-tool-btn active" onclick="toggleLogWrap()" title="切换自动换行">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 7h13a4 4 0 0 1 0 8H7"></path>
-                        <path d="m7 11-4 4 4 4"></path>
-                    </svg>
-                    <span>换行</span>
-                </button>
-                <button id="btn-log-fullscreen" class="logs-tool-btn" onclick="toggleLogFullscreen()" title="切换全屏">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
-                        <path d="M16 3h3a2 2 0 0 1 2 2v3"></path>
-                        <path d="M8 21H5a2 2 0 0 1-2-2v-3"></path>
-                        <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
-                    </svg>
-                    <span>全屏</span>
-                </button>
-            </div>
-            <div id="logs-content" class="logs-content wrap-mode"></div>
-            <div class="logs-footer">
-                <div id="logs-meta" class="logs-meta">0 行</div>
-                <div class="logs-footer-actions">
-                    <button class="btn btn-ghost" onclick="copyVisibleLogs()">复制当前</button>
-                    <button class="btn btn-ghost" onclick="clearLogs()">清空日志</button>
-                    <button class="btn btn-primary" onclick="navigateRoute('deployment')">返回部署控制台</button>
-                </div>
+
+            <div class="cm-logs-grid">
+                <aside id="cm-logs-sources" class="cm-logs-sources" aria-label="日志源">
+                    <div class="cm-logs-card-head">
+                        <div class="cm-logs-card-title">日志源</div>
+                        <div class="cm-logs-card-sub" id="cm-logs-sources-sub">0 个容器</div>
+                    </div>
+                    <div id="cm-logs-sources-list" class="cm-logs-sources-list">
+                        <div class="cm-logs-empty">读取服务列表中...</div>
+                    </div>
+                </aside>
+
+                <section class="cm-logs-terminal" aria-label="日志流">
+                    <div class="cm-logs-terminal-toolbar">
+                        <label class="cm-logs-search" for="logs-search-input">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input id="logs-search-input" type="search" placeholder="搜索（regex）" oninput="handleLogSearch(this.value)">
+                            <button id="logs-search-clear" class="logs-search-clear" onclick="clearLogSearch()" title="清空搜索" type="button">×</button>
+                        </label>
+                        <div class="cm-logs-tools">
+                            <button id="btn-log-follow" class="cm-logs-tool-btn active" onclick="toggleLogFollow()" title="跟随最新日志">跟随</button>
+                            <button id="btn-wrap-toggle" class="cm-logs-tool-btn active" onclick="toggleLogWrap()" title="切换自动换行">换行</button>
+                            <button id="btn-log-fullscreen" class="cm-logs-tool-btn" onclick="toggleLogFullscreen()" title="切换全屏">全屏</button>
+                        </div>
+                    </div>
+                    <div id="logs-content" class="logs-content wrap-mode"></div>
+                    <div class="cm-logs-footer">
+                        <div id="logs-meta" class="cm-logs-footer-meta">0 行</div>
+                        <button class="cm-logs-tool-btn" onclick="clearLogs()">清空</button>
+                    </div>
+                </section>
+
+                <aside class="cm-logs-inspector" aria-label="日志检查器">
+                    <section class="cm-logs-card">
+                        <div class="cm-logs-card-head">
+                            <div class="cm-logs-card-title">级别分布</div>
+                            <div class="cm-logs-card-sub">当前可见日志</div>
+                        </div>
+                        <ul id="cm-logs-level-list" class="cm-logs-level-list">
+                            <li data-lvl="error"><span class="cm-logs-level-dot" style="background:#F48771"></span><span class="cm-logs-level-label">ERROR</span><span class="cm-logs-level-count" id="cm-logs-level-count-error">0</span></li>
+                            <li data-lvl="warn"><span class="cm-logs-level-dot" style="background:#FDCB6E"></span><span class="cm-logs-level-label">WARN</span><span class="cm-logs-level-count" id="cm-logs-level-count-warn">0</span></li>
+                            <li data-lvl="success"><span class="cm-logs-level-dot" style="background:#4EC9B0"></span><span class="cm-logs-level-label">SUCCESS</span><span class="cm-logs-level-count" id="cm-logs-level-count-success">0</span></li>
+                            <li data-lvl="info"><span class="cm-logs-level-dot" style="background:#8B949E"></span><span class="cm-logs-level-label">INFO</span><span class="cm-logs-level-count" id="cm-logs-level-count-info">0</span></li>
+                        </ul>
+                    </section>
+
+                    <section class="cm-logs-card">
+                        <div class="cm-logs-card-head">
+                            <div class="cm-logs-card-title">提示</div>
+                        </div>
+                        <ul class="cm-logs-tips-list">
+                            <li>搜索框支持正则表达式</li>
+                            <li>点击左侧服务源切换实时流</li>
+                            <li>导出可用「复制」按钮</li>
+                            <li>暂停后仍可滚动查看历史</li>
+                        </ul>
+                    </section>
+                </aside>
             </div>
         </div>
     </div>
