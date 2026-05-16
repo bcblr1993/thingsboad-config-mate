@@ -1,0 +1,100 @@
+/* Cloud-Console login page (C 方案 阶段 7).
+   Re-themes the existing #login-overlay / .login-box. The DOM structure is
+   shared with the legacy code; only the visual layer changes. */
+
+.login-overlay {
+    background:
+        radial-gradient(620px 380px at 18% 18%, rgba(37, 99, 235, 0.12), transparent 60%),
+        radial-gradient(620px 380px at 82% 82%, rgba(99, 102, 241, 0.08), transparent 62%),
+        linear-gradient(180deg, var(--cm-cloud-surface), var(--cm-cloud-bg));
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.login-box {
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 14px;
+    padding: 28px 28px 24px;
+    box-shadow: var(--cm-cloud-shadow-lg);
+}
+
+.login-box::before {
+    content: "";
+    display: block;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    background:
+        linear-gradient(135deg, var(--cm-cloud-primary), var(--cm-cloud-primary-hover));
+    background-image:
+        linear-gradient(135deg, var(--cm-cloud-primary), var(--cm-cloud-primary-hover)),
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232563EB'/><path d='M18 18l14-7 14 7-14 7-14-7z' fill='white'/><path d='M18 31l14 7 14-7' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/><path d='M18 43l14 7 14-7' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-size: cover;
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
+}
+
+.login-title {
+    font-size: var(--cm-text-xl);
+    font-weight: 800;
+    color: var(--cm-cloud-fg);
+    letter-spacing: -0.01em;
+    margin-bottom: 6px;
+}
+
+.login-desc {
+    font-size: var(--cm-text-xs);
+    line-height: 1.6;
+    color: var(--cm-cloud-muted);
+    margin-bottom: 20px;
+}
+
+.login-box .field-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--cm-cloud-border);
+    background: var(--cm-cloud-surface);
+    border-radius: var(--cm-radius-md);
+    padding: 9px 12px;
+    font-size: var(--cm-text-sm);
+    font-family: var(--cm-font-sans);
+    color: var(--cm-cloud-fg);
+    margin-bottom: var(--cm-space-3);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-box .field-input:focus {
+    border-color: var(--cm-cloud-primary);
+    box-shadow: var(--cm-cloud-ring);
+    outline: none;
+}
+
+.login-box .btn-primary {
+    width: 100%;
+    margin-top: 4px;
+    padding: 10px 0;
+    font-size: var(--cm-text-sm);
+    font-weight: 700;
+    background: var(--cm-cloud-primary);
+    border: 1px solid var(--cm-cloud-primary);
+    color: #ffffff;
+    border-radius: var(--cm-radius-md);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.login-box .btn-primary:hover:not(:disabled) {
+    background: var(--cm-cloud-primary-hover);
+}
+
+.login-box .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+    .login-box { padding: 22px 20px 18px; }
+}
