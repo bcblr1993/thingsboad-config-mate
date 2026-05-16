@@ -49,12 +49,9 @@
                                 stroke-linejoin="round" />
                         </svg>
                     </span>
-                    <div class="brand-copy">
-                        <div class="brand-line">
-                            <span>Config Mate</span>
-                            <span id="app-version" class="version-badge"></span>
-                        </div>
-                        <div class="brand-subtitle">ThingsBoard 现场部署控制台</div>
+                    <div class="brand-line">
+                        <span class="brand-name">Config Mate</span>
+                        <span id="app-version" class="version-badge"></span>
                     </div>
                 </div>
                 <nav class="mega-nav" aria-label="主导航">
@@ -80,23 +77,26 @@
                             <circle cx="11" cy="11" r="8"></circle>
                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                         </svg>
-                        <input id="header-search-input" type="search" placeholder="搜索服务、配置项..." disabled
+                        <input id="header-search-input" type="search" placeholder="搜索服务、配置项、日志..." disabled
                             aria-label="全局搜索（暂未启用）">
                         <kbd class="header-search-kbd" aria-hidden="true">/</kbd>
                     </label>
+                    <button class="header-notif" type="button" onclick="showHeaderNotifs()" aria-label="告警通知">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                        </svg>
+                        <span id="header-notif-badge" class="header-notif-badge" hidden>0</span>
+                    </button>
                 </div>
                 <div id="user-menu" class="user-menu">
-                    <div class="user-chip" title="当前登录操作员">
+                    <button type="button" class="user-chip" title="点击退出登录" onclick="logout()">
                         <span id="user-avatar" class="user-avatar">--</span>
-                        <span id="current-operator" class="user-name">未登录</span>
-                    </div>
-                    <button class="logout-btn" type="button" onclick="logout()" title="退出登录" aria-label="退出登录">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M10 17l5-5-5-5"></path>
-                            <path d="M15 12H3"></path>
-                            <path d="M21 4v16"></path>
-                        </svg>
+                        <span class="user-meta">
+                            <span id="current-operator" class="user-name">未登录</span>
+                            <span id="user-project" class="user-project">--</span>
+                        </span>
                     </button>
                 </div>
             </div>

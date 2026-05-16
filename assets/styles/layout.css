@@ -1,27 +1,72 @@
 .header {
-    background: rgba(255, 255, 255, 0.92);
-    border-bottom-color: var(--cm-border);
-    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+    background: var(--cm-cloud-surface) !important;
+    border-bottom: 1px solid var(--cm-cloud-border) !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
 }
 
 .header-inner {
-    gap: var(--cm-space-4);
-    display: grid !important;
-    grid-template-columns: minmax(220px, auto) 1fr minmax(180px, 260px) auto;
+    gap: 10px !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
     align-items: center;
     min-height: 60px;
+    height: 60px;
     padding: 0 var(--cm-space-8) !important;
-    flex-wrap: nowrap !important;
+    background: transparent !important;
+}
+
+/* Brand block — 28px mark + name + version pill */
+.header-inner > .brand-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    margin-right: 18px;
+    background: transparent !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+}
+
+.brand-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.brand-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--cm-cloud-fg);
+    letter-spacing: -0.01em;
+    line-height: 1;
+}
+
+.version-badge {
+    font-family: var(--cm-font-sans);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--cm-cloud-primary);
+    background: var(--cm-cloud-primary-soft);
+    border: none;
+    padding: 2px 7px;
+    border-radius: 4px;
+}
+
+.version-badge:empty {
+    display: none;
 }
 
 /* === Mega-Nav (Cloud Console top navigation) ============================ */
 
 .mega-nav {
-    justify-self: center;
     display: flex;
     align-items: center;
     gap: 2px;
-    flex-wrap: nowrap;
+    flex: 0 1 auto;
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
@@ -63,27 +108,32 @@
     outline-offset: 2px;
 }
 
-/* === Header search ====================================================== */
+/* === Header right tools (search + notify + divider + user) ============== */
+
+.header-inner > .mega-nav + .header-actions,
+.header-inner > .header-actions {
+    margin-left: auto;
+}
 
 .header-actions {
     display: flex;
     align-items: center;
-    gap: var(--cm-space-3);
-    min-width: 0;
+    gap: 14px;
+    flex-shrink: 0;
 }
 
 .header-search {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 11px;
-    width: 100%;
-    max-width: 260px;
+    padding: 7px 11px;
+    width: 240px;
     border: 1px solid var(--cm-cloud-border);
     border-radius: var(--cm-radius-full);
     background: var(--cm-cloud-surface-muted);
     color: var(--cm-cloud-muted);
     cursor: not-allowed;
+    box-sizing: border-box;
 }
 
 .header-search svg {
@@ -117,27 +167,153 @@
     background: var(--cm-cloud-surface);
 }
 
+.header-notif {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--cm-cloud-muted);
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 0;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.header-notif:hover {
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-fg);
+}
+
+.header-notif-badge {
+    position: absolute;
+    top: 4px;
+    right: 3px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 4px;
+    border-radius: 50%;
+    background: var(--cm-cloud-danger);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+/* === User menu (avatar + name + project, divider on left) ============== */
+
+.user-menu {
+    display: none;
+    align-items: center;
+    padding-left: 14px;
+    border-left: 1px solid var(--cm-cloud-border-subtle);
+    flex-shrink: 0;
+}
+
+.user-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: inherit;
+    text-align: left;
+    height: auto;
+    border-radius: 8px;
+    transition: background 0.15s ease;
+}
+
+.user-chip:hover {
+    background: var(--cm-cloud-surface-muted);
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--cm-cloud-primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0;
+}
+
+.user-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    min-width: 0;
+}
+
+.user-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--cm-cloud-fg);
+    line-height: 1.2;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-project {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--cm-cloud-muted);
+    line-height: 1.2;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.user-project:empty {
+    display: none;
+}
+
+/* Hide legacy logout button if it still exists in older markup */
+.logout-btn {
+    display: none !important;
+}
+
 @media (max-width: 1280px) {
-    .header-inner {
-        grid-template-columns: minmax(200px, auto) 1fr auto;
+    .header-search {
+        width: 200px;
     }
-    .header-actions {
+}
+
+@media (max-width: 1024px) {
+    .header-search {
         display: none;
     }
 }
 
 @media (max-width: 960px) {
     .header-inner {
-        grid-template-columns: 1fr auto;
-        grid-template-areas:
-            "brand user"
-            "nav nav";
+        flex-wrap: wrap !important;
         padding: 10px var(--cm-space-4) !important;
         row-gap: 8px;
+        height: auto !important;
     }
-    .header-inner > .header-title { grid-area: brand; }
-    .header-inner > .user-menu { grid-area: user; }
-    .header-inner > .mega-nav { grid-area: nav; justify-self: stretch; }
+    .mega-nav {
+        order: 3;
+        flex-basis: 100%;
+        justify-content: flex-start;
+    }
     .mega-nav-item { padding: 7px 10px; font-size: 12px; }
 }
 

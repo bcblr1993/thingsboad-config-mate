@@ -60,6 +60,7 @@ function updateAuthUI(operator = '') {
     const userMenu = document.getElementById('user-menu');
     const operatorEl = document.getElementById('current-operator');
     const avatarEl = document.getElementById('user-avatar');
+    const projectEl = document.getElementById('user-project');
     if (!userMenu || !operatorEl || !avatarEl) return;
 
     if (currentOperator) {
@@ -70,6 +71,30 @@ function updateAuthUI(operator = '') {
         operatorEl.textContent = '未登录';
         avatarEl.textContent = '--';
         userMenu.style.display = 'none';
+    }
+    if (projectEl) projectEl.textContent = buildUserProjectLabel();
+}
+
+function buildUserProjectLabel() {
+    if (!deploymentInfo) return '';
+    const appType = (deploymentInfo.appType || '').toUpperCase();
+    const appService = deploymentInfo.appService || '';
+    if (appService) return appType ? `${appType} · ${appService}` : appService;
+    if (deploymentInfo.appDir) {
+        const parts = deploymentInfo.appDir.replace(/\\/g, '/').split('/').filter(Boolean);
+        return parts.slice(-1)[0] || '';
+    }
+    return '';
+}
+
+function showHeaderNotifs() {
+    // Lightweight stand-in: surface a toast pointing at the runtime drift page.
+    // Replace once a real notification stream exists.
+    if (typeof showToast === 'function') {
+        showToast('通知中心即将上线。当前可在「运行检查」中查看配置漂移。', 'info');
+    }
+    if (typeof navigateRoute === 'function') {
+        // 不强制跳转，仅提示。
     }
 }
 
@@ -617,6 +642,9 @@ async function loadDeploymentInfo() {
     `;
     renderDeploymentDiagnostics(deploymentInfo.diagnostics);
     updateAppLayoutLabels();
+    // Refresh user-project label now that deployment context is known.
+    const projectEl = document.getElementById('user-project');
+    if (projectEl) projectEl.textContent = buildUserProjectLabel();
 }
 
 function renderDeploymentDiagnostics(diagnostics) {
