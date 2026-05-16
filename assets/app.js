@@ -380,6 +380,51 @@ function renderAll() {
     // Enforce Edit Mode State
     setEditMode(isEditMode);
     initConfigScrollSpy();
+    syncConfigTabs();
+    refreshAllFieldModifiedFlags();
+}
+
+/* Mirror the legacy config-nav list into the cloud-style Segmented tabs
+   above the form. The legacy list itself is hidden via CSS but kept in the
+   DOM because app.js + initConfigScrollSpy still operate on it. */
+function syncConfigTabs() {
+    const tabs = document.getElementById('cm-config-tabs');
+    const legacyList = document.getElementById('config-nav-list');
+    if (!tabs || !legacyList) return;
+    const items = Array.from(legacyList.querySelectorAll('.config-nav-item'));
+    tabs.innerHTML = items.map(item => {
+        const name = item.querySelector('.config-nav-name')?.textContent || item.dataset.target || '';
+        const count = item.querySelector('.config-nav-item-count')?.textContent || '';
+        const active = item.classList.contains('active') ? ' active' : '';
+        const target = item.dataset.target || '';
+        return `<button type="button" class="cm-segmented-item${active}" data-target="${escapeHtml(target)}" onclick="activateConfigTab(this)">${escapeHtml(name)}<span class="cm-segmented-count">${escapeHtml(count)}</span></button>`;
+    }).join('');
+}
+
+function activateConfigTab(btn) {
+    if (!btn) return;
+    const target = btn.dataset.target;
+    if (!target) return;
+    document.querySelectorAll('#cm-config-tabs .cm-segmented-item').forEach(el => {
+        el.classList.toggle('active', el === btn);
+    });
+    if (target === ALL_CONFIG_GROUPS_ID) {
+        showAllConfigGroups(null);
+    } else {
+        scrollToConfigGroup(target, null);
+    }
+}
+
+function markFieldModified(key) {
+    const card = document.getElementById('card-' + key);
+    if (!card) return;
+    const modified = JSON.stringify(configValues[key] || '') !== JSON.stringify(initialConfigValues[key] || '');
+    if (modified) card.setAttribute('data-modified', 'true');
+    else card.removeAttribute('data-modified');
+}
+
+function refreshAllFieldModifiedFlags() {
+    Object.keys(configMeta || {}).forEach(markFieldModified);
 }
 
 function groupDomId(groupName) {
@@ -518,6 +563,9 @@ function setActiveConfigNav(groupId) {
     activeConfigGroupId = groupId;
     document.querySelectorAll('.config-nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.target === groupId && !item.classList.contains('hidden'));
+    });
+    document.querySelectorAll('#cm-config-tabs .cm-segmented-item').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.target === groupId);
     });
 }
 
@@ -1172,6 +1220,7 @@ function updateValue(key, val) {
 
     checkAllDependencies(); // Re-evaluate whenever a value changes
     checkDirtyState();
+    markFieldModified(key);
     updateDeploymentPlan();
 }
 
