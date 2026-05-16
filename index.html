@@ -52,18 +52,34 @@
                         <div class="brand-subtitle">ThingsBoard 现场部署控制台</div>
                     </div>
                 </div>
-                <nav class="workbench-nav" aria-label="工作区导航">
-                    <a class="workbench-nav-item active" href="#deployment-panel" data-workbench-target="deployment-panel"
-                        aria-current="page" onclick="scrollToWorkbenchSection(event, 'deployment-panel')">
-                        <span class="workbench-nav-title">部署控制台</span>
-                        <span class="workbench-nav-desc">服务启停与运行配置</span>
-                    </a>
-                    <a class="workbench-nav-item" href="#config-workspace" data-workbench-target="config-workspace"
-                        onclick="scrollToWorkbenchSection(event, 'config-workspace')">
-                        <span class="workbench-nav-title">业务配置</span>
-                        <span class="workbench-nav-desc">编辑 .env 与初始化</span>
-                    </a>
+                <nav class="mega-nav" aria-label="主导航">
+                    <button type="button" class="mega-nav-item" data-mega-nav="overview"
+                        onclick="navigateRoute('overview')">总览</button>
+                    <button type="button" class="mega-nav-item active" data-mega-nav="deployment"
+                        aria-current="page" onclick="navigateRoute('deployment')">部署控制台</button>
+                    <button type="button" class="mega-nav-item" data-mega-nav="config"
+                        onclick="navigateRoute('config')">业务配置</button>
+                    <button type="button" class="mega-nav-item" data-mega-nav="diff"
+                        onclick="navigateRoute('diff')">运行检查</button>
+                    <button type="button" class="mega-nav-item" data-mega-nav="history"
+                        onclick="navigateRoute('history')">历史版本</button>
+                    <button type="button" class="mega-nav-item" data-mega-nav="logs"
+                        onclick="navigateRoute('logs')">实时日志</button>
+                    <button type="button" class="mega-nav-item" data-mega-nav="install"
+                        onclick="navigateRoute('install')">初始化向导</button>
                 </nav>
+                <div class="header-actions">
+                    <label class="header-search" for="header-search-input" title="全局搜索 (敬请期待)">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input id="header-search-input" type="search" placeholder="搜索服务、配置项..." disabled
+                            aria-label="全局搜索（暂未启用）">
+                        <kbd class="header-search-kbd" aria-hidden="true">/</kbd>
+                    </label>
+                </div>
                 <div id="user-menu" class="user-menu">
                     <div class="user-chip" title="当前登录操作员">
                         <span id="user-avatar" class="user-avatar">--</span>
@@ -562,6 +578,7 @@
     <script src="assets/api.js"></script>
     <script src="assets/modules/ui-core.js"></script>
     <script src="assets/modules/services-ui.js"></script>
+    <script src="assets/modules/router.js"></script>
     <script src="assets/app.js"></script>
     <script type="module" src="assets/src/main.js"></script>
 

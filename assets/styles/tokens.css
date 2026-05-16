@@ -42,11 +42,13 @@
     --cm-radius-md: 8px;
     --cm-radius-lg: 10px;
     --cm-radius-xl: 14px;
+    --cm-radius-2xl: 16px;
     --cm-radius-full: 999px;
 
     --cm-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
     --cm-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
     --cm-shadow-lg: 0 18px 48px rgba(15, 23, 42, 0.14);
+    --cm-shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.18);
 
     --cm-space-1: 4px;
     --cm-space-2: 8px;
@@ -55,6 +57,7 @@
     --cm-space-5: 20px;
     --cm-space-6: 24px;
     --cm-space-8: 32px;
+    --cm-space-10: 40px;
 
     --cm-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     --cm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
@@ -64,6 +67,73 @@
     --cm-text-md: 15px;
     --cm-text-lg: 18px;
     --cm-text-xl: 22px;
+    --cm-text-2xl: 26px;
+
+    /* === Cloud Console (C 方案) tokens =====================================
+       Consumed by new components introduced in the C-redesign (mega-nav,
+       breadcrumb, page header, KPI tile, service card v2, tier badges, etc.).
+       Existing surfaces continue to read --cm-background / --cm-primary /
+       --cm-border directly, so nothing changes visually until a component is
+       explicitly migrated. */
+
+    --cm-cloud-bg: #F5F7FB;
+    --cm-cloud-surface: #FFFFFF;
+    --cm-cloud-surface-muted: #F8FAFC;
+    --cm-cloud-surface-sunken: #F1F5F9;
+    --cm-cloud-fg: #0F1729;
+    --cm-cloud-muted: #5B6779;
+    --cm-cloud-subtle: #94A3B8;
+    --cm-cloud-border: #E6EBF2;
+    --cm-cloud-border-subtle: #EEF1F6;
+    --cm-cloud-border-strong: #CBD5E1;
+
+    --cm-cloud-primary: #2563EB;
+    --cm-cloud-primary-hover: #1D4ED8;
+    --cm-cloud-primary-soft: #EFF6FF;
+    --cm-cloud-primary-soft-2: #DBEAFE;
+    --cm-cloud-primary-border: #BFDBFE;
+
+    --cm-cloud-success: #059669;
+    --cm-cloud-success-soft: #ECFDF5;
+    --cm-cloud-success-border: #A7F3D0;
+    --cm-cloud-warning: #D97706;
+    --cm-cloud-warning-soft: #FFFBEB;
+    --cm-cloud-warning-border: #FDE68A;
+    --cm-cloud-danger: #DC2626;
+    --cm-cloud-danger-soft: #FEF2F2;
+    --cm-cloud-danger-border: #FECACA;
+    --cm-cloud-info: #0284C7;
+    --cm-cloud-info-soft: #F0F9FF;
+    --cm-cloud-info-border: #BAE6FD;
+
+    /* Tier palette (service categories, used by service cards & filters) */
+    --cm-tier-business-fg: #2563EB;
+    --cm-tier-business-bg: #EFF6FF;
+    --cm-tier-business-border: #BFDBFE;
+    --cm-tier-storage-fg: #D97706;
+    --cm-tier-storage-bg: #FFFBEB;
+    --cm-tier-storage-border: #FDE68A;
+    --cm-tier-cache-fg: #7C3AED;
+    --cm-tier-cache-bg: #F5F3FF;
+    --cm-tier-cache-border: #DDD6FE;
+    --cm-tier-queue-fg: #0284C7;
+    --cm-tier-queue-bg: #F0F9FF;
+    --cm-tier-queue-border: #BAE6FD;
+    --cm-tier-monitor-fg: #059669;
+    --cm-tier-monitor-bg: #ECFDF5;
+    --cm-tier-monitor-border: #A7F3D0;
+
+    /* Terminal palette (logs / install terminal in the cloud layout) */
+    --cm-term-bg: #0D1117;
+    --cm-term-fg: #C9D1D9;
+    --cm-term-fg-muted: #8B949E;
+    --cm-term-border: #1F242C;
+
+    --cm-cloud-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.03);
+    --cm-cloud-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+    --cm-cloud-shadow-lg: 0 18px 48px rgba(15, 23, 42, 0.14);
+    --cm-cloud-shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.18);
+    --cm-cloud-ring: 0 0 0 3px var(--cm-cloud-primary-soft);
 
     /* Backward-compatible aliases for existing CSS. */
     --primary: var(--cm-primary);

@@ -192,61 +192,38 @@ async function init() {
     } catch (e) { showToast('Init failed: ' + e.message, 'error'); }
 }
 
-function setWorkbenchNavActive(targetId) {
-    document.querySelectorAll('.workbench-nav-item').forEach(item => {
-        item.classList.toggle('active', item.dataset.workbenchTarget === targetId);
-        item.setAttribute('aria-current', item.dataset.workbenchTarget === targetId ? 'page' : 'false');
-    });
-}
-
-function setWorkbenchPage(targetId, options = {}) {
-    if (targetId !== 'deployment-panel' && targetId !== 'config-workspace') return;
-    const deployment = document.getElementById('deployment-panel');
-    const config = document.getElementById('config-workspace');
-    if (!deployment || !config) return;
-
-    activeWorkbenchPage = targetId;
-    document.body.dataset.workbenchPage = targetId;
-    deployment.classList.toggle('workbench-page-hidden', targetId !== 'deployment-panel');
-    config.classList.toggle('workbench-page-hidden', targetId !== 'config-workspace');
-    deployment.setAttribute('aria-hidden', targetId !== 'deployment-panel' ? 'true' : 'false');
-    config.setAttribute('aria-hidden', targetId !== 'config-workspace' ? 'true' : 'false');
-    setWorkbenchNavActive(targetId);
-
-    const content = document.querySelector('.content');
-    if (content) content.scrollTo({ top: 0, behavior: 'auto' });
-
-    if (options.updateHash !== false && location.hash !== `#${targetId}`) {
-        history.replaceState(null, '', `#${targetId}`);
-    }
-}
-
-function scrollToWorkbenchSection(event, targetId) {
-    if (event) event.preventDefault();
-    setWorkbenchPage(targetId);
+/* Cloud Console mega-nav · route activation hook.
+   Driven by ConfigMateRouter (assets/modules/router.js). Pages with a
+   container live in the SPA shell; pages that haven't been migrated yet
+   (logs / history / diff / install / overview) fall back to their legacy
+   modal openers. */
+function navigateRoute(key) {
+    if (window.ConfigMateRouter && ConfigMateRouter.navigate(key)) return;
+    const fallbacks = {
+        overview:   () => showToast('总览仪表盘即将上线。', 'info'),
+        deployment: () => showToast('部署控制台尚未挂载到当前页面。', 'error'),
+        config:     () => showToast('业务配置尚未挂载到当前页面。', 'error'),
+        diff:       () => (typeof checkRuntimeSync === 'function' && checkRuntimeSync()),
+        history:    () => (typeof openHistoryModal === 'function' && openHistoryModal()),
+        logs:       () => (typeof showLogs === 'function' && showLogs(true)),
+        install:    () => (typeof checkInstallAndConfirm === 'function' && checkInstallAndConfirm()),
+    };
+    if (fallbacks[key]) fallbacks[key]();
 }
 
 function initWorkbenchNavigation() {
-    const deployment = document.getElementById('deployment-panel');
-    const config = document.getElementById('config-workspace');
-    if (!deployment || !config) return;
+    if (!window.ConfigMateRouter) return;
+    if (workbenchNavInitialized) return;
+    workbenchNavInitialized = true;
 
-    if (!workbenchNavInitialized) {
-        window.addEventListener('hashchange', () => {
-            const hashTarget = (location.hash || '').replace('#', '');
-            if (hashTarget === 'deployment-panel' || hashTarget === 'config-workspace') {
-                setWorkbenchPage(hashTarget, { updateHash: false });
-            }
-        });
-        workbenchNavInitialized = true;
-    }
-
-    const hashTarget = (location.hash || '').replace('#', '');
-    if (hashTarget === 'deployment-panel' || hashTarget === 'config-workspace') {
-        setWorkbenchPage(hashTarget, { updateHash: false });
-    } else {
-        setWorkbenchPage(activeWorkbenchPage, { updateHash: true });
-    }
+    ConfigMateRouter.onChange(key => {
+        activeWorkbenchPage = ConfigMateRouter.ROUTES[key]
+            ? ConfigMateRouter.ROUTES[key].container.replace('#', '')
+            : activeWorkbenchPage;
+        const content = document.querySelector('.content');
+        if (content) content.scrollTo({ top: 0, behavior: 'auto' });
+    });
+    ConfigMateRouter.init();
 }
 
 function renderAll() {
