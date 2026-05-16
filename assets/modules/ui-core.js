@@ -102,13 +102,13 @@
 
     function confirmVariantFromColor(color) {
         const value = String(color || '').toLowerCase();
-        if (value.includes('danger') || value.includes('d63031') || value.includes('dc2626') || value.includes('ef4444')) {
+        if (value.includes('danger') || value.includes('d63031') || value.includes('dc2626') || value.includes('ef4444') || value.includes('b91c1c') || value.includes('b53916')) {
             return 'danger';
         }
-        if (value.includes('success') || value.includes('00b894') || value.includes('0f766e') || value.includes('059669')) {
+        if (value.includes('success') || value.includes('00b894') || value.includes('0f766e') || value.includes('059669') || value.includes('2ecc71') || value.includes('10b981') || value.includes('1f6b4d')) {
             return 'success';
         }
-        if (value.includes('warning') || value.includes('fdcb6e') || value.includes('e6a23c') || value.includes('d97706')) {
+        if (value.includes('warning') || value.includes('warn') || value.includes('fdcb6e') || value.includes('e6a23c') || value.includes('d97706') || value.includes('f59e0b') || value.includes('fbbf24') || value.includes('a6731f')) {
             return 'warning';
         }
         return 'primary';

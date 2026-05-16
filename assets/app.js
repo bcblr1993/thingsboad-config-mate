@@ -290,6 +290,9 @@ function handleRouteTransition(newKey) {
     } else if (newKey === 'history') {
         if (typeof openHistoryModal === 'function') openHistoryModal();
     } else if (newKey === 'diff') {
+        // 路由进入立即显示 idle 占位 (不是 spinner), 异步触发检查;
+        // 防止 docker API 慢响应导致 spinner 长时间停留.
+        if (typeof prepareRuntimeDiffIdle === 'function') prepareRuntimeDiffIdle();
         if (typeof checkRuntimeSync === 'function') checkRuntimeSync();
     } else if (newKey === 'install') {
         if (typeof checkInstallAndConfirm === 'function') checkInstallAndConfirm();
@@ -2459,10 +2462,11 @@ async function cancelEdit() {
 // Check if install file exists
 // --- Runtime Config Diff Logic ---
 async function checkRuntimeSync() {
-    /* Legacy spinner target lived on a .btn-header that has been replaced
-       by the cloud-style mega-nav action; this lookup may now return null. */
     const btn = document.querySelector('.btn-header[onclick="checkRuntimeSync()"]');
     const originalHtml = btn ? btn.innerHTML : '';
+
+    // Banner 切到 info 态 "正在检查...", 不再依赖独立的 loading spinner.
+    renderRuntimeDiffStatus('info', '正在检查运行配置...', '正在通过 docker inspect 读取容器环境变量。');
 
     try {
         if (btn) {
@@ -2470,19 +2474,27 @@ async function checkRuntimeSync() {
             btn.disabled = true;
         }
 
-        const res = await ConfigMateApi.runtimeDiff();
-        const json = await res.json();
+        // 10s 超时 fail-safe: 防止 docker compose ps / inspect 卡住时
+        // 前端 UI 一直停在 loading 态.
+        const fetchPromise = ConfigMateApi.runtimeDiff().then(r => r.json());
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('请求超时（>10 秒未响应）')), 10000)
+        );
+        const json = await Promise.race([fetchPromise, timeoutPromise]);
 
         console.log("Runtime Check Response:", json);
         if (json.status === 'success') {
             renderRuntimeDiff(json);
         } else if (json.status === 'not_running') {
+            renderRuntimeDiffError('服务未运行，无法获取运行时配置', '请先在部署控制台启动当前业务服务，再重新执行运行检查。');
             showToast('⚠️ 服务未运行，无法获取运行时配置', 'error');
         } else {
-            showToast('❌ 检查失败: ' + json.message, 'error');
+            renderRuntimeDiffError('检查失败', json.message || '请求未返回有效结果。');
+            showToast('❌ 检查失败: ' + (json.message || ''), 'error');
         }
     } catch (e) {
         console.error("Diff check failed", e);
+        renderRuntimeDiffError('请求失败', e.message);
         showToast('❌ 请求失败: ' + e.message, 'error');
     } finally {
         if (btn) {
@@ -2490,6 +2502,70 @@ async function checkRuntimeSync() {
             btn.disabled = false;
         }
     }
+}
+
+/* 进入 #/diff 路由的"idle"占位 — 不显示 spinner, 立即显示空态 banner
+   + KPI 全 "—" + 表格区放占位提示. checkRuntimeSync 接管后切换. */
+function prepareRuntimeDiffIdle() {
+    const modal = document.getElementById('runtime-diff-modal');
+    const tbody = document.getElementById('runtime-diff-tbody');
+    const loadingDiv = document.getElementById('runtime-diff-loading');
+    const resultDiv = document.getElementById('runtime-diff-result');
+    const restartBtn = document.getElementById('btn-restart-from-diff');
+    if (modal && typeof openModal === 'function') openModal(modal);
+    if (loadingDiv) loadingDiv.classList.add('is-hidden');
+    if (resultDiv) resultDiv.classList.remove('is-hidden');
+    if (restartBtn) restartBtn.style.display = 'none';
+    ['cm-diff-kpi-match', 'cm-diff-kpi-mod', 'cm-diff-kpi-onlylocal', 'cm-diff-kpi-onlyruntime'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '—';
+    });
+    renderRuntimeDiffStatus('info', '运行配置检查', '即将开始检查运行时配置与本地 .env 的差异...');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="runtime-empty-cell">等待检查结果...</td></tr>';
+}
+
+/* 通用 banner 状态: info / warn / ok / danger. */
+function renderRuntimeDiffStatus(tone, title, detail) {
+    const banner = document.getElementById('cm-diff-banner');
+    if (!banner) return;
+    const icons = {
+        info:   '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>',
+        warn:   '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
+        ok:     '<polyline points="20 6 9 17 4 12"></polyline>',
+        danger: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
+    };
+    const cls = tone === 'warn' ? 'is-warn'
+        : tone === 'ok' ? 'is-ok'
+        : tone === 'danger' ? 'is-warn'
+        : 'is-info';
+    banner.className = 'cm-diff-banner ' + cls;
+    banner.innerHTML = `
+        <div class="cm-diff-banner-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icons[tone] || icons.info}</svg>
+        </div>
+        <div class="cm-diff-banner-body">
+            <div class="cm-diff-banner-title">${escapeHtml(title)}</div>
+            <div class="cm-diff-banner-desc">${escapeHtml(detail || '')}</div>
+        </div>`;
+}
+
+/* 失败/空态: warn banner + KPI 全置 "—" + 表格放说明. */
+function renderRuntimeDiffError(title, detail) {
+    const modal = document.getElementById('runtime-diff-modal');
+    const tbody = document.getElementById('runtime-diff-tbody');
+    const loadingDiv = document.getElementById('runtime-diff-loading');
+    const resultDiv = document.getElementById('runtime-diff-result');
+    const restartBtn = document.getElementById('btn-restart-from-diff');
+    if (modal && typeof openModal === 'function') openModal(modal);
+    if (loadingDiv) loadingDiv.classList.add('is-hidden');
+    if (resultDiv) resultDiv.classList.remove('is-hidden');
+    if (restartBtn) restartBtn.style.display = 'none';
+    ['cm-diff-kpi-match', 'cm-diff-kpi-mod', 'cm-diff-kpi-onlylocal', 'cm-diff-kpi-onlyruntime'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '—';
+    });
+    renderRuntimeDiffStatus('warn', title, detail);
+    if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="runtime-empty-cell">${escapeHtml(detail || '暂无可比对数据')}</td></tr>`;
 }
 
 function renderRuntimeDiff(data) {

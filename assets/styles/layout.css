@@ -363,6 +363,41 @@ body[data-workbench-page="config-workspace"] .action-bar {
     display: flex !important;
 }
 
+/* === 按钮点击区域最小尺寸统一 (AGENTS.md / 审计 P2) ====================
+   将各页面零散的小按钮点击高度统一到 32px, 不修改字体大小, 仅给
+   button-like 元素提供 min-height. */
+.cm-alert-action,
+.cm-overview-card-action,
+.toggle-btn,
+.secret-toggle,
+.copy-config-value,
+.cleanup-confirm-btn,
+.history-action,
+.cm-logs-tool-btn,
+.cm-install-log-btn,
+.cm-segmented-item,
+.btn-header,
+.btn-logs,
+.install-log-btn {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+/* 业务配置 group-header 是 click target (toggleGroup), 提升整体到 ≥40px
+   保证移动端友好且与设计稿一致. */
+body[data-workbench-page="config-workspace"] .group-header {
+    min-height: 44px;
+}
+
+/* 业务配置分组 segmented tabs 中的 button (cm-segmented-item) 默认 32px,
+   覆盖 styles.css 中 .config-nav-item 旧规则导致的 27px. */
+body[data-workbench-page="config-workspace"] .cm-config-tabs .cm-segmented-item {
+    min-height: 32px;
+}
+
 .action-title,
 .deployment-title,
 .config-workspace-title,

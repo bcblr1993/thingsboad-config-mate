@@ -223,8 +223,8 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px;
+    gap: 12px;
+    padding: 16px;
     border: 1px solid var(--cm-cloud-border);
     border-radius: 12px;
     background: var(--cm-cloud-surface);
@@ -234,6 +234,12 @@
     grid-template-areas: none;
     min-height: 0;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+/* 指标行和按钮组之间加分隔线, 增强视觉层级. */
+#service-grid.cm-service-grid .service-card .cm-svc-metrics {
+    padding: 8px 0 4px;
+    border-bottom: 1px dashed var(--cm-cloud-border-subtle);
 }
 
 #service-grid.cm-service-grid .service-card:hover {
