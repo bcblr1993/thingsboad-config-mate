@@ -861,7 +861,8 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 5px 9px;
+    padding: 6px 11px;
+    min-height: 32px;
     border: 1px solid var(--cm-cloud-border);
     border-radius: 6px;
     background: var(--cm-cloud-surface);

@@ -139,9 +139,10 @@
 
 .cm-segmented-item {
     display: inline-flex;
-    align-items: baseline;
+    align-items: center;
     gap: 6px;
-    padding: 6px 14px;
+    padding: 8px 14px;
+    min-height: 32px;
     border: none;
     border-radius: 6px;
     background: transparent;
@@ -376,21 +377,26 @@
     white-space: nowrap;
 }
 
-#service-grid.cm-service-grid .service-card .cm-svc-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr 36px;
-    gap: 6px;
-    margin-top: 4px;
+body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .service-card .cm-svc-actions,
+#service-grid.cm-service-grid .service-card .cm-svc-actions,
+.cm-svc-card .cm-svc-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 36px !important;
+    gap: 6px !important;
+    margin-top: 4px !important;
     width: 100% !important;
-    align-self: stretch;
-    box-sizing: border-box;
+    align-self: stretch !important;
+    box-sizing: border-box !important;
     flex-shrink: 0;
 }
 
-#service-grid.cm-service-grid .service-card .cm-svc-actions > button {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
+body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .service-card .cm-svc-actions > button,
+#service-grid.cm-service-grid .service-card .cm-svc-actions > button,
+.cm-svc-card .cm-svc-actions > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 32px;
+    box-sizing: border-box !important;
 }
 
 .cm-svc-actions button {

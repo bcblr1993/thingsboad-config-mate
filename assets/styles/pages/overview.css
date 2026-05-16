@@ -59,7 +59,7 @@
     font-size: var(--cm-text-2xl);
     font-weight: 800;
     color: var(--cm-cloud-fg);
-    letter-spacing: -0.015em;
+    letter-spacing: 0;
 }
 
 .cm-page-subtitle {
@@ -136,7 +136,7 @@
     font-family: var(--cm-font-mono);
     font-size: var(--cm-text-2xl);
     font-weight: 800;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
     color: var(--cm-cloud-fg);
     font-variant-numeric: tabular-nums;
 }
@@ -211,7 +211,13 @@
 }
 
 .cm-overview-card-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    min-height: 32px;
     border: none;
+    border-radius: 6px;
     background: transparent;
     color: var(--cm-cloud-primary);
     font-size: var(--cm-text-xs);
