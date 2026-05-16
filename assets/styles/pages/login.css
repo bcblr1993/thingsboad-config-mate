@@ -1,100 +1,383 @@
-/* Cloud-Console login page (C 方案 阶段 7).
-   Re-themes the existing #login-overlay / .login-box. The DOM structure is
-   shared with the legacy code; only the visual layer changes. */
+/* Cloud-Console login page (C 方案 对齐 stage H).
+   Left 480px dark brand panel + right 800px form panel, mirroring c-screens/login.jsx.
+   Falls back to single-column on width <= 760px. */
 
-.login-overlay {
-    background:
-        radial-gradient(620px 380px at 18% 18%, rgba(37, 99, 235, 0.12), transparent 60%),
-        radial-gradient(620px 380px at 82% 82%, rgba(99, 102, 241, 0.08), transparent 62%),
-        linear-gradient(180deg, var(--cm-cloud-surface), var(--cm-cloud-bg));
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-}
-
-.login-box {
-    width: 380px;
-    max-width: calc(100vw - 32px);
+.login-overlay.cm-login-route {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: stretch;
     background: var(--cm-cloud-surface);
-    border: 1px solid var(--cm-cloud-border);
-    border-radius: 14px;
-    padding: 28px 28px 24px;
-    box-shadow: var(--cm-cloud-shadow-lg);
+    padding: 0;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
-.login-box::before {
-    content: "";
-    display: block;
-    width: 44px;
-    height: 44px;
-    margin-bottom: 16px;
-    border-radius: 12px;
+.login-overlay.cm-login-route[style*="display: flex"],
+.login-overlay.cm-login-route.is-visible {
+    display: flex !important;
+}
+
+/* The legacy entry sets style="display: flex" via JS; allow that. */
+.login-overlay.cm-login-route {
+    /* Allow inline display:flex from app.js to win */
+}
+
+/* ---- Left brand panel ---------------------------------------------- */
+
+.cm-login-brand-panel {
+    flex: 0 0 480px;
+    background: #0F172A;
+    color: #fff;
+    position: relative;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    overflow: hidden;
+}
+
+/* Dot pattern */
+.cm-login-brand-pattern {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(96, 165, 250, 0.18) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: 0 0;
+    pointer-events: none;
+}
+
+/* Radial glow */
+.cm-login-brand-glow {
+    position: absolute;
+    top: -20%;
+    left: -20%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle at center, rgba(37, 99, 235, 0.35), transparent 65%);
+    pointer-events: none;
+}
+
+.cm-login-brand-head,
+.cm-login-brand-body,
+.cm-login-brand-foot {
+    position: relative;
+    z-index: 1;
+}
+
+.cm-login-brand-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cm-login-brand-mark {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cm-login-brand-name {
+    font-size: 17px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+}
+
+.cm-login-brand-sub {
+    margin-top: 2px;
+    font-size: 11px;
+    color: #94A3B8;
+    line-height: 1.2;
+}
+
+.cm-login-brand-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.cm-login-brand-kicker {
+    font-size: 11px;
+    font-weight: 800;
+    color: #60A5FA;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.cm-login-brand-headline {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    color: #F8FAFC;
+}
+
+.cm-login-brand-desc {
+    margin: 0;
+    font-size: 13px;
+    color: #CBD5E1;
+    line-height: 1.6;
+}
+
+.cm-login-brand-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.cm-login-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 9px;
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    border-radius: var(--cm-radius-full);
+    background: rgba(37, 99, 235, 0.10);
+    color: #BFDBFE;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.cm-login-brand-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--cm-font-mono);
+    font-size: 11px;
+    color: #64748B;
+}
+
+/* ---- Right form panel ---------------------------------------------- */
+
+.cm-login-form-panel {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
     background:
-        linear-gradient(135deg, var(--cm-cloud-primary), var(--cm-cloud-primary-hover));
-    background-image:
-        linear-gradient(135deg, var(--cm-cloud-primary), var(--cm-cloud-primary-hover)),
-        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232563EB'/><path d='M18 18l14-7 14 7-14 7-14-7z' fill='white'/><path d='M18 31l14 7 14-7' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/><path d='M18 43l14 7 14-7' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/></svg>");
-    background-size: cover;
-    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.25);
+        linear-gradient(180deg, rgba(239, 246, 255, 0.45), transparent 240px),
+        var(--cm-cloud-surface);
+    min-width: 0;
 }
 
-.login-title {
-    font-size: var(--cm-text-xl);
+.cm-login-form {
+    width: 420px;
+    max-width: 100%;
+    background: transparent;
+    border: none;
+    padding: 0;
+    box-shadow: none;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* Remove the legacy ::before logo block — brand now lives on the left panel */
+.cm-login-form::before { display: none; }
+
+.cm-login-form-kicker {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--cm-cloud-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.cm-login-form-title.login-title {
+    margin: 0;
+    font-size: 26px;
     font-weight: 800;
     color: var(--cm-cloud-fg);
-    letter-spacing: -0.01em;
-    margin-bottom: 6px;
+    letter-spacing: -0.015em;
 }
 
-.login-desc {
-    font-size: var(--cm-text-xs);
-    line-height: 1.6;
+.cm-login-form-desc.login-desc {
+    margin: 0 0 10px;
+    font-size: 13px;
     color: var(--cm-cloud-muted);
-    margin-bottom: 20px;
+    line-height: 1.6;
 }
 
-.login-box .field-input {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid var(--cm-cloud-border);
-    background: var(--cm-cloud-surface);
-    border-radius: var(--cm-radius-md);
-    padding: 9px 12px;
-    font-size: var(--cm-text-sm);
-    font-family: var(--cm-font-sans);
+/* Field */
+
+.cm-login-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.cm-login-field-label {
+    font-size: 12px;
+    font-weight: 700;
     color: var(--cm-cloud-fg);
-    margin-bottom: var(--cm-space-3);
+}
+
+.cm-login-field-shell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 10px;
+    background: var(--cm-cloud-surface);
+    color: var(--cm-cloud-muted);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.login-box .field-input:focus {
+.cm-login-field-shell:focus-within {
     border-color: var(--cm-cloud-primary);
     box-shadow: var(--cm-cloud-ring);
-    outline: none;
+    color: var(--cm-cloud-primary);
 }
 
-.login-box .btn-primary {
-    width: 100%;
-    margin-top: 4px;
-    padding: 10px 0;
-    font-size: var(--cm-text-sm);
-    font-weight: 700;
-    background: var(--cm-cloud-primary);
-    border: 1px solid var(--cm-cloud-primary);
-    color: #ffffff;
-    border-radius: var(--cm-radius-md);
+.cm-login-field-shell svg {
+    flex-shrink: 0;
+    color: inherit;
+}
+
+.cm-login-input.field-input {
+    flex: 1;
+    margin-bottom: 0;
+    border: none;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    font-family: var(--cm-font-sans);
+    font-size: 14px;
+    color: var(--cm-cloud-fg);
+}
+
+.cm-login-input.field-input:focus {
+    border: none;
+    box-shadow: none;
+}
+
+.cm-login-input-mono {
+    font-family: var(--cm-font-mono);
+    letter-spacing: 2px;
+}
+
+/* Remember-me row */
+
+.cm-login-form-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2px;
+}
+
+.cm-login-remember {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--cm-cloud-muted);
     cursor: pointer;
-    transition: background 0.15s ease;
 }
 
-.login-box .btn-primary:hover:not(:disabled) {
-    background: var(--cm-cloud-primary-hover);
+.cm-login-remember input {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--cm-cloud-primary);
 }
 
-.login-box .btn-primary:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+/* Submit */
+
+.cm-login-submit.btn-primary {
+    margin-top: 4px;
+    padding: 11px 0;
+    font-size: 14px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+/* Warning callout */
+
+.cm-login-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--cm-cloud-warning-soft);
+    border: 1px solid var(--cm-cloud-warning-border);
+    color: #92400E;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.cm-login-warning svg {
+    color: var(--cm-cloud-warning);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.cm-login-warning code {
+    font-family: var(--cm-font-mono);
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid var(--cm-cloud-warning-border);
+    border-radius: 4px;
+    padding: 0 5px;
+}
+
+/* Footer */
+
+.cm-login-form-foot {
+    margin-top: 14px;
+    padding-top: 16px;
+    border-top: 1px solid var(--cm-cloud-border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--cm-font-mono);
+    font-size: 11px;
+    color: var(--cm-cloud-subtle);
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.cm-login-form-foot strong {
+    color: var(--cm-cloud-fg);
+}
+
+/* Responsive */
+
+@media (max-width: 1024px) {
+    .cm-login-brand-panel { flex: 0 0 380px; padding: 32px; }
+    .cm-login-brand-headline { font-size: 24px; }
+}
+
+@media (max-width: 760px) {
+    .login-overlay.cm-login-route { flex-direction: column; }
+    .cm-login-brand-panel {
+        flex: 0 0 auto;
+        padding: 22px;
+        gap: 14px;
+    }
+    .cm-login-brand-body { flex: none; }
+    .cm-login-brand-headline { font-size: 20px; }
+    .cm-login-brand-desc { font-size: 12px; }
+    .cm-login-form-panel { padding: 24px; }
+    .cm-login-form { width: 100%; }
+    .cm-login-brand-foot { display: none; }
 }
 
 @media (max-width: 480px) {
-    .login-box { padding: 22px 20px 18px; }
+    .cm-login-brand-pills { display: none; }
 }

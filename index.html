@@ -24,14 +24,109 @@
 
 <body data-workbench-page="deployment-panel">
 
-    <div id="login-overlay" class="login-overlay">
-        <form class="login-box" onsubmit="login(event)">
-            <div class="login-title">登录 Config Mate</div>
-            <div class="login-desc">此控制台可以操作宿主机 Docker，请输入操作员名称和安装时生成的管理口令。</div>
-            <input id="login-operator" class="field-input login-field" type="text" placeholder="操作员名称" autocomplete="username">
-            <input id="login-password" class="field-input" type="password" placeholder="管理口令" autocomplete="current-password">
-            <button id="btn-login" class="btn btn-primary w-full" type="submit">登录</button>
-        </form>
+    <div id="login-overlay" class="login-overlay cm-login-route">
+        <aside class="cm-login-brand-panel" aria-hidden="true">
+            <div class="cm-login-brand-pattern"></div>
+            <div class="cm-login-brand-glow"></div>
+
+            <div class="cm-login-brand-head">
+                <span class="cm-login-brand-mark">
+                    <svg width="36" height="36" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+                        <rect x="6" y="6" width="52" height="52" rx="14" fill="#2A7DEC" />
+                        <path d="M18 20L32 13L46 20L32 27L18 20Z" fill="white" />
+                        <path d="M18 33L32 40L46 33" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M18 45L32 52L46 45" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </span>
+                <div class="cm-login-brand-titles">
+                    <div class="cm-login-brand-name">Config Mate</div>
+                    <div class="cm-login-brand-sub">ThingsBoard 现场部署控制台</div>
+                </div>
+            </div>
+
+            <div class="cm-login-brand-body">
+                <div class="cm-login-brand-kicker">OPERATOR CONSOLE</div>
+                <h1 class="cm-login-brand-headline">一份 .env，整套 IoT 平台。</h1>
+                <p class="cm-login-brand-desc">面向私有云 / 边缘部署的配置控制台。可视化管理 docker-compose 服务，编辑业务参数、查看实时日志、对比运行漂移、回滚版本。</p>
+                <div class="cm-login-brand-pills">
+                    <span class="cm-login-pill">PostgreSQL</span>
+                    <span class="cm-login-pill">Cassandra</span>
+                    <span class="cm-login-pill">Redis</span>
+                    <span class="cm-login-pill">Kafka</span>
+                    <span class="cm-login-pill">MQTT</span>
+                    <span class="cm-login-pill">Cloud · Edge</span>
+                </div>
+            </div>
+
+            <div class="cm-login-brand-foot">
+                <span>© sprixin-iotcloud</span>
+                <span id="login-host-info">--</span>
+            </div>
+        </aside>
+
+        <main class="cm-login-form-panel">
+            <form class="login-box cm-login-form" onsubmit="login(event)">
+                <div class="cm-login-form-kicker">登录</div>
+                <h2 class="login-title cm-login-form-title">欢迎回来</h2>
+                <p class="login-desc cm-login-form-desc">此控制台可直接操作宿主机 Docker，请输入操作员名称与安装时生成的管理口令。</p>
+
+                <label class="cm-login-field" for="login-operator">
+                    <span class="cm-login-field-label">操作员名称</span>
+                    <span class="cm-login-field-shell">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <input id="login-operator" class="field-input login-field cm-login-input" type="text"
+                            placeholder="ops-admin" autocomplete="username" required>
+                    </span>
+                </label>
+
+                <label class="cm-login-field" for="login-password">
+                    <span class="cm-login-field-label">管理口令</span>
+                    <span class="cm-login-field-shell">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        <input id="login-password" class="field-input cm-login-input cm-login-input-mono" type="password"
+                            placeholder="••••••••••••" autocomplete="current-password" required>
+                    </span>
+                </label>
+
+                <div class="cm-login-form-row">
+                    <label class="cm-login-remember" for="login-remember">
+                        <input id="login-remember" type="checkbox" checked>
+                        <span>本机记住操作员</span>
+                    </label>
+                </div>
+
+                <button id="btn-login" class="btn btn-primary w-full cm-login-submit" type="submit">
+                    <span>登录控制台</span>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
+
+                <div class="cm-login-warning" role="note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>请仅在受信任的内部网络上开放 <code>3300</code> 端口；该控制台具有宿主机 Docker 操作权限。</span>
+                </div>
+
+                <div class="cm-login-form-foot">
+                    <span id="login-host-line">当前主机：<span id="login-host-text">--</span></span>
+                    <span id="login-apptype-line">APP_TYPE=<strong id="login-apptype-text">--</strong></span>
+                </div>
+            </form>
+        </main>
     </div>
 
 

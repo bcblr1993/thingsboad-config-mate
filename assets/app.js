@@ -104,6 +104,8 @@ function showLoginOverlay(message = '') {
     const overlay = document.getElementById('login-overlay');
     const operator = document.getElementById('login-operator');
     const password = document.getElementById('login-password');
+    const remember = document.getElementById('login-remember');
+    const rememberPref = localStorage.getItem('configMateRememberOperator');
     if (overlay) overlay.style.display = 'flex';
     if (operator && !operator.value) {
         operator.value = localStorage.getItem('configMateOperator') || '';
@@ -112,8 +114,25 @@ function showLoginOverlay(message = '') {
         password.value = '';
         (operator && !operator.value ? operator : password).focus();
     }
+    if (remember) {
+        // Default: stay checked; only uncheck if user explicitly opted out before.
+        remember.checked = rememberPref !== 'off';
+    }
+    fillLoginMeta();
     if (message) {
         showToast(message, 'warning');
+    }
+}
+
+function fillLoginMeta() {
+    const hostBrand = document.getElementById('login-host-info');
+    const hostInline = document.getElementById('login-host-text');
+    const apptypeEl = document.getElementById('login-apptype-text');
+    if (hostBrand) hostBrand.textContent = (window.location && window.location.host) || '--';
+    if (hostInline) hostInline.textContent = (window.location && window.location.host) || '--';
+    if (apptypeEl) {
+        const appType = (deploymentInfo?.appType || configValues?.APPTYPE || '').toUpperCase() || 'Cloud';
+        apptypeEl.textContent = appType.charAt(0) + appType.slice(1).toLowerCase();
     }
 }
 
@@ -141,21 +160,31 @@ async function login(event) {
     const btn = document.getElementById('btn-login');
     const operator = document.getElementById('login-operator').value.trim();
     const password = document.getElementById('login-password').value;
+    const rememberEl = document.getElementById('login-remember');
+    const remember = rememberEl ? !!rememberEl.checked : true;
     if (!operator) {
         showToast('请输入操作员名称', 'warning');
         document.getElementById('login-operator').focus();
         return;
     }
     btn.disabled = true;
+    const originalLabel = btn.textContent;
     btn.textContent = '登录中...';
     try {
         const res = await ConfigMateApi.login({ operator, password });
         const data = await res.json();
         if (!res.ok || data.status !== 'success') {
             showToast(data.message || '登录失败', 'error');
+            btn.textContent = originalLabel;
             return;
         }
-        localStorage.setItem('configMateOperator', operator);
+        if (remember) {
+            localStorage.setItem('configMateOperator', operator);
+            localStorage.removeItem('configMateRememberOperator');
+        } else {
+            localStorage.removeItem('configMateOperator');
+            localStorage.setItem('configMateRememberOperator', 'off');
+        }
         updateAuthUI(data.operator || operator);
         ConfigMateApi.resetAuthExpiredNotice();
         stopPollingTimers();
@@ -165,7 +194,14 @@ async function login(event) {
         showToast('登录失败：' + e.message, 'error');
     } finally {
         btn.disabled = false;
-        btn.textContent = '登录';
+        // Only reset label when the form is still visible (i.e. login failed).
+        // After a successful login the overlay is hidden — leave label as-is.
+        if (document.getElementById('login-overlay')?.style.display !== 'none') {
+            // 保留 "登录控制台 →" 完整标签结构需要重建; 简化为文本.
+            const span = btn.querySelector('span');
+            if (span) span.textContent = '登录控制台';
+            else btn.textContent = '登录';
+        }
     }
 }
 
