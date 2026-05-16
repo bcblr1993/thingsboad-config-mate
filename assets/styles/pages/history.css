@@ -617,3 +617,360 @@
     text-decoration: line-through;
     opacity: 0.7;
 }
+
+/* ========================================================================
+   Cloud Console · History Versions route-page (C 方案 对齐 stage F).
+   The history modal is now a full-route page with timeline + guide.
+   ====================================================================== */
+
+.cm-history-route.modal-overlay {
+    display: none;
+    background: var(--cm-cloud-bg);
+}
+
+.cm-history-route.modal-overlay.route-active {
+    display: flex !important;
+    padding: 0 !important;
+    align-items: stretch;
+    justify-content: stretch;
+}
+
+.cm-history-route .cm-history-container {
+    width: 100%;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 22px 32px 22px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: hidden;
+    color: var(--cm-cloud-fg);
+    font-family: var(--cm-font-sans);
+}
+
+.cm-history-page-header {
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+.cm-history-meta-sep {
+    color: var(--cm-cloud-subtle);
+    margin: 0 4px;
+}
+
+.cm-history-grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 460px minmax(0, 1fr);
+    gap: 16px;
+}
+
+.cm-history-timeline-shell,
+.cm-history-diff {
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 12px;
+    box-shadow: var(--cm-cloud-shadow-sm);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.cm-history-card-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.cm-history-card-title {
+    font-size: var(--cm-text-md);
+    font-weight: 800;
+    color: var(--cm-cloud-fg);
+}
+
+.cm-history-card-sub {
+    font-size: 11px;
+    color: var(--cm-cloud-muted);
+    margin-top: 2px;
+}
+
+/* Timeline list (#history-list 复用旧 markup, 仅视觉重塑) */
+
+.cm-history-timeline.history-timeline {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+    padding: 16px 18px 18px;
+    margin: 0;
+    list-style: none;
+    background: var(--cm-cloud-surface);
+}
+
+.cm-history-timeline.history-timeline::before {
+    content: "";
+    position: absolute;
+    top: 24px;
+    bottom: 24px;
+    left: 30px;
+    width: 2px;
+    background: var(--cm-cloud-border-subtle);
+}
+
+.cm-history-route .timeline-item {
+    position: relative;
+    padding-left: 36px;
+    margin-bottom: 14px;
+}
+
+.cm-history-route .timeline-marker {
+    position: absolute;
+    left: 23px;
+    top: 14px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--cm-cloud-surface);
+    border: 3px solid var(--cm-cloud-border-strong);
+    box-shadow: 0 0 0 3px var(--cm-cloud-surface);
+    z-index: 1;
+}
+
+.cm-history-route .timeline-item.latest .timeline-marker {
+    border-color: var(--cm-cloud-success);
+}
+
+.cm-history-route .timeline-item:first-child .timeline-marker {
+    background: var(--cm-cloud-primary);
+    border-color: var(--cm-cloud-primary);
+}
+
+.cm-history-route .timeline-content {
+    border: 1px solid var(--cm-cloud-border);
+    background: var(--cm-cloud-surface);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cm-history-route .timeline-content:hover {
+    border-color: var(--cm-cloud-primary-border);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+.cm-history-route .timeline-item.latest .timeline-content {
+    border-color: var(--cm-cloud-success-border);
+    background: var(--cm-cloud-success-soft);
+}
+
+.cm-history-route .timeline-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.cm-history-route .timeline-time {
+    font-family: var(--cm-font-mono);
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--cm-cloud-fg);
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.cm-history-route .timeline-date-badge {
+    font-family: var(--cm-font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--cm-cloud-muted);
+    background: var(--cm-cloud-surface-muted);
+    border: 1px solid var(--cm-cloud-border-subtle);
+    border-radius: var(--cm-radius-xs);
+    padding: 1px 6px;
+}
+
+.cm-history-route .history-badge.latest {
+    display: inline-block;
+    font-family: var(--cm-font-mono);
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--cm-cloud-success);
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-success-border);
+    border-radius: var(--cm-radius-full);
+    padding: 1px 7px;
+    letter-spacing: 0.06em;
+}
+
+.cm-history-route .timeline-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+    font-family: var(--cm-font-mono);
+    font-size: 11px;
+    color: var(--cm-cloud-muted);
+    align-items: center;
+}
+
+.cm-history-route .timeline-file-tag {
+    display: inline-block;
+    font-family: var(--cm-font-mono);
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--cm-cloud-primary);
+    background: var(--cm-cloud-primary-soft);
+    border: 1px solid var(--cm-cloud-primary-border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    letter-spacing: 0.04em;
+}
+
+.cm-history-route .timeline-file-name {
+    color: var(--cm-cloud-fg);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 240px;
+}
+
+.cm-history-route .timeline-actions {
+    display: inline-flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.cm-history-route .history-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 9px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 6px;
+    background: var(--cm-cloud-surface);
+    color: var(--cm-cloud-fg);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.cm-history-route .history-action:hover {
+    border-color: var(--cm-cloud-primary-border);
+    background: var(--cm-cloud-primary-soft);
+    color: var(--cm-cloud-primary);
+}
+
+.cm-history-route .history-action.danger {
+    color: var(--cm-cloud-danger);
+    border-color: var(--cm-cloud-danger-border);
+    background: var(--cm-cloud-danger-soft);
+}
+
+.cm-history-route .history-action.danger:hover {
+    background: #FECACA;
+}
+
+.cm-history-route .history-state {
+    margin: 18px;
+    padding: 14px 18px;
+    border: 1px dashed var(--cm-cloud-border);
+    border-radius: 10px;
+    text-align: center;
+    color: var(--cm-cloud-muted);
+    list-style: none;
+}
+
+/* Right: action guide */
+
+.cm-history-diff-body {
+    padding: 14px 18px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+}
+
+.cm-history-action-guide {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cm-history-action-guide li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 10px;
+    background: var(--cm-cloud-surface-muted);
+    font-size: 12px;
+    color: var(--cm-cloud-fg);
+}
+
+.cm-history-action-tag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    padding: 4px 10px;
+    border-radius: var(--cm-radius-full);
+    font-family: var(--cm-font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    border: 1px solid;
+    flex-shrink: 0;
+}
+
+.cm-history-action-tag.tag-view    { color: var(--cm-cloud-fg);      background: var(--cm-cloud-surface); border-color: var(--cm-cloud-border); }
+.cm-history-action-tag.tag-compare { color: var(--cm-cloud-info);    background: var(--cm-cloud-info-soft); border-color: var(--cm-cloud-info-border); }
+.cm-history-action-tag.tag-restore { color: var(--cm-cloud-danger);  background: var(--cm-cloud-danger-soft); border-color: var(--cm-cloud-danger-border); }
+
+.cm-history-tip {
+    font-size: 12px;
+    color: #92400E;
+    background: var(--cm-cloud-warning-soft);
+    border: 1px solid var(--cm-cloud-warning-border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    line-height: 1.6;
+}
+
+.cm-history-tip code {
+    font-family: var(--cm-font-mono);
+    background: rgba(255,255,255,0.6);
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--cm-cloud-warning-border);
+}
+
+@media (max-width: 1280px) {
+    .cm-history-grid { grid-template-columns: 380px minmax(0, 1fr); }
+}
+
+@media (max-width: 960px) {
+    .cm-history-route .cm-history-container { padding: 16px; }
+    .cm-history-grid { grid-template-columns: 1fr; }
+}

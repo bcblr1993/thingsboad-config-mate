@@ -443,48 +443,40 @@
         </div>
     </div>
 
-    <!-- History Modal -->
-    <div id="history-modal" class="modal-overlay" data-route-breadcrumb="Config Mate › 历史版本">
-        <div class="modal-content history-modal-content">
-            <div class="modal-header">
-                <div class="history-heading">
-                    <div class="history-title-line">
-                        <span class="history-title-icon">
-                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2">
-                                <path d="M3 3v5h5"></path>
-                                <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path>
-                                <path d="M12 7v5l3 2"></path>
-                            </svg>
-                        </span>
-                        <div class="modal-title">配置历史版本</div>
-                    </div>
-                    <div class="history-subtitle">当前业务配置的保存记录</div>
-                </div>
-                <div class="close-btn" onclick="navigateRoute('deployment')">&times;</div>
+    <!-- Config History (Cloud Console full-page) -->
+    <div id="history-modal" class="modal-overlay cm-history-route" data-route-breadcrumb="Config Mate › 历史版本">
+        <div class="modal-content history-modal-content cm-history-container">
+            <div class="cm-breadcrumb cm-history-breadcrumb">
+                <span>Config Mate</span>
+                <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                <span class="cm-breadcrumb-current">历史版本</span>
             </div>
-            <div class="modal-body history-body">
-                <div class="history-summary">
-                    <div class="history-stat">
-                        <div class="history-stat-label">历史数量</div>
-                        <div id="history-count" class="history-stat-value">--</div>
-                    </div>
-                    <div class="history-stat">
-                        <div class="history-stat-label">最近保存</div>
-                        <div id="history-latest" class="history-stat-value">--</div>
-                    </div>
-                    <div class="history-stat">
-                        <div class="history-stat-label">配置文件</div>
-                        <div id="history-env-path" class="history-stat-value">--</div>
-                    </div>
+            <div class="cm-page-header cm-history-page-header">
+                <div class="cm-page-header-titles">
+                    <h2 class="cm-page-title">配置历史版本</h2>
+                    <p class="cm-page-subtitle">
+                        <span id="history-env-path">--</span>
+                        <span class="cm-history-meta-sep">·</span>
+                        共 <strong id="history-count">--</strong> 个版本（最多保留 5 个）·
+                        最近保存 <strong id="history-latest">--</strong>
+                    </p>
                 </div>
-                <div class="history-list-shell">
-                    <div class="history-list-header">
-                        <div class="history-list-title">保存记录</div>
-                        <div class="history-retention">最多保留 5 个版本</div>
-                    </div>
-                    <ul id="history-list" class="history-timeline" onclick="handleHistoryAction(event)">
-                        <!-- Loaded dynamically -->
+                <div class="cm-page-header-actions">
+                    <button class="btn btn-ghost" type="button" onclick="openHistoryModal()">刷新</button>
+                    <button class="btn btn-primary" type="button" onclick="navigateRoute('config')">返回配置</button>
+                </div>
+            </div>
+
+            <div class="cm-history-grid">
+                <aside class="cm-history-timeline-shell" aria-label="时间线">
+                    <header class="cm-history-card-head">
+                        <div class="cm-history-card-title">保存记录</div>
+                        <div class="cm-history-card-sub">按时间倒序 · 最多 5 条</div>
+                    </header>
+                    <ul id="history-list" class="history-timeline cm-history-timeline" onclick="handleHistoryAction(event)">
                         <li class="history-state">
                             <div class="history-state-card">
                                 <div class="history-state-icon">
@@ -498,7 +490,35 @@
                             </div>
                         </li>
                     </ul>
-                </div>
+                </aside>
+
+                <section id="cm-history-diff" class="cm-history-diff" aria-label="变更对比">
+                    <header class="cm-history-card-head">
+                        <div>
+                            <div class="cm-history-card-title">如何使用历史版本</div>
+                            <div class="cm-history-card-sub">点击左侧版本卡上的操作按钮</div>
+                        </div>
+                    </header>
+                    <div class="cm-history-diff-body">
+                        <ul class="cm-history-action-guide">
+                            <li>
+                                <span class="cm-history-action-tag tag-view">查看</span>
+                                <span>以原始文本预览 .env 快照内容</span>
+                            </li>
+                            <li>
+                                <span class="cm-history-action-tag tag-compare">对比</span>
+                                <span>与当前业务配置对比差异（弹窗显示）</span>
+                            </li>
+                            <li>
+                                <span class="cm-history-action-tag tag-restore">回滚</span>
+                                <span>替换当前 .env 并重启业务服务 · 高风险</span>
+                            </li>
+                        </ul>
+                        <div class="cm-history-tip">
+                            <strong>提示：</strong>每次保存配置会自动归档当前 .env 到 <code>.env_history/</code> 目录，最多保留最近 5 个版本，先入先出。
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
