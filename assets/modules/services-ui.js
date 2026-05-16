@@ -39,6 +39,49 @@
 
     const SVC_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>';
 
+    /* Tier-specific Lucide icons (mirrors overview-ui.js). */
+    const TIER_ICON_SVG = {
+        business: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>',
+        storage:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"></path></svg>',
+        cache:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>',
+        queue:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>',
+        monitor:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>',
+    };
+
+    function getTierIcon(tier) {
+        return TIER_ICON_SVG[tier] || SVC_ICON_SVG;
+    }
+
+    function formatUptime(startedAt) {
+        if (!startedAt) return '—';
+        const start = typeof startedAt === 'number' ? startedAt : Date.parse(startedAt);
+        if (!Number.isFinite(start)) return '—';
+        let diff = Math.max(0, Math.floor((Date.now() - start) / 1000));
+        const day = Math.floor(diff / 86400); diff -= day * 86400;
+        const hr = Math.floor(diff / 3600); diff -= hr * 3600;
+        const min = Math.floor(diff / 60);
+        if (day > 0) return `${day}d ${hr}h`;
+        if (hr > 0) return `${hr}h ${min}m`;
+        if (min > 0) return `${min}m`;
+        return '刚刚';
+    }
+
+    /* Extract a short port summary string from sections (e.g. "8080, 1883"). */
+    function summarizePorts(sections) {
+        const portSection = (sections || []).find(s => (s.title || '') === '端口');
+        if (!portSection || !Array.isArray(portSection.items)) return '—';
+        const ports = portSection.items
+            .map(it => {
+                const raw = String(it?.value || it?.key || '').trim();
+                if (!raw || raw === '无' || raw === '无环境变量') return null;
+                const match = raw.match(/(\d{2,5})/);
+                return match ? match[1] : null;
+            })
+            .filter(Boolean);
+        if (ports.length === 0) return '—';
+        return ports.slice(0, 3).join(', ') + (ports.length > 3 ? ` +${ports.length - 3}` : '');
+    }
+
     function isCleanupSupportedService(serviceId) {
         return CLEANUP_SUPPORTED_SERVICES.has(serviceId);
     }
@@ -80,7 +123,7 @@
         `;
     }
 
-    function renderServiceCards({ services = [], requiredIds = new Set(), selectedServiceId = '' } = {}) {
+    function renderServiceCards({ services = [], requiredIds = new Set(), selectedServiceId = '', portsByService = {} } = {}) {
         return services.map(service => {
             const required = requiredIds.has(service.id);
             const disabled = isDisabledStatus(service.status);
@@ -93,6 +136,9 @@
             const status = service.status || 'unknown';
             const statusLabel = STATUS_LABEL[status] || status;
             const image = service.image || service.composeService || '';
+            const uptime = running ? formatUptime(service.startedAt) : '—';
+            const ports = portsByService[service.id] || '—';
+            const tierIcon = getTierIcon(tier);
             const messageHtml = service.message
                 ? `<div class="cm-svc-message">${escapeHtml(service.message)}</div>`
                 : '';
@@ -104,12 +150,16 @@
                 selected ? 'selected' : '',
                 running ? 'is-running' : 'is-stopped',
             ].filter(Boolean).join(' ');
+            // C 方案三按钮: 日志 / 重启 or 启动 / 更多 (danger 动作下放到详情面板).
+            const primaryBtn = running
+                ? `<button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')" ${canOperateRunning ? '' : 'disabled'}>重启</button>`
+                : `<button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')" ${canStart ? '' : 'disabled'}>启动</button>`;
 
             return `
                 <div class="${classes}" data-service-id="${escapeHtml(service.id)}" data-tier="${escapeHtml(tier)}" onclick="selectService(${idArg})">
                     <div class="cm-svc-head">
                         <div class="cm-svc-head-left">
-                            <span class="cm-svc-icon">${SVC_ICON_SVG}</span>
+                            <span class="cm-svc-icon">${tierIcon}</span>
                             <div class="cm-svc-meta">
                                 <span class="cm-svc-name" title="${escapeHtml(service.label || service.id)}">${escapeHtml(service.id || service.label)}</span>
                                 <span class="cm-svc-image" title="${escapeHtml(image || service.label || '')}">${escapeHtml(image || service.label || '')}</span>
@@ -121,14 +171,15 @@
                     </div>
                     ${messageHtml}
                     <div class="cm-svc-metrics">
-                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Tier</span><span class="cm-svc-metric-val">${escapeHtml(tier)}</span></div>
-                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Container</span><span class="cm-svc-metric-val">${escapeHtml(service.containerId ? service.containerId.slice(0, 10) : '—')}</span></div>
+                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Uptime</span><span class="cm-svc-metric-val">${escapeHtml(uptime)}</span></div>
+                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">CPU</span><span class="cm-svc-metric-val">—</span></div>
+                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Mem</span><span class="cm-svc-metric-val">—</span></div>
+                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Ports</span><span class="cm-svc-metric-val" title="${escapeHtml(ports)}">${escapeHtml(ports)}</span></div>
                     </div>
                     <div class="cm-svc-actions">
-                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')" ${canStart ? '' : 'disabled'}>启动</button>
-                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')" ${canOperateRunning ? '' : 'disabled'}>重启</button>
-                        <button type="button" class="cm-svc-action-danger" onclick="event.stopPropagation(); serviceAction(${idArg}, 'down')" ${canOperateRunning ? '' : 'disabled'}>停止</button>
                         <button type="button" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${disabled ? 'disabled' : ''}>日志</button>
+                        ${primaryBtn}
+                        <button type="button" class="cm-svc-action-more" onclick="event.stopPropagation(); selectService(${idArg})" title="查看更多">…</button>
                     </div>
                 </div>
             `;
@@ -138,36 +189,164 @@
     function renderServiceConfig(data, options = {}) {
         const summary = data.summary || {};
         const serviceId = data.service?.id || options.selectedServiceId || '';
-        const chips = [
-            summary.image ? `镜像: ${summary.image}` : '',
-            summary.containerName ? `容器: ${summary.containerName}` : '',
-            summary.restart ? `重启: ${summary.restart}` : ''
-        ].filter(Boolean);
+        const serviceStatus = options.serviceStatus || {};
+        const tier = inferTier({ id: serviceId, tier: serviceStatus.tier });
+        const running = !!serviceStatus.running;
+        const status = serviceStatus.status || (running ? 'running' : 'stopped');
+        const statusLabel = STATUS_LABEL[status] || status;
+        const idArg = jsArg(serviceId);
         const cleanupInFlightService = options.cleanupInFlightService || '';
         const cleanupDisabled = !isCleanupSupportedService(serviceId)
-            || isDisabledStatus(options.serviceStatus?.status)
+            || isDisabledStatus(status)
             || !!cleanupInFlightService;
-        const cleanupButton = isCleanupSupportedService(serviceId)
-            ? `<button class="service-detail-cleanup-btn" type="button" onclick="cleanupService(${jsArg(serviceId)})" ${cleanupDisabled ? 'disabled' : ''}>${cleanupInFlightService === serviceId ? '清理中' : '数据清理'}</button>`
-            : '';
+
+        const sections = data.sections || [];
+        const portSection = sections.find(s => (s.title || '') === '端口');
+        const volumeSection = sections.find(s => (s.title || '') === '挂载');
+        const otherSections = sections.filter(s => !['端口', '挂载'].includes(s.title || ''));
+
+        const portsHtml = renderPortsList(portSection);
+        const volumesHtml = renderVolumesList(volumeSection);
+        const dependenciesHtml = renderDetailDependencies(options.dependencyServices, options.appServiceId, serviceId);
+
+        const containerKvs = [
+            { k: 'Service ID', v: serviceId || '—' },
+            { k: '镜像', v: summary.image || '—' },
+            { k: '容器名', v: summary.containerName || '—' },
+            { k: '重启策略', v: summary.restart || '—' },
+            { k: '容器 ID', v: serviceStatus.containerId ? serviceStatus.containerId.slice(0, 12) : '—' },
+            { k: '运行时长', v: running ? formatUptime(serviceStatus.startedAt) : '—' },
+            { k: 'CPU', v: '—' },
+            { k: '内存', v: '—' },
+        ];
+
+        const sectionsHtml = (otherSections || []).map((section, sectionIndex) =>
+            renderServiceConfigSection(section, sectionIndex, serviceId)
+        ).join('');
 
         return `
-            <div class="service-config-header">
-                <div>
-                    <div class="service-config-title">服务配置：${escapeHtml(data.service?.label || data.service?.id || options.selectedServiceId || '')}</div>
-                    <div class="service-config-path">${escapeHtml(data.composePath || '')}</div>
+            <div class="cm-detail-header">
+                <div class="cm-detail-header-titles">
+                    <div class="cm-detail-title">
+                        <span class="cm-detail-title-name">${escapeHtml(serviceId || data.service?.label || '')}</span>
+                        <span class="cm-detail-title-status cm-svc-status ${escapeHtml(status)}">
+                            <span class="cm-svc-status-dot"></span>${escapeHtml(statusLabel)}
+                        </span>
+                        <code class="cm-detail-title-path">${escapeHtml(data.composePath || '')}</code>
+                    </div>
+                    <div class="cm-detail-subtitle">${escapeHtml(data.service?.label || serviceId)} · tier=${escapeHtml(tier)}</div>
                 </div>
-                <div class="service-config-summary">
-                    ${cleanupButton}
-                    ${chips.map(chip => `<span class="deployment-chip">${escapeHtml(chip)}</span>`).join('')}
+                <div class="cm-detail-actions">
+                    <button class="btn btn-ghost" type="button" onclick="showLogs(true, ${idArg})" ${isDisabledStatus(status) ? 'disabled' : ''}>查看日志</button>
+                    <button class="btn btn-ghost" type="button" onclick="serviceAction(${idArg}, 'down')" ${running ? '' : 'disabled'}>停止</button>
+                    <button class="btn btn-primary" type="button" onclick="serviceAction(${idArg}, ${running ? '\'restart\'' : '\'up\''})" ${isDisabledStatus(status) ? 'disabled' : ''}>${running ? '重启' : '启动'}</button>
+                    ${isCleanupSupportedService(serviceId)
+                        ? `<button class="btn btn-danger service-detail-cleanup-btn" type="button" onclick="cleanupService(${jsArg(serviceId)})" ${cleanupDisabled ? 'disabled' : ''}>${cleanupInFlightService === serviceId ? '清理中' : '清理数据'}</button>`
+                        : ''}
                 </div>
             </div>
-            <div class="service-config-body">
-                <div class="service-config-sections ${getServiceConfigSectionsClass(data.sections || [])}">
-                    ${(data.sections || []).map((section, sectionIndex) => renderServiceConfigSection(section, sectionIndex, serviceId)).join('')}
-                </div>
+
+            <div class="cm-detail-grid">
+                <section class="cm-detail-col">
+                    <div class="cm-detail-col-title">容器 (Container)</div>
+                    <div class="cm-detail-kv-grid">
+                        ${containerKvs.map(({ k, v }) => `
+                            <div class="cm-detail-kv">
+                                <div class="cm-detail-kv-key">${escapeHtml(k)}</div>
+                                <div class="cm-detail-kv-val" title="${escapeHtml(v)}">${escapeHtml(v)}</div>
+                            </div>`).join('')}
+                    </div>
+                </section>
+                <section class="cm-detail-col">
+                    <div class="cm-detail-col-title">端口与卷 (Ports &amp; Volumes)</div>
+                    <div class="cm-detail-sub-title">端口</div>
+                    ${portsHtml}
+                    <div class="cm-detail-sub-title">挂载</div>
+                    ${volumesHtml}
+                </section>
+                <section class="cm-detail-col">
+                    <div class="cm-detail-col-title">依赖健康 (Dependencies)</div>
+                    ${dependenciesHtml}
+                </section>
             </div>
+
+            <section class="cm-detail-recent-logs" id="cm-detail-recent-logs" data-service-id="${escapeHtml(serviceId)}">
+                <div class="cm-detail-recent-logs-head">
+                    <span>最近日志 · ${escapeHtml(serviceId)} · stdout</span>
+                    <button class="btn btn-ghost" type="button" onclick="showLogs(true, ${idArg})">打开完整日志</button>
+                </div>
+                <div class="cm-detail-recent-logs-body" data-state="idle">等待加载日志...</div>
+            </section>
+
+            ${sectionsHtml ? `
+                <section class="cm-detail-sections">
+                    <div class="cm-detail-col-title">完整环境变量</div>
+                    <div class="service-config-sections ${getServiceConfigSectionsClass(otherSections)}">
+                        ${sectionsHtml}
+                    </div>
+                </section>` : ''}
         `;
+    }
+
+    function renderPortsList(section) {
+        const items = section?.items || [];
+        const usable = items.filter(it => {
+            const raw = String(it?.value || '').trim();
+            return raw && raw !== '无';
+        });
+        if (usable.length === 0) {
+            return '<div class="cm-detail-empty">无端口暴露</div>';
+        }
+        return `<ul class="cm-detail-list">${usable.map(it => {
+            const raw = String(it.value || '');
+            const portMatch = raw.match(/(\d{2,5})/);
+            const port = portMatch ? portMatch[1] : raw;
+            return `<li class="cm-detail-list-row">
+                <code class="cm-detail-list-key">${escapeHtml(port)}</code>
+                <span class="cm-detail-list-val" title="${escapeHtml(raw)}">${escapeHtml(raw)}</span>
+            </li>`;
+        }).join('')}</ul>`;
+    }
+
+    function renderVolumesList(section) {
+        const items = section?.items || [];
+        const usable = items.filter(it => {
+            const raw = String(it?.value || '').trim();
+            return raw && raw !== '无';
+        });
+        if (usable.length === 0) {
+            return '<div class="cm-detail-empty">无挂载</div>';
+        }
+        return `<ul class="cm-detail-list">${usable.map(it => {
+            const raw = String(it.value || '');
+            const [src, dst] = raw.split(':').map(s => s.trim());
+            return `<li class="cm-detail-list-row cm-detail-list-row-mount">
+                <code class="cm-detail-list-key" title="${escapeHtml(src || raw)}">${escapeHtml(src || raw)}</code>
+                <span class="cm-detail-list-arrow">→</span>
+                <code class="cm-detail-list-val" title="${escapeHtml(dst || '')}">${escapeHtml(dst || '')}</code>
+            </li>`;
+        }).join('')}</ul>`;
+    }
+
+    function renderDetailDependencies(services, appServiceId, currentServiceId) {
+        if (!Array.isArray(services) || services.length === 0) {
+            return '<div class="cm-detail-empty">未声明依赖</div>';
+        }
+        const deps = services.filter(s => s.id !== currentServiceId && s.id !== appServiceId);
+        if (deps.length === 0) {
+            return '<div class="cm-detail-empty">未声明依赖</div>';
+        }
+        return `<ul class="cm-detail-deps">${deps.map(s => {
+            const running = !!s.running;
+            const status = s.status || (running ? 'running' : 'stopped');
+            const statusLabel = running ? '健康' : (STATUS_LABEL[status] || status);
+            return `<li class="cm-detail-deps-row">
+                <span class="cm-detail-deps-name">${escapeHtml(s.id || s.label || '')}</span>
+                <span class="cm-svc-status ${escapeHtml(status)}">
+                    <span class="cm-svc-status-dot"></span>${escapeHtml(statusLabel)}
+                </span>
+            </li>`;
+        }).join('')}</ul>`;
     }
 
     function getServiceConfigSectionsClass(sections) {
@@ -291,6 +470,9 @@
         renderServiceConfig,
         renderServiceSecretIcon,
         toggleServiceSecretItem,
-        inferTier
+        inferTier,
+        getTierIcon,
+        formatUptime,
+        summarizePorts
     };
 })();

@@ -865,12 +865,56 @@ function renderServices() {
     grid.innerHTML = ConfigMateServicesUi.renderServiceCards({
         services: latestServices,
         requiredIds: new Set((latestPlan?.services || []).map(s => s.id)),
-        selectedServiceId
+        selectedServiceId,
+        portsByService: deploymentPortsCache
     });
     ensureSelectedService();
     updateDeploymentTierCounts(latestServices);
     applyDeploymentFilters();
     renderDeploymentSummary();
+    updateDeploymentBreadcrumb();
+}
+
+// Map of serviceId → comma-separated port digest (lazily filled when
+// each service's compose config is fetched). Card metrics row reads from
+// this cache instead of triggering N parallel fetches up-front.
+const deploymentPortsCache = Object.create(null);
+
+function updateDeploymentBreadcrumb() {
+    const el = document.getElementById('deployment-breadcrumb-third');
+    if (!el) return;
+    const appType = deploymentInfo?.appType || configValues?.APPTYPE || 'Cloud';
+    const total = (latestServices || []).length;
+    const label = `${appType.charAt(0) + appType.slice(1).toLowerCase()} · ${total || '--'} 服务`;
+    el.textContent = label;
+}
+
+async function restartAllServices() {
+    if (!Array.isArray(latestServices) || latestServices.length === 0) {
+        showToast('暂无服务可重启', 'info');
+        return;
+    }
+    const candidates = latestServices.filter(s => s.running && !['missing', 'missing-image', 'unsupported', 'unknown'].includes(s.status));
+    if (candidates.length === 0) {
+        showToast('没有正在运行的服务可重启', 'info');
+        return;
+    }
+    const ok = await customConfirm(`将依次重启 ${candidates.length} 个运行中服务：${candidates.map(s => s.id).join(' / ')}`, '全部重启', 'var(--danger)');
+    if (!ok) return;
+    for (const svc of candidates) {
+        try {
+            const res = await ConfigMateApi.serviceAction(svc.id, 'restart');
+            const data = await res.json();
+            if (data.status === 'success') {
+                showToast(`重启 ${svc.id} 成功`, 'success');
+            } else {
+                showToast(`重启 ${svc.id} 失败：${data.message || data.output || '未知错误'}`, 'error');
+            }
+        } catch (e) {
+            showToast(`重启 ${svc.id} 失败：${e.message}`, 'error');
+        }
+    }
+    await refreshDeployment();
 }
 
 function updateDeploymentTierCounts(services) {
@@ -1039,8 +1083,63 @@ function renderServiceConfig(data) {
     panel.innerHTML = ConfigMateServicesUi.renderServiceConfig(data, {
         selectedServiceId,
         serviceStatus,
-        cleanupInFlightService
+        cleanupInFlightService,
+        dependencyServices: latestServices || [],
+        appServiceId: deploymentInfo?.appService || ''
     });
+    // Cache port digest used by service-card metric row.
+    const portsText = ConfigMateServicesUi.summarizePorts(data.sections);
+    if (serviceId) deploymentPortsCache[serviceId] = portsText;
+    loadRecentLogsPreview(serviceId);
+}
+
+let recentLogsPreviewSource = null;
+function loadRecentLogsPreview(serviceId) {
+    const body = document.querySelector('#cm-detail-recent-logs .cm-detail-recent-logs-body');
+    if (!body || !serviceId) return;
+    // 上一个 preview 流先关掉,避免在快速切换服务时叠加事件回调.
+    if (recentLogsPreviewSource) {
+        try { recentLogsPreviewSource.close(); } catch (e) { /* noop */ }
+        recentLogsPreviewSource = null;
+    }
+    body.dataset.state = 'loading';
+    body.textContent = '正在读取最近日志...';
+    const collected = [];
+    let stopped = false;
+    const finalize = (label) => {
+        if (stopped) return;
+        stopped = true;
+        if (recentLogsPreviewSource) {
+            try { recentLogsPreviewSource.close(); } catch (e) { /* noop */ }
+            recentLogsPreviewSource = null;
+        }
+        if (collected.length === 0) {
+            body.textContent = label || '暂无日志输出';
+            body.dataset.state = 'empty';
+            return;
+        }
+        body.innerHTML = collected.slice(-8).map(raw => {
+            const level = /\bERROR\b|\bERR\b/i.test(raw) ? 'error'
+                : /\bWARN\b/i.test(raw) ? 'warn'
+                : /\bINFO\b/i.test(raw) ? 'info'
+                : '';
+            return `<div class="cm-detail-recent-log-line${level ? ' cm-detail-recent-log-' + level : ''}">${escapeHtml(raw)}</div>`;
+        }).join('');
+        body.dataset.state = 'loaded';
+    };
+    try {
+        recentLogsPreviewSource = new EventSource(ConfigMateApi.logsUrl(serviceId));
+        recentLogsPreviewSource.onmessage = (ev) => {
+            if (ev?.data) collected.push(ev.data);
+            if (collected.length >= 8) finalize();
+        };
+        recentLogsPreviewSource.onerror = () => finalize('日志流暂不可用');
+        // 1.5s 内仍未收到则按已有数据收尾.
+        setTimeout(() => finalize(), 1500);
+    } catch (e) {
+        body.textContent = '加载日志失败：' + e.message;
+        body.dataset.state = 'error';
+    }
 }
 
 function toggleServiceSecret(sectionIndex, itemIndex, btn) {

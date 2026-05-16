@@ -82,7 +82,8 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
         }
 
         const running = !!inspectData?.State?.Running;
-        return { ...def, status: running ? 'running' : 'stopped', running, containerId };
+        const startedAt = inspectData?.State?.StartedAt || '';
+        return { ...def, status: running ? 'running' : 'stopped', running, containerId, startedAt };
     }
 
     async function runComposeAction(id, action) {
