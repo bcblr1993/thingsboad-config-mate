@@ -209,6 +209,8 @@ async function init() {
         await refreshDeployment();
         await checkInstallAvailability();
         initWorkbenchNavigation();
+        // Default config-view = form (overview/source 通过 segmented 切换).
+        if (typeof setConfigView === 'function') setConfigView(configView || 'form');
 
         // Start Polling Status
         checkStatus();
@@ -469,8 +471,13 @@ function markFieldModified(key) {
     const card = document.getElementById('card-' + key);
     if (!card) return;
     const modified = JSON.stringify(configValues[key] || '') !== JSON.stringify(initialConfigValues[key] || '');
-    if (modified) card.setAttribute('data-modified', 'true');
-    else card.removeAttribute('data-modified');
+    if (modified) {
+        card.setAttribute('data-modified', 'true');
+        card.classList.add('cm-cfg-field-modified');
+    } else {
+        card.setAttribute('data-modified', 'false');
+        card.classList.remove('cm-cfg-field-modified');
+    }
 }
 
 function refreshAllFieldModifiedFlags() {
@@ -1323,6 +1330,8 @@ function renderField(key) {
     const safeValue = escapeHtml(val);
     const safeLabel = escapeHtml(meta.label || key);
     const safeComment = escapeHtml(meta.comment || '');
+    const initial = initialConfigValues[key];
+    const isModified = initial !== undefined && String(initial || '') !== String(val);
 
     let inputHtml = '';
     if (meta.type === 'select') {
@@ -1347,18 +1356,22 @@ function renderField(key) {
             onchange="updateValue('${key}', this.value)">`;
     }
 
+    // Cloud Console 字段卡: 上下结构 (label+badge / input / key+hint).
     return `
-    <div class="card config-field-card" id="card-${key}">
-        <div class="form-row">
-            <div class="label-area">
-                <div class="field-label ${reqClass}">${safeLabel}</div>
-                <span class="var-code" title="${safeKey}">${safeKey}</span>
+    <div class="card config-field-card cm-cfg-field${isModified ? ' cm-cfg-field-modified' : ''}" id="card-${key}" data-key="${safeKey}" data-modified="${isModified ? 'true' : 'false'}">
+        <div class="cm-cfg-field-head">
+            <div class="cm-cfg-field-label-wrap">
+                <span class="field-label ${reqClass}">${safeLabel}</span>
             </div>
-             <div>
-                ${inputHtml}
-                <div class="field-error" id="error-${key}"></div>
-                <div class="field-desc">${safeComment}</div>
-            </div>
+            <span class="cm-cfg-field-mod-badge" aria-label="已修改">MODIFIED</span>
+        </div>
+        <div class="cm-cfg-field-input">
+            ${inputHtml}
+            <div class="field-error" id="error-${key}"></div>
+        </div>
+        <div class="cm-cfg-field-foot">
+            <code class="var-code" title="${safeKey}">${safeKey}</code>
+            <span class="field-desc" title="${safeComment}">${safeComment}</span>
         </div>
     </div>`;
 }
@@ -1462,24 +1475,108 @@ function setDirty(dirty) {
     const btnSaveOnly = document.getElementById('btn-save-only');
     const btnSaveApply = document.getElementById('btn-save-apply');
 
-    // Safety check
-    if (!btnSaveOnly) return;
-
-    if (isDirty) {
-        // Enabled
-        btnSaveOnly.disabled = false;
-        btnSaveOnly.textContent = "保存配置 *";
-        if (btnSaveApply) {
-            btnSaveApply.disabled = false;
-        }
-    } else {
-        // Disabled
-        btnSaveOnly.disabled = true;
-        btnSaveOnly.textContent = "仅保存配置";
-        if (btnSaveApply) {
-            btnSaveApply.disabled = false;
+    if (btnSaveOnly) {
+        if (isDirty) {
+            btnSaveOnly.disabled = false;
+            btnSaveOnly.textContent = "保存配置 *";
+        } else {
+            btnSaveOnly.disabled = true;
+            btnSaveOnly.textContent = "仅保存配置";
         }
     }
+    if (btnSaveApply) {
+        btnSaveApply.disabled = !isDirty;
+    }
+
+    // Cloud Console 顶栏的 "仅保存" / "保存并重启"
+    const cfgSaveOnly = document.getElementById('btn-cfg-save-only');
+    const cfgSaveApply = document.getElementById('btn-cfg-save-apply');
+    if (cfgSaveOnly) cfgSaveOnly.classList.toggle('is-hidden', !isDirty);
+    if (cfgSaveApply) cfgSaveApply.classList.toggle('is-hidden', !isDirty);
+
+    // 字段卡 modified 高亮 + 右侧 pending 面板
+    if (typeof refreshAllFieldModifiedFlags === 'function') refreshAllFieldModifiedFlags();
+    renderConfigPendingPanel();
+}
+
+function renderConfigPendingPanel() {
+    const panel = document.getElementById('cm-config-pending-panel');
+    const list = document.getElementById('cm-config-pending-list');
+    const count = document.getElementById('cm-config-pending-count');
+    if (!panel || !list) return;
+    const diff = [];
+    Object.keys(configMeta || {}).forEach(key => {
+        const initial = initialConfigValues[key];
+        const current = configValues[key];
+        if (initial === undefined) return;
+        if (String(initial || '') === String(current || '')) return;
+        if (configMeta[key].hidden) return;
+        diff.push({ key, group: configMeta[key].group || '其他', before: initial, after: current });
+    });
+    if (diff.length === 0) {
+        panel.hidden = true;
+        list.innerHTML = '';
+        if (count) count.textContent = '0';
+        return;
+    }
+    panel.hidden = false;
+    if (count) count.textContent = String(diff.length);
+    list.innerHTML = diff.map(d => `
+        <li class="cm-cfg-pending-item">
+            <div class="cm-cfg-pending-group">${escapeHtml(d.group)}</div>
+            <code class="cm-cfg-pending-key">${escapeHtml(d.key)}</code>
+            <div class="cm-cfg-pending-diff">
+                <span class="cm-cfg-pending-before" title="${escapeHtml(d.before || '')}">${escapeHtml(d.before || '(空)')}</span>
+                <span class="cm-cfg-pending-arrow">→</span>
+                <span class="cm-cfg-pending-after" title="${escapeHtml(d.after || '')}">${escapeHtml(d.after || '(空)')}</span>
+            </div>
+        </li>`).join('');
+}
+
+let configView = 'form';
+function setConfigView(mode) {
+    if (mode !== 'overview' && mode !== 'form' && mode !== 'source') return;
+    configView = mode;
+    document.body.dataset.configView = mode;
+    document.querySelectorAll('[data-config-view]').forEach(el => {
+        const isActive = el.dataset.configView === mode;
+        el.classList.toggle('active', isActive);
+        if (isActive) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+    });
+    if (mode === 'source') {
+        if (!isSourceMode && typeof toggleSourceMode === 'function') toggleSourceMode();
+    } else {
+        if (isSourceMode && typeof toggleSourceMode === 'function') toggleSourceMode();
+    }
+    const chips = document.getElementById('cm-config-anchor-chips');
+    if (mode === 'overview') {
+        if (typeof showAllConfigGroups === 'function') showAllConfigGroups(null);
+        syncConfigAnchorChips();
+        if (chips) chips.hidden = false;
+    } else {
+        if (chips) chips.hidden = true;
+    }
+}
+
+function syncConfigAnchorChips() {
+    const host = document.getElementById('cm-config-anchor-chips');
+    if (!host) return;
+    const groups = Array.from(document.querySelectorAll('#form-container .group-section'));
+    if (groups.length === 0) {
+        host.innerHTML = '';
+        return;
+    }
+    host.innerHTML = groups.map((g, idx) => {
+        const name = g.dataset.groupName || g.querySelector('.group-title')?.textContent || `分组 ${idx + 1}`;
+        const count = g.querySelectorAll('.cm-cfg-field').length;
+        const modified = g.querySelectorAll('.cm-cfg-field-modified').length;
+        return `<button class="cm-config-anchor-chip" type="button" onclick="document.getElementById('${g.id}').scrollIntoView({behavior:'smooth', block:'start'})">
+            <span class="cm-config-anchor-idx">${String(idx + 1).padStart(2, '0')}</span>
+            <span class="cm-config-anchor-name">${escapeHtml(name)}</span>
+            <span class="cm-config-anchor-count">${count}</span>
+            ${modified > 0 ? `<span class="cm-config-anchor-mod">${modified}</span>` : ''}
+        </button>`;
+    }).join('');
 }
 
 // Prevent accidental close

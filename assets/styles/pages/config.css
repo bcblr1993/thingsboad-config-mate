@@ -141,10 +141,14 @@
     background: var(--cm-cloud-surface-muted);
 }
 
-/* Field card */
+/* Field card — Cloud Console 上下结构 (label+badge / input / key+hint) */
 .cm-config .config-field-card,
-.cm-config .card.config-field-card {
+.cm-config .card.config-field-card,
+.cm-config .cm-cfg-field {
     position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
     border-radius: 10px;
@@ -153,46 +157,27 @@
     transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.cm-config .config-field-card:hover {
+.cm-config .cm-cfg-field:hover {
     border-color: var(--cm-cloud-primary-border);
     box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
 }
 
-.cm-config .config-field-card[data-modified="true"] {
+.cm-config .cm-cfg-field-modified {
     border-color: var(--cm-cloud-warning-border);
     background: var(--cm-cloud-warning-soft);
 }
 
-.cm-config .config-field-card[data-modified="true"]::after {
-    content: "MODIFIED";
-    position: absolute;
-    top: 8px;
-    right: 10px;
-    font-family: var(--cm-font-mono);
-    font-size: 9px;
-    font-weight: 800;
-    color: var(--cm-cloud-warning);
-    background: var(--cm-cloud-surface);
-    border: 1px solid var(--cm-cloud-warning-border);
-    border-radius: var(--cm-radius-full);
-    padding: 1px 7px;
-    letter-spacing: 0.05em;
-    line-height: 1.4;
-}
-
-.cm-config .form-row {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.cm-config .label-area {
+.cm-config .cm-cfg-field-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
     min-width: 0;
-    padding-right: 80px; /* room for MODIFIED badge */
+}
+
+.cm-config .cm-cfg-field-label-wrap {
+    min-width: 0;
+    overflow: hidden;
 }
 
 .cm-config .field-label {
@@ -204,15 +189,49 @@
     white-space: nowrap;
 }
 
+.cm-config .cm-cfg-field-mod-badge {
+    display: none;
+    font-family: var(--cm-font-mono);
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--cm-cloud-warning);
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-warning-border);
+    border-radius: var(--cm-radius-full);
+    padding: 1px 7px;
+    letter-spacing: 0.05em;
+    line-height: 1.4;
+    flex-shrink: 0;
+}
+
+.cm-config .cm-cfg-field-modified .cm-cfg-field-mod-badge {
+    display: inline-flex;
+    align-items: center;
+}
+
+.cm-config .cm-cfg-field-input {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cm-config .cm-cfg-field-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+
 .cm-config .var-code {
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
-    color: var(--cm-cloud-muted);
-    background: var(--cm-cloud-surface-sunken);
-    border: 1px solid var(--cm-cloud-border);
-    padding: 1px 7px;
-    border-radius: var(--cm-radius-xs);
+    color: var(--cm-cloud-subtle);
+    background: transparent;
+    border: none;
+    padding: 0;
+    border-radius: 0;
     flex-shrink: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -246,10 +265,14 @@
 }
 
 .cm-config .field-desc {
-    margin-top: 4px;
+    flex: 1;
     font-size: 11px;
     color: var(--cm-cloud-muted);
     line-height: 1.5;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .cm-config .field-error {
@@ -320,14 +343,221 @@
     line-height: 1.55;
 }
 
+/* ---- Anchor chips (overview view only) ----------------------------- */
+
+.cm-config-anchor-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 14px;
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 10px;
+    margin-bottom: 14px;
+    box-shadow: var(--cm-cloud-shadow-sm);
+}
+
+.cm-config-anchor-chips[hidden] { display: none; }
+
+.cm-config-anchor-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 11px;
+    border-radius: var(--cm-radius-full);
+    cursor: pointer;
+    border: 1px solid var(--cm-cloud-border);
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-fg);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--cm-font-sans);
+}
+
+.cm-config-anchor-chip:hover {
+    border-color: var(--cm-cloud-primary-border);
+    background: var(--cm-cloud-primary-soft);
+    color: var(--cm-cloud-primary);
+}
+
+.cm-config-anchor-idx {
+    font-family: var(--cm-font-mono);
+    color: var(--cm-cloud-subtle);
+    font-weight: 800;
+}
+
+.cm-config-anchor-name {
+    font-weight: 700;
+}
+
+.cm-config-anchor-count {
+    font-family: var(--cm-font-mono);
+    color: var(--cm-cloud-muted);
+    font-size: 10px;
+}
+
+.cm-config-anchor-mod {
+    margin-left: 4px;
+    font-family: var(--cm-font-mono);
+    font-size: 9px;
+    font-weight: 800;
+    color: var(--cm-cloud-warning);
+    background: var(--cm-cloud-warning-soft);
+    border: 1px solid var(--cm-cloud-warning-border);
+    border-radius: var(--cm-radius-full);
+    padding: 0 6px;
+    line-height: 1.5;
+}
+
+/* ---- View mode switching: overview / form / source ---------------- */
+
+body[data-config-view="overview"] .cm-config .group-section.inactive-group {
+    display: block;
+}
+
+body[data-config-view="source"] .cm-config-tabs,
+body[data-config-view="source"] .cm-config-toolbar .cm-deployment-search {
+    display: none;
+}
+
+body[data-config-view="source"] .cm-config-anchor-chips {
+    display: none !important;
+}
+
+/* ---- Right sticky pending panel ------------------------------------ */
+
+.cm-config .cm-config-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.cm-config-pending-panel {
+    position: sticky;
+    top: 16px;
+    align-self: flex-start;
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-warning-border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--cm-cloud-shadow-sm);
+}
+
+.cm-config-pending-panel[hidden] { display: none; }
+
+.cm-config-pending-head {
+    padding: 12px 16px;
+    background: var(--cm-cloud-warning-soft);
+    border-bottom: 1px solid var(--cm-cloud-warning-border);
+    color: #92400E;
+}
+
+.cm-config-pending-title {
+    font-size: var(--cm-text-sm);
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cm-config-pending-count {
+    font-family: var(--cm-font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--cm-cloud-warning);
+    background: #fff;
+    border: 1px solid var(--cm-cloud-warning-border);
+    border-radius: var(--cm-radius-full);
+    padding: 1px 7px;
+    line-height: 1.4;
+}
+
+.cm-config-pending-sub {
+    font-size: 11px;
+    color: #A16207;
+    margin-top: 3px;
+}
+
+.cm-config-pending-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.cm-cfg-pending-item {
+    padding: 11px 16px;
+    border-top: 1px solid var(--cm-cloud-border-subtle);
+}
+
+.cm-cfg-pending-item:first-child { border-top: none; }
+
+.cm-cfg-pending-group {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--cm-cloud-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 3px;
+}
+
+.cm-cfg-pending-key {
+    font-family: var(--cm-font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--cm-cloud-fg);
+    background: transparent;
+}
+
+.cm-cfg-pending-diff {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    font-family: var(--cm-font-mono);
+    font-size: 12px;
+    color: var(--cm-cloud-muted);
+    overflow: hidden;
+}
+
+.cm-cfg-pending-before {
+    text-decoration: line-through;
+    color: var(--cm-cloud-danger);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 110px;
+}
+
+.cm-cfg-pending-arrow {
+    color: var(--cm-cloud-subtle);
+    flex-shrink: 0;
+}
+
+.cm-cfg-pending-after {
+    color: var(--cm-cloud-success);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 /* ---- Responsive ---------------------------------------------------- */
 
 @media (max-width: 1280px) {
     .cm-config .group-content { grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr)); }
+    .cm-config .cm-config-shell { grid-template-columns: 1fr; }
+    .cm-config-pending-panel { position: relative; top: 0; }
 }
 
 @media (max-width: 960px) {
     .cm-config { padding: 18px 16px; }
     .cm-config .group-content { grid-template-columns: 1fr; padding: 12px; }
     .cm-config-toolbar { flex-direction: column; align-items: stretch; }
+    .cm-config-view-toggle { flex-wrap: wrap; }
 }

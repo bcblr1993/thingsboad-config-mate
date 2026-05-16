@@ -320,9 +320,19 @@
                         <p class="cm-page-subtitle" id="config-workspace-meta">读取当前业务服务配置中...</p>
                     </div>
                     <div class="cm-page-header-actions">
+                        <div class="cm-segmented cm-config-view-toggle" id="cm-config-view-toggle" role="tablist" aria-label="视图切换">
+                            <button type="button" class="cm-segmented-item" data-config-view="overview"
+                                onclick="setConfigView('overview')">总览</button>
+                            <button type="button" class="cm-segmented-item active" data-config-view="form"
+                                onclick="setConfigView('form')" aria-current="page">表单</button>
+                            <button type="button" class="cm-segmented-item" data-config-view="source"
+                                onclick="setConfigView('source')">源码</button>
+                        </div>
                         <button class="btn btn-ghost" type="button" onclick="navigateRoute('diff')">运行检查</button>
-                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('history')">历史版本</button>
-                        <button class="btn btn-ghost" type="button" id="btn-source-mode" onclick="toggleSourceMode()">源码模式</button>
+                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('history')">历史</button>
+                        <button class="btn btn-ghost is-hidden" type="button" id="btn-cfg-save-only" onclick="saveConfig()">仅保存</button>
+                        <button class="btn btn-primary is-hidden" type="button" id="btn-cfg-save-apply" onclick="saveAndApplyPlan()">保存并重启</button>
+                        <button class="btn btn-ghost" type="button" id="btn-source-mode" onclick="toggleSourceMode()" hidden>源码模式</button>
                         <button class="btn btn-ghost" type="button" id="btn-toggle-all" onclick="toggleAllGroups()">折叠全部</button>
                     </div>
                 </div>
@@ -340,6 +350,10 @@
                         <input id="config-search-input" type="search" placeholder="搜索业务配置项..."
                             onkeyup="filterConfig(this.value)">
                     </label>
+                </div>
+
+                <div id="cm-config-anchor-chips" class="cm-config-anchor-chips" hidden aria-label="分组锚点">
+                    <!-- Anchor chips populated by syncConfigAnchorChips() in overview view. -->
                 </div>
 
                 <div class="config-workspace-header is-legacy-hidden" aria-hidden="true">
@@ -387,6 +401,17 @@
                             <textarea id="source-editor" class="source-editor" spellcheck="false"></textarea>
                         </div>
                     </section>
+                    <aside id="cm-config-pending-panel" class="cm-config-pending-panel" hidden aria-label="未保存变更">
+                        <header class="cm-config-pending-head">
+                            <div>
+                                <div class="cm-config-pending-title">未保存变更 <span id="cm-config-pending-count" class="cm-config-pending-count">0</span></div>
+                                <div class="cm-config-pending-sub">保存后需重启业务服务才能生效</div>
+                            </div>
+                        </header>
+                        <ol id="cm-config-pending-list" class="cm-config-pending-list">
+                            <!-- by renderConfigPendingPanel() -->
+                        </ol>
+                    </aside>
                 </div>
             </section>
         </div>
