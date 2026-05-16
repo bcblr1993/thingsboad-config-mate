@@ -427,11 +427,33 @@ body[data-config-view="source"] .cm-config-anchor-chips {
 
 /* ---- Right sticky pending panel ------------------------------------ */
 
+/* 显式 grid-template-areas: 让 detail-pane 强制在 col 1 (1fr),
+   pending-panel 在 col 2 (320px). 不能依赖 auto-placement, 因为
+   absolutely positioned 的 legacy config-nav (is-legacy-hidden) 在某些
+   浏览器实现里仍会被分配到 col 1, 把 detail-pane 挤到 col 2 → 字段卡
+   被压缩到 ~280px (= 320px - padding). */
 .cm-config .cm-config-shell {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 320px !important;
+    grid-template-areas: "main aside" !important;
+    grid-template-rows: none !important;
     gap: 16px;
     align-items: flex-start;
+    height: auto !important; /* 抵消 styles.css 的 height: clamp(...) */
+}
+
+.cm-config .cm-config-shell > .config-detail-pane {
+    grid-area: main;
+    min-width: 0;
+}
+
+.cm-config .cm-config-shell > #cm-config-pending-panel {
+    grid-area: aside;
+}
+
+/* Legacy hidden nav: actually drop it out of layout so it doesn't claim a track */
+.cm-config .cm-config-shell > .config-nav.is-legacy-hidden {
+    display: none !important;
 }
 
 .cm-config-pending-panel {

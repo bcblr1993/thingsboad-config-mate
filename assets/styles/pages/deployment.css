@@ -376,18 +376,21 @@
     white-space: nowrap;
 }
 
-.cm-svc-actions {
+#service-grid.cm-service-grid .service-card .cm-svc-actions {
     display: grid;
     grid-template-columns: 1fr 1fr 36px;
     gap: 6px;
     margin-top: 4px;
-    width: 100%;
+    width: 100% !important;
+    align-self: stretch;
     box-sizing: border-box;
+    flex-shrink: 0;
 }
 
-.cm-svc-actions > button {
+#service-grid.cm-service-grid .service-card .cm-svc-actions > button {
     width: 100%;
     min-width: 0;
+    box-sizing: border-box;
 }
 
 .cm-svc-actions button {

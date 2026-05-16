@@ -343,9 +343,19 @@
 
 /* "业务配置动作" 条只在 #/config 业务配置路由显示。
    旧 styles.css 用 [data-workbench-page="deployment-panel"] 反向隐藏的方式
-   无法覆盖新路由 (overview / diff / history / logs / install),
-   这里改为正向白名单 — 默认隐藏, 仅 config-workspace 显示. */
-.action-bar {
+   无法覆盖新路由 (overview / diff / history / logs / install).
+   双保险: :not(...) 默认隐藏 + 每个非 config 路由再显式隐藏一次,
+   再用 config-workspace 白名单 force display:flex. */
+body:not([data-workbench-page="config-workspace"]) .action-bar {
+    display: none !important;
+}
+
+body[data-workbench-page="overview-page"] .action-bar,
+body[data-workbench-page="deployment-panel"] .action-bar,
+body[data-workbench-page="runtime-diff-modal"] .action-bar,
+body[data-workbench-page="history-modal"] .action-bar,
+body[data-workbench-page="logs-modal"] .action-bar,
+body[data-workbench-page="install-modal"] .action-bar {
     display: none !important;
 }
 
