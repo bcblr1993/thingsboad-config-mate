@@ -753,6 +753,7 @@ function renderServices() {
         }
         grid.innerHTML = '<div class="service-loading">正在读取服务状态...</div>';
         renderServiceConfigState('等待服务状态返回...');
+        updateDeploymentTierCounts([]);
         return;
     }
     if (countEl) {
@@ -766,6 +767,96 @@ function renderServices() {
         selectedServiceId
     });
     ensureSelectedService();
+    updateDeploymentTierCounts(latestServices);
+    applyDeploymentFilters();
+    renderDeploymentSummary();
+}
+
+function updateDeploymentTierCounts(services) {
+    const tiers = ['business', 'storage', 'cache', 'queue', 'monitor'];
+    const counts = Object.fromEntries(tiers.map(t => [t, 0]));
+    (services || []).forEach(s => {
+        const tier = ConfigMateServicesUi.inferTier(s);
+        if (counts[tier] != null) counts[tier] += 1;
+    });
+    const allEl = document.getElementById('deployment-tier-count-all');
+    if (allEl) allEl.textContent = String((services || []).length);
+    tiers.forEach(t => {
+        const el = document.getElementById(`deployment-tier-count-${t}`);
+        if (el) el.textContent = String(counts[t]);
+    });
+}
+
+let deploymentActiveTier = 'all';
+let deploymentSearchTerm = '';
+
+function filterDeploymentTier(btn) {
+    if (!btn) return;
+    document.querySelectorAll('#deployment-tier-filter .cm-segmented-item').forEach(el => {
+        el.classList.toggle('active', el === btn);
+    });
+    deploymentActiveTier = btn.dataset.tier || 'all';
+    applyDeploymentFilters();
+}
+
+function filterDeploymentSearch(text) {
+    deploymentSearchTerm = String(text || '').trim().toLowerCase();
+    applyDeploymentFilters();
+}
+
+function applyDeploymentFilters() {
+    const grid = document.getElementById('service-grid');
+    if (!grid) return;
+    const tier = deploymentActiveTier;
+    const term = deploymentSearchTerm;
+    grid.querySelectorAll('.service-card').forEach(card => {
+        const cardTier = card.dataset.tier || 'business';
+        const id = (card.dataset.serviceId || '').toLowerCase();
+        const image = (card.querySelector('.cm-svc-image')?.textContent || '').toLowerCase();
+        const tierOk = tier === 'all' || cardTier === tier;
+        const termOk = !term || id.includes(term) || image.includes(term);
+        card.classList.toggle('is-filtered', !(tierOk && termOk));
+    });
+}
+
+function renderDeploymentSummary() {
+    const el = document.getElementById('cm-deployment-summary');
+    if (!el) return;
+    const plan = latestPlan;
+    if (!plan) {
+        el.innerHTML = '';
+        return;
+    }
+    const statuses = Array.isArray(plan.statuses) && plan.statuses.length
+        ? plan.statuses
+        : (plan.services || []);
+    const chipsHtml = statuses.length === 0
+        ? '<span class="cm-summary-chip unknown">无依赖</span>'
+        : statuses.map(item => {
+            const running = !!item.running;
+            const status = item.status || (running ? 'running' : 'pending');
+            const state = running ? 'ok' : (status === 'missing' || status === 'unknown' ? 'unknown' : 'pending');
+            const label = item.label || item.id || 'service';
+            return `<span class="cm-summary-chip ${state}" title="${escapeHtml(label)}：${escapeHtml(status)}">
+                <span class="cm-summary-chip-dot"></span>${escapeHtml(label)}
+            </span>`;
+        }).join('');
+    const warningsHtml = (plan.warnings || [])
+        .map(w => `<div class="cm-summary-warning">${escapeHtml(w)}</div>`).join('');
+    const meta = deploymentInfo
+        ? `${escapeHtml(deploymentInfo.appType || '—')} · ${escapeHtml(deploymentInfo.appService || '—')} · ${escapeHtml(shortPath(deploymentInfo.appRoot || ''))}`
+        : '正在识别部署环境...';
+    el.innerHTML = `
+        <div class="cm-summary-line">
+            <span class="cm-summary-label">部署环境</span>
+            <span class="cm-summary-meta">${meta}</span>
+        </div>
+        <div class="cm-summary-line">
+            <span class="cm-summary-label">依赖服务</span>
+            <span class="cm-summary-chips">${chipsHtml}</span>
+        </div>
+        ${warningsHtml}
+    `;
 }
 
 function getDefaultSelectedServiceId() {

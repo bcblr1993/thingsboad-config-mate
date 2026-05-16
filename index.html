@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="assets/styles/pages/history.css">
     <link rel="stylesheet" href="assets/styles/pages/logs.css">
     <link rel="stylesheet" href="assets/styles/pages/overview.css">
+    <link rel="stylesheet" href="assets/styles/pages/deployment.css">
 </head>
 
 <body data-workbench-page="deployment-panel">
@@ -180,8 +181,37 @@
                 </div>
             </section>
 
-            <div id="deployment-panel" class="deployment-panel">
-                <div class="deployment-header">
+            <div id="deployment-panel" class="deployment-panel cm-deployment">
+                <div class="cm-breadcrumb">
+                    <span>Config Mate</span>
+                    <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                    <span class="cm-breadcrumb-current">部署控制台</span>
+                </div>
+                <div class="cm-page-header">
+                    <div class="cm-page-header-titles">
+                        <h2 class="cm-page-title">部署控制台</h2>
+                        <p id="deployment-subtitle" class="cm-page-subtitle">服务启停与运行配置</p>
+                    </div>
+                    <div class="cm-page-header-actions">
+                        <button class="btn btn-ghost" type="button" onclick="refreshDeployment()">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                            <span>刷新</span>
+                        </button>
+                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('diff')">运行检查</button>
+                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('logs')">实时日志</button>
+                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('history')">历史版本</button>
+                    </div>
+                </div>
+
+                <div class="deployment-header is-legacy-hidden" aria-hidden="true">
                     <div class="deployment-title-block">
                         <div class="section-kicker">Deployment</div>
                         <div class="deployment-title">部署控制台</div>
@@ -201,21 +231,40 @@
                         <button class="btn-header" onclick="refreshDeployment()">刷新状态</button>
                     </div>
                 </div>
-                <div class="deployment-shell">
-                    <aside class="service-list-pane">
-                        <div class="service-pane-header">
-                            <div>
-                                <div class="service-pane-title">服务编排</div>
-                                <div class="service-pane-subtitle">选择服务查看运行配置</div>
-                            </div>
-                            <div id="service-count" class="service-count">--</div>
-                        </div>
-                        <div id="service-grid" class="service-grid"></div>
-                    </aside>
-                    <section class="service-detail-pane">
-                        <div id="service-config-panel" class="service-config-panel" style="display:none;"></div>
-                    </section>
+
+                <div id="cm-deployment-summary" class="cm-deployment-summary" aria-live="polite">
+                    <!-- 依赖摘要由 app.js renderDeploymentSummary() 填充 -->
                 </div>
+
+                <div class="cm-deployment-toolbar">
+                    <div class="cm-segmented" id="deployment-tier-filter" role="tablist" aria-label="服务分类">
+                        <button type="button" class="cm-segmented-item active" data-tier="all" onclick="filterDeploymentTier(this)">全部
+                            <span class="cm-segmented-count" id="deployment-tier-count-all">--</span></button>
+                        <button type="button" class="cm-segmented-item" data-tier="business" onclick="filterDeploymentTier(this)">业务
+                            <span class="cm-segmented-count" id="deployment-tier-count-business">0</span></button>
+                        <button type="button" class="cm-segmented-item" data-tier="storage" onclick="filterDeploymentTier(this)">存储
+                            <span class="cm-segmented-count" id="deployment-tier-count-storage">0</span></button>
+                        <button type="button" class="cm-segmented-item" data-tier="cache" onclick="filterDeploymentTier(this)">缓存
+                            <span class="cm-segmented-count" id="deployment-tier-count-cache">0</span></button>
+                        <button type="button" class="cm-segmented-item" data-tier="queue" onclick="filterDeploymentTier(this)">队列
+                            <span class="cm-segmented-count" id="deployment-tier-count-queue">0</span></button>
+                        <button type="button" class="cm-segmented-item" data-tier="monitor" onclick="filterDeploymentTier(this)">监控
+                            <span class="cm-segmented-count" id="deployment-tier-count-monitor">0</span></button>
+                    </div>
+                    <label class="cm-deployment-search" for="deployment-search-input">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input id="deployment-search-input" type="search" placeholder="筛选服务名 / 镜像 ..."
+                            oninput="filterDeploymentSearch(this.value)">
+                    </label>
+                </div>
+
+                <div id="service-grid" class="service-grid cm-service-grid" aria-label="服务卡片"></div>
+
+                <section id="service-config-panel" class="service-config-panel cm-service-detail" style="display:none;"></section>
             </div>
             <section id="config-workspace" class="config-workspace">
                 <div class="config-workspace-header">

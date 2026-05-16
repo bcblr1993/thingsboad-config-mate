@@ -1,6 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 
+/* tier 分类用于 Cloud-Console UI (C 方案 阶段 4): 服务卡片着色 + Segmented 过滤
+   分类标准:
+   - business: 业务主服务 (iotcloud / iotedge / wechat 等业务相关网关)
+   - storage:  持久化存储 (postgres / cassandra)
+   - cache:    缓存 (redis)
+   - queue:    消息/协调 (kafka / zookeeper)
+   - monitor:  监控 (netdata) */
 const SERVICE_DEFINITIONS = {
     postgres: {
         id: 'postgres',
@@ -8,7 +15,8 @@ const SERVICE_DEFINITIONS = {
         composePath: 'services/postgres/docker-compose.yml',
         composeService: 'postgres',
         order: 10,
-        optional: false
+        optional: false,
+        tier: 'storage'
     },
     redis: {
         id: 'redis',
@@ -16,7 +24,8 @@ const SERVICE_DEFINITIONS = {
         composePath: 'services/redis/docker-compose.yml',
         composeService: 'redis',
         order: 20,
-        optional: true
+        optional: true,
+        tier: 'cache'
     },
     cassandra: {
         id: 'cassandra',
@@ -24,7 +33,8 @@ const SERVICE_DEFINITIONS = {
         composePath: 'services/cassandra/docker-compose.yml',
         composeService: 'cassandra',
         order: 30,
-        optional: true
+        optional: true,
+        tier: 'storage'
     },
     kafka: {
         id: 'kafka',
@@ -32,7 +42,8 @@ const SERVICE_DEFINITIONS = {
         composePath: 'services/kafka/docker-compose.yml',
         composeService: 'kafka',
         order: 40,
-        optional: true
+        optional: true,
+        tier: 'queue'
     },
     netdata: {
         id: 'netdata',
@@ -40,7 +51,8 @@ const SERVICE_DEFINITIONS = {
         composePath: 'services/netdata/docker-compose.yml',
         composeService: 'netdata',
         order: 50,
-        optional: true
+        optional: true,
+        tier: 'monitor'
     },
     wechat: {
         id: 'wechat',
@@ -50,7 +62,8 @@ const SERVICE_DEFINITIONS = {
         image: 'wechat-messenger:v2.1.0',
         missingImageMessage: 'ARM64 包未包含 wechat-messenger:v2.1.0，请提供 ARM64 镜像或源码后再启动。',
         order: 60,
-        optional: true
+        optional: true,
+        tier: 'business'
     },
     iotcloud: {
         id: 'iotcloud',
@@ -60,7 +73,8 @@ const SERVICE_DEFINITIONS = {
         composeService: 'iotcloud',
         appType: 'CLOUD',
         order: 100,
-        optional: false
+        optional: false,
+        tier: 'business'
     },
     iotedge: {
         id: 'iotedge',
@@ -70,7 +84,8 @@ const SERVICE_DEFINITIONS = {
         composeService: 'iotedge',
         appType: 'EDGE',
         order: 100,
-        optional: false
+        optional: false,
+        tier: 'business'
     }
 };
 

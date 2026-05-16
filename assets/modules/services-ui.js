@@ -4,9 +4,40 @@
     const DISABLED_STATUSES = new Set(['missing', 'unknown', 'missing-image', 'unsupported']);
     const escapeHtml = window.ConfigMateUi.escapeHtml;
 
+    /* Heuristic tier mapping fallback. Server already adds .tier in stage 4
+       (services/registry.js), but legacy compose snapshots / mocked tests
+       may still come through without it. */
+    const TIER_HEURISTICS = [
+        { tier: 'storage', match: /^postgres|^cassandra|^mysql|^mongo/i },
+        { tier: 'cache',   match: /^redis|^memcache/i },
+        { tier: 'queue',   match: /^kafka|^zookeeper|^rabbit|^nats/i },
+        { tier: 'monitor', match: /^netdata|^grafana|^prometheus|^loki/i },
+    ];
+
+    function inferTier(service) {
+        if (!service) return 'business';
+        if (service.tier) return service.tier;
+        const id = service.id || '';
+        for (const rule of TIER_HEURISTICS) {
+            if (rule.match.test(id)) return rule.tier;
+        }
+        return 'business';
+    }
+
+    const STATUS_LABEL = {
+        running: 'Running',
+        stopped: 'Stopped',
+        missing: '缺失',
+        unknown: '未知',
+        'missing-image': '镜像缺失',
+        unsupported: '不支持',
+    };
+
     function jsArg(value) {
         return escapeHtml(JSON.stringify(String(value || '')));
     }
+
+    const SVC_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>';
 
     function isCleanupSupportedService(serviceId) {
         return CLEANUP_SUPPORTED_SERVICES.has(serviceId);
@@ -55,23 +86,49 @@
             const disabled = isDisabledStatus(service.status);
             const canStart = !disabled && !service.running;
             const canOperateRunning = !disabled && service.running;
-            const messageHtml = service.message ? `<div class="service-message">${escapeHtml(service.message)}</div>` : '';
             const selected = selectedServiceId === service.id;
             const idArg = jsArg(service.id);
+            const tier = inferTier(service);
+            const running = !!service.running;
+            const status = service.status || 'unknown';
+            const statusLabel = STATUS_LABEL[status] || status;
+            const image = service.image || service.composeService || '';
+            const messageHtml = service.message
+                ? `<div class="cm-svc-message">${escapeHtml(service.message)}</div>`
+                : '';
+            const classes = [
+                'service-card',
+                'cm-svc-card',
+                `cm-tier-${tier}`,
+                required ? 'required' : '',
+                selected ? 'selected' : '',
+                running ? 'is-running' : 'is-stopped',
+            ].filter(Boolean).join(' ');
+
             return `
-                <div class="service-card ${required ? 'required' : ''} ${selected ? 'selected' : ''}" data-service-id="${escapeHtml(service.id)}" onclick="selectService(${idArg})">
-                    <div class="service-top">
-                        <div class="service-name" title="${escapeHtml(service.label || service.id)}">${required ? '<span class="service-required-tag">*</span>' : ''}${escapeHtml(service.label || service.id)}</div>
-                        <div class="service-state-row">
-                            ${renderServiceStatus(service.status)}
+                <div class="${classes}" data-service-id="${escapeHtml(service.id)}" data-tier="${escapeHtml(tier)}" onclick="selectService(${idArg})">
+                    <div class="cm-svc-head">
+                        <div class="cm-svc-head-left">
+                            <span class="cm-svc-icon">${SVC_ICON_SVG}</span>
+                            <div class="cm-svc-meta">
+                                <span class="cm-svc-name" title="${escapeHtml(service.label || service.id)}">${escapeHtml(service.id || service.label)}</span>
+                                <span class="cm-svc-image" title="${escapeHtml(image || service.label || '')}">${escapeHtml(image || service.label || '')}</span>
+                            </div>
                         </div>
+                        <span class="cm-svc-status ${escapeHtml(status)}">
+                            <span class="cm-svc-status-dot"></span>${escapeHtml(statusLabel)}
+                        </span>
                     </div>
                     ${messageHtml}
-                    <div class="service-actions">
-                        <button onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')" ${canStart ? '' : 'disabled'}>启动</button>
-                        <button onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')" ${canOperateRunning ? '' : 'disabled'}>重启</button>
-                        <button onclick="event.stopPropagation(); serviceAction(${idArg}, 'down')" ${canOperateRunning ? '' : 'disabled'}>停止</button>
-                        <button onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${disabled ? 'disabled' : ''}>日志</button>
+                    <div class="cm-svc-metrics">
+                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Tier</span><span class="cm-svc-metric-val">${escapeHtml(tier)}</span></div>
+                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Container</span><span class="cm-svc-metric-val">${escapeHtml(service.containerId ? service.containerId.slice(0, 10) : '—')}</span></div>
+                    </div>
+                    <div class="cm-svc-actions">
+                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')" ${canStart ? '' : 'disabled'}>启动</button>
+                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')" ${canOperateRunning ? '' : 'disabled'}>重启</button>
+                        <button type="button" class="cm-svc-action-danger" onclick="event.stopPropagation(); serviceAction(${idArg}, 'down')" ${canOperateRunning ? '' : 'disabled'}>停止</button>
+                        <button type="button" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${disabled ? 'disabled' : ''}>日志</button>
                     </div>
                 </div>
             `;
@@ -233,6 +290,7 @@
         renderServiceCards,
         renderServiceConfig,
         renderServiceSecretIcon,
-        toggleServiceSecretItem
+        toggleServiceSecretItem,
+        inferTier
     };
 })();
