@@ -1,0 +1,235 @@
+/* Cloud-Console 运维模态 -> 路由全页面 (C 方案 阶段 6).
+   Four legacy overlay modals (#logs-modal / #history-modal /
+   #runtime-diff-modal / #install-modal) are now reachable via mega-nav
+   routes. When .route-active is on the overlay, the overlay drops its
+   fixed-fullscreen + backdrop chrome and becomes an inline block that
+   participates in the .content scroll flow.
+
+   Legacy .active (openModal) machinery still works untouched: a modal that
+   gets opened programmatically (without router) keeps the floating overlay
+   behaviour. */
+
+.modal-overlay.route-active {
+    /* Make these containers behave like a route page rather than an
+       overlay. Override every spatial property declared by .modal-overlay
+       in components.css. */
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    padding: 0 !important;
+    background: transparent !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transition: none !important;
+    display: block !important;
+}
+
+/* When NOT route-active and NOT active (legacy modal-open), keep the
+   overlay invisible — same as before. The default rules in components.css
+   already do this; we just ensure nothing leaks through. */
+
+/* ---- Generic page-shell-like layout for route-modals ----------------- */
+
+.modal-overlay.route-active > .modal-content,
+.modal-overlay.route-active > .install-modal-content,
+.modal-overlay.route-active > .history-modal-content,
+.modal-overlay.route-active > .logs-container {
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    transform: none !important;
+}
+
+/* The page wrapper styling (background, padding) is applied to the
+   overlay itself when route-active. */
+.modal-overlay.route-active {
+    padding: 22px 32px 32px !important;
+    background:
+        linear-gradient(180deg, rgba(239, 246, 255, 0.58), rgba(245, 247, 251, 0) 260px),
+        var(--cm-cloud-bg) !important;
+    color: var(--cm-cloud-fg);
+    font-family: var(--cm-font-sans);
+    min-height: calc(100vh - 60px);
+    box-sizing: border-box;
+}
+
+/* Hide the per-modal close (×) button when the modal is acting as a page.
+   The mega-nav handles navigation away from the page; an X icon would be
+   misleading in a routed-page context. */
+.modal-overlay.route-active .close-btn { display: none; }
+
+/* ---- modal-header → cloud PageHeader ---------------------------------- */
+
+.modal-overlay.route-active .modal-header,
+.modal-overlay.route-active .install-header {
+    padding: 0 0 14px 0;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
+    background: transparent !important;
+    align-items: flex-start;
+}
+
+.modal-overlay.route-active .modal-title,
+.modal-overlay.route-active .install-title {
+    font-size: var(--cm-text-xl);
+    font-weight: 800;
+    color: var(--cm-cloud-fg);
+    letter-spacing: -0.015em;
+}
+
+.modal-overlay.route-active .history-subtitle,
+.modal-overlay.route-active .install-subtitle {
+    color: var(--cm-cloud-muted);
+    font-size: var(--cm-text-sm);
+    margin-top: 4px;
+}
+
+.modal-overlay.route-active .history-title-line,
+.modal-overlay.route-active .install-heading {
+    gap: 12px;
+}
+
+/* ---- Body padding adjustments ---------------------------------------- */
+
+.modal-overlay.route-active .modal-body,
+.modal-overlay.route-active .install-body {
+    padding: 0 !important;
+    overflow: visible;
+    flex: none;
+}
+
+.modal-overlay.route-active .modal-footer,
+.modal-overlay.route-active .install-footer {
+    border-top: 1px solid var(--cm-cloud-border-subtle);
+    padding: 14px 0 0 0;
+    margin-top: 18px;
+    background: transparent !important;
+}
+
+/* ---- Logs page ------------------------------------------------------- */
+
+#logs-modal.logs-modal.route-active {
+    /* logs-modal already has its own class chain; ensure layout flows. */
+}
+
+#logs-modal.route-active .logs-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#logs-modal.route-active .logs-header {
+    padding: 0 0 14px 0;
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
+    background: transparent !important;
+    margin-bottom: 0;
+}
+
+#logs-modal.route-active .logs-title {
+    font-size: var(--cm-text-xl);
+    font-weight: 800;
+    color: var(--cm-cloud-fg);
+}
+
+#logs-modal.route-active .logs-toolbar {
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+#logs-modal.route-active .logs-content {
+    background: var(--cm-term-bg);
+    color: var(--cm-term-fg);
+    border: 1px solid var(--cm-term-border);
+    border-radius: 10px;
+    flex: 1 1 auto;
+    min-height: 480px;
+    max-height: calc(100vh - 280px);
+}
+
+#logs-modal.route-active .logs-footer {
+    border-top: 1px solid var(--cm-cloud-border-subtle);
+    padding: 14px 0 0 0;
+    background: transparent !important;
+}
+
+/* ---- Install page ---------------------------------------------------- */
+
+#install-modal.route-active .install-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+#install-modal.route-active .install-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+#install-modal.route-active .install-terminal {
+    background: var(--cm-term-bg);
+    color: var(--cm-term-fg);
+    border: 1px solid var(--cm-term-border);
+}
+
+/* ---- History page --------------------------------------------------- */
+
+#history-modal.route-active .history-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#history-modal.route-active .history-body {
+    padding: 0 !important;
+}
+
+#history-modal.route-active .history-summary {
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 12px;
+    padding: 12px 16px;
+}
+
+/* ---- Runtime diff page ---------------------------------------------- */
+
+#runtime-diff-modal.route-active .modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#runtime-diff-modal.route-active .runtime-table-shell {
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* ---- Add cloud breadcrumb directly above modal-header --------------- */
+
+.modal-overlay.route-active::before {
+    content: attr(data-route-breadcrumb);
+    display: block;
+    color: var(--cm-cloud-muted);
+    font-family: var(--cm-font-mono);
+    font-size: var(--cm-text-xs);
+    margin-bottom: 14px;
+}
+
+.modal-overlay.route-active:not([data-route-breadcrumb])::before { display: none; }
+
+@media (max-width: 960px) {
+    .modal-overlay.route-active { padding: 18px 16px !important; }
+}

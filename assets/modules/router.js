@@ -9,10 +9,10 @@
         overview:   { container: '#overview-page' },
         deployment: { container: '#deployment-panel' },
         config:     { container: '#config-workspace' },
-        diff:       { container: '#runtime-diff-page' },
-        history:    { container: '#history-page' },
-        logs:       { container: '#logs-page' },
-        install:    { container: '#install-page' },
+        diff:       { container: '#runtime-diff-modal' },
+        history:    { container: '#history-modal' },
+        logs:       { container: '#logs-modal' },
+        install:    { container: '#install-modal' },
     };
 
     const DEFAULT_ROUTE = 'deployment';
@@ -55,7 +55,17 @@
             const el = document.querySelector(def.container);
             if (!el) return;
             const active = k === key;
-            el.hidden = !active;
+            /* Two visibility mechanisms coexist:
+               - SPA route containers (#overview-page / #deployment-panel /
+                 #config-workspace) toggle [hidden] for display:none.
+               - Modal-derived containers (#logs-modal / #history-modal /
+                 #runtime-diff-modal / #install-modal) keep [hidden] alone
+                 (their CSS owns visibility via .modal-overlay + class
+                 .route-active set below) — touching hidden would interfere
+                 with the overlay/opacity transition. */
+            if (!el.classList.contains('modal-overlay')) {
+                el.hidden = !active;
+            }
             el.classList.toggle('route-active', active);
         });
         document.querySelectorAll('[data-mega-nav]').forEach(btn => {

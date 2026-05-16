@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="assets/styles/pages/overview.css">
     <link rel="stylesheet" href="assets/styles/pages/deployment.css">
     <link rel="stylesheet" href="assets/styles/pages/config.css">
+    <link rel="stylesheet" href="assets/styles/pages/cloud-modals.css">
 </head>
 
 <body data-workbench-page="deployment-panel">
@@ -381,7 +382,7 @@
     </div>
 
     <!-- History Modal -->
-    <div id="history-modal" class="modal-overlay">
+    <div id="history-modal" class="modal-overlay" data-route-breadcrumb="Config Mate › 历史版本">
         <div class="modal-content history-modal-content">
             <div class="modal-header">
                 <div class="history-heading">
@@ -398,7 +399,7 @@
                     </div>
                     <div class="history-subtitle">当前业务配置的保存记录</div>
                 </div>
-                <div class="close-btn" onclick="closeHistoryModal()">&times;</div>
+                <div class="close-btn" onclick="navigateRoute('deployment')">&times;</div>
             </div>
             <div class="modal-body history-body">
                 <div class="history-summary">
@@ -459,7 +460,7 @@
     </div>
 
     <!-- Logs Viewer Modal -->
-    <div id="logs-modal" class="logs-modal">
+    <div id="logs-modal" class="logs-modal modal-overlay" data-route-breadcrumb="Config Mate › 实时日志">
         <div class="logs-container">
             <div class="logs-header">
                 <div class="logs-title">
@@ -530,7 +531,7 @@
                 <div class="logs-footer-actions">
                     <button class="btn btn-ghost" onclick="copyVisibleLogs()">复制当前</button>
                     <button class="btn btn-ghost" onclick="clearLogs()">清空日志</button>
-                    <button class="btn btn-primary" onclick="closeLogs()">关闭</button>
+                    <button class="btn btn-primary" onclick="navigateRoute('deployment')">返回部署控制台</button>
                 </div>
             </div>
         </div>
@@ -565,7 +566,7 @@
     </div>
 
     <!-- Install Progress Modal -->
-    <div id="install-modal" class="modal-overlay">
+    <div id="install-modal" class="modal-overlay" data-route-breadcrumb="Config Mate › 初始化向导">
         <div class="install-modal-content">
             <div class="install-header">
                 <div class="install-heading">
@@ -651,7 +652,7 @@
             </div>
             <div class="install-footer">
                 <div id="install-footer-note" class="install-footer-note">初始化执行期间请保持页面打开；完成后可关闭窗口。</div>
-                <button id="btn-close-install" class="btn btn-primary" onclick="closeInstallModal()" disabled>运行中</button>
+                <button id="btn-close-install" class="btn btn-primary" onclick="navigateRoute('deployment')" disabled>运行中</button>
             </div>
         </div>
     </div>
@@ -774,11 +775,11 @@
         </div>
     </div>
 
-    <div id="runtime-diff-modal" class="modal-overlay">
+    <div id="runtime-diff-modal" class="modal-overlay" data-route-breadcrumb="Config Mate › 运行检查">
         <div class="modal-content modal-wide">
             <div class="modal-header">
                 <div class="modal-title">运行环境配置检查</div>
-                <div class="close-btn" onclick="closeRuntimeDiffModal()">&times;</div>
+                <div class="close-btn" onclick="navigateRoute('deployment')">&times;</div>
             </div>
             <div class="modal-body modal-body-flush">
                 <div id="runtime-diff-loading" class="runtime-loading">
@@ -820,7 +821,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-ghost" onclick="closeRuntimeDiffModal()">关闭</button>
+                <button class="btn btn-ghost" onclick="navigateRoute('deployment')">关闭</button>
                 <button class="btn btn-confirm" id="btn-restart-from-diff" onclick="restartService()">立即重启服务</button>
             </div>
         </div>

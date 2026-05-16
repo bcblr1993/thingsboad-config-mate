@@ -69,7 +69,12 @@
     function openModal(modalOrId, display = 'flex') {
         const modal = typeof modalOrId === 'string' ? document.getElementById(modalOrId) : modalOrId;
         if (!modal) return null;
-        modal.style.display = display;
+        /* In route-page mode the modal lives inline in .content; the
+           overlay's display is owned by cloud-modals.css. Avoid stomping
+           it with an inline flex/block style. */
+        if (!modal.classList.contains('route-active')) {
+            modal.style.display = display;
+        }
         void modal.offsetWidth;
         modal.classList.add('active');
         return modal;
@@ -84,8 +89,13 @@
         if (options.removeClasses) {
             options.removeClasses.forEach(className => modal.classList.remove(className));
         }
+        const wasRouteActive = modal.classList.contains('route-active');
         setTimeout(() => {
-            modal.style.display = display;
+            if (!wasRouteActive) {
+                modal.style.display = display;
+            } else {
+                modal.style.display = '';
+            }
             if (typeof options.afterClose === 'function') options.afterClose();
         }, delay);
     }

@@ -198,16 +198,43 @@ async function init() {
    (logs / history / diff / install / overview) fall back to their legacy
    modal openers. */
 function navigateRoute(key) {
-    if (window.ConfigMateRouter && ConfigMateRouter.navigate(key)) return;
-    const fallbacks = {
-        deployment: () => showToast('部署控制台尚未挂载到当前页面。', 'error'),
-        config:     () => showToast('业务配置尚未挂载到当前页面。', 'error'),
-        diff:       () => (typeof checkRuntimeSync === 'function' && checkRuntimeSync()),
-        history:    () => (typeof openHistoryModal === 'function' && openHistoryModal()),
-        logs:       () => (typeof showLogs === 'function' && showLogs(true)),
-        install:    () => (typeof checkInstallAndConfirm === 'function' && checkInstallAndConfirm()),
-    };
-    if (fallbacks[key]) fallbacks[key]();
+    if (!window.ConfigMateRouter) return;
+    /* Router.onChange (initWorkbenchNavigation) is the single source of
+       truth for opening / closing modal-style routes; just point the hash. */
+    ConfigMateRouter.navigate(key);
+}
+
+let lastRouteKey = null;
+
+function handleRouteTransition(newKey) {
+    if (lastRouteKey === newKey) return;
+
+    /* Teardown previous route */
+    if (lastRouteKey === 'logs') {
+        try { typeof closeLogs === 'function' && closeLogs(); } catch (_) {}
+    } else if (lastRouteKey === 'history') {
+        try { typeof closeHistoryModal === 'function' && closeHistoryModal(); } catch (_) {}
+    } else if (lastRouteKey === 'diff') {
+        try { typeof closeRuntimeDiffModal === 'function' && closeRuntimeDiffModal(); } catch (_) {}
+    } else if (lastRouteKey === 'install') {
+        try { typeof closeInstallModal === 'function' && closeInstallModal(); } catch (_) {}
+    }
+
+    /* Setup the new route. Mount-functions talk to the underlying
+       controllers directly so that we don't recurse back into navigateRoute. */
+    if (newKey === 'logs') {
+        mountLogsRoute();
+    } else if (newKey === 'history') {
+        if (typeof openHistoryModal === 'function') openHistoryModal();
+    } else if (newKey === 'diff') {
+        if (typeof checkRuntimeSync === 'function') checkRuntimeSync();
+    } else if (newKey === 'install') {
+        if (typeof checkInstallAndConfirm === 'function') checkInstallAndConfirm();
+    } else if (newKey === 'overview') {
+        refreshOverview(false);
+    }
+
+    lastRouteKey = newKey;
 }
 
 let overviewLastFetched = 0;
@@ -262,9 +289,7 @@ function initWorkbenchNavigation() {
             : activeWorkbenchPage;
         const content = document.querySelector('.content');
         if (content) content.scrollTo({ top: 0, behavior: 'auto' });
-        if (key === 'overview') {
-            refreshOverview(false);
-        }
+        handleRouteTransition(key);
     });
     ConfigMateRouter.init();
 }
@@ -1635,10 +1660,28 @@ function getLogsController() {
     return logsController;
 }
 
+let pendingLogsParams = null;
+
 function showLogs(isManual = false, serviceId = null) {
+    pendingLogsParams = { isManual, serviceId };
+    if (window.ConfigMateRouter && ConfigMateRouter.hasContainer('logs')) {
+        if (ConfigMateRouter.currentRoute() === 'logs') {
+            mountLogsRoute();
+            return;
+        }
+        ConfigMateRouter.navigate('logs');
+        return;
+    }
+    /* Pre-router fallback (boot-time call before initWorkbenchNavigation). */
+    mountLogsRoute();
+}
+
+function mountLogsRoute() {
+    const params = pendingLogsParams || { isManual: true, serviceId: null };
+    pendingLogsParams = null;
     getLogsController().show({
-        isManual,
-        serviceId,
+        isManual: params.isManual,
+        serviceId: params.serviceId,
         defaultServiceId: deploymentInfo?.appService || null
     });
 }
@@ -2042,13 +2085,16 @@ async function cancelEdit() {
 // Check if install file exists
 // --- Runtime Config Diff Logic ---
 async function checkRuntimeSync() {
+    /* Legacy spinner target lived on a .btn-header that has been replaced
+       by the cloud-style mega-nav action; this lookup may now return null. */
     const btn = document.querySelector('.btn-header[onclick="checkRuntimeSync()"]');
-    const originalHtml = btn.innerHTML;
+    const originalHtml = btn ? btn.innerHTML : '';
 
     try {
-        // Loading State
-        btn.innerHTML = '<svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>';
-        btn.disabled = true;
+        if (btn) {
+            btn.innerHTML = '<svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>';
+            btn.disabled = true;
+        }
 
         const res = await ConfigMateApi.runtimeDiff();
         const json = await res.json();
@@ -2057,7 +2103,7 @@ async function checkRuntimeSync() {
         if (json.status === 'success') {
             renderRuntimeDiff(json);
         } else if (json.status === 'not_running') {
-            showToast('⚠️ 服务未运行，无法获运行时配置', 'error');
+            showToast('⚠️ 服务未运行，无法获取运行时配置', 'error');
         } else {
             showToast('❌ 检查失败: ' + json.message, 'error');
         }
@@ -2065,8 +2111,10 @@ async function checkRuntimeSync() {
         console.error("Diff check failed", e);
         showToast('❌ 请求失败: ' + e.message, 'error');
     } finally {
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
+        if (btn) {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
     }
 }
 
