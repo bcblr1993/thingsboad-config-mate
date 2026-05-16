@@ -133,6 +133,32 @@
         ].join('');
     }
 
+    /* Tier-aware service mark (filled square with the tier-specific
+       Lucide-style icon). Returns inline SVG. */
+    const TIER_ICONS = {
+        business: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>',
+        storage:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"></path></svg>',
+        cache:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>',
+        queue:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>',
+        monitor:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>',
+    };
+
+    function formatUptime(startedAt) {
+        if (!startedAt) return '—';
+        const start = typeof startedAt === 'number' ? startedAt : Date.parse(startedAt);
+        if (!Number.isFinite(start)) return '—';
+        let diffSec = Math.max(0, Math.floor((Date.now() - start) / 1000));
+        const day = Math.floor(diffSec / 86400);
+        diffSec -= day * 86400;
+        const hr = Math.floor(diffSec / 3600);
+        diffSec -= hr * 3600;
+        const min = Math.floor(diffSec / 60);
+        if (day > 0) return `${day}d ${hr}h`;
+        if (hr > 0) return `${hr}h ${min}m`;
+        if (min > 0) return `${min}m`;
+        return '刚刚';
+    }
+
     function renderServiceTiles(services) {
         if (!services || services.length === 0) {
             return '<div class="cm-overview-empty">暂无服务记录</div>';
@@ -141,27 +167,66 @@
             const tier = classifyTier(s);
             const running = !!s.running;
             const statusLabel = running ? 'Running' : (s.status === 'missing' || s.status === 'unsupported' ? '不可用' : 'Stopped');
-            const statusClass = running ? 'cm-tile-status-ok' : (s.status === 'missing' ? 'cm-tile-status-warn' : 'cm-tile-status-stopped');
+            const statusClass = running ? 'cm-tile-status-ok' : (s.status === 'missing' || s.status === 'unsupported' ? 'cm-tile-status-warn' : 'cm-tile-status-stopped');
             const image = s.image || s.composeService || s.label || '';
+            const tierIcon = TIER_ICONS[tier] || TIER_ICONS.business;
+            const uptime = running ? formatUptime(s.startedAt) : '—';
             return `
-                <button type="button" class="cm-service-tile cm-tier-${tier}" data-service-id="${escapeHtml(s.id)}" onclick="navigateRoute('deployment')">
-                    <span class="cm-tile-icon" aria-hidden="true">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-                            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-                            <line x1="6" y1="6" x2="6.01" y2="6"></line>
-                            <line x1="6" y1="18" x2="6.01" y2="18"></line>
-                        </svg>
-                    </span>
-                    <span class="cm-tile-meta">
-                        <span class="cm-tile-name">${escapeHtml(s.id || s.label)}</span>
-                        <span class="cm-tile-desc">${escapeHtml(image)}</span>
-                    </span>
-                    <span class="cm-tile-tier">${TIER_LABEL[tier] || tier}</span>
-                    <span class="cm-tile-status ${statusClass}">
-                        <span class="cm-tile-dot"></span>${escapeHtml(statusLabel)}
-                    </span>
+                <button type="button" class="cm-service-tile cm-tier-${tier} ${running ? 'is-running' : 'is-stopped'}" data-service-id="${escapeHtml(s.id)}" onclick="navigateRoute('deployment')">
+                    <div class="cm-tile-head">
+                        <span class="cm-tile-icon" aria-hidden="true">${tierIcon}</span>
+                        <span class="cm-tile-meta">
+                            <span class="cm-tile-name">${escapeHtml(s.id || s.label)}</span>
+                            <span class="cm-tile-desc">${escapeHtml(image)}</span>
+                        </span>
+                        <span class="cm-tile-status ${statusClass}">
+                            <span class="cm-tile-dot"></span>${escapeHtml(statusLabel)}
+                        </span>
+                    </div>
+                    <div class="cm-tile-metrics">
+                        <div class="cm-tile-metric">
+                            <span class="cm-tile-metric-key">UP</span>
+                            <span class="cm-tile-metric-val">${escapeHtml(uptime)}</span>
+                        </div>
+                        <div class="cm-tile-metric">
+                            <span class="cm-tile-metric-key">CPU</span>
+                            <span class="cm-tile-metric-val">—</span>
+                        </div>
+                        <div class="cm-tile-metric">
+                            <span class="cm-tile-metric-key">MEM</span>
+                            <span class="cm-tile-metric-val">—</span>
+                        </div>
+                    </div>
                 </button>`;
+        }).join('');
+    }
+
+    function renderTierLegend(services) {
+        const tiers = ['business', 'storage', 'cache', 'queue', 'monitor'];
+        const counts = Object.fromEntries(tiers.map(t => [t, { total: 0, stopped: 0 }]));
+        (services || []).forEach(s => {
+            const t = classifyTier(s);
+            if (!counts[t]) return;
+            counts[t].total += 1;
+            if (!s.running) counts[t].stopped += 1;
+        });
+        return tiers.map(t => {
+            const c = counts[t];
+            const icon = TIER_ICONS[t] || '';
+            const sub = c.total === 0
+                ? '<span class="cm-tier-legend-sub muted">无服务</span>'
+                : c.stopped > 0
+                    ? `<span class="cm-tier-legend-sub warn">${c.stopped} 停止</span>`
+                    : '<span class="cm-tier-legend-sub ok">全部健康</span>';
+            return `
+                <div class="cm-tier-legend-card cm-tier-${t}">
+                    <div class="cm-tier-legend-head">
+                        <span class="cm-tier-legend-icon" aria-hidden="true">${icon}</span>
+                        <span class="cm-tier-legend-label">${escapeHtml(TIER_LABEL[t] || t)}</span>
+                    </div>
+                    <div class="cm-tier-legend-count">${c.total}</div>
+                    ${sub}
+                </div>`;
         }).join('');
     }
 
@@ -225,6 +290,7 @@
     function mount(overview) {
         const kpiRow = document.getElementById('overview-kpi-row');
         const grid = document.getElementById('overview-services');
+        const tierLegend = document.getElementById('overview-tier-legend');
         const meta = document.getElementById('overview-services-meta');
         const alerts = document.getElementById('overview-alerts');
         const activity = document.getElementById('overview-activity');
@@ -232,6 +298,7 @@
 
         if (kpiRow) kpiRow.innerHTML = renderKPIs(overview);
         if (grid) grid.innerHTML = renderServiceTiles(overview.services);
+        if (tierLegend) tierLegend.innerHTML = renderTierLegend(overview.services);
         if (alerts) alerts.innerHTML = renderAlerts(overview);
         if (activity) activity.innerHTML = renderActivity(overview.history);
         if (meta) {
@@ -251,9 +318,12 @@
         mount,
         renderKPIs,
         renderServiceTiles,
+        renderTierLegend,
         renderAlerts,
         renderActivity,
         classifyTier,
-        TIER_LABEL
+        formatUptime,
+        TIER_LABEL,
+        TIER_ICONS
     };
 })();

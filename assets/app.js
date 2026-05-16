@@ -1165,6 +1165,34 @@ async function cleanupService(serviceId) {
     }
 }
 
+async function startAllServices() {
+    if (!Array.isArray(latestServices) || latestServices.length === 0) {
+        showToast('暂无服务可启动', 'info');
+        return;
+    }
+    const candidates = latestServices.filter(s => !s.running && !['missing', 'missing-image', 'unsupported', 'unknown'].includes(s.status));
+    if (candidates.length === 0) {
+        showToast('全部服务都已在运行中', 'info');
+        return;
+    }
+    const ok = await customConfirm(`将依次启动 ${candidates.length} 个未运行服务：${candidates.map(s => s.id).join(' / ')}`, '启动全部', 'var(--primary)');
+    if (!ok) return;
+    for (const svc of candidates) {
+        try {
+            const res = await ConfigMateApi.serviceAction(svc.id, 'up');
+            const data = await res.json();
+            if (data.status === 'success') {
+                showToast(`启动 ${svc.id} 成功`, 'success');
+            } else {
+                showToast(`启动 ${svc.id} 失败：${data.message || data.output || '未知错误'}`, 'error');
+            }
+        } catch (e) {
+            showToast(`启动 ${svc.id} 失败：${e.message}`, 'error');
+        }
+    }
+    await refreshDeployment();
+}
+
 async function serviceAction(serviceId, action) {
     const actionText = action === 'up' ? '启动' : (action === 'down' ? '停止' : '重启');
     if (serviceId === getCurrentAppServiceId() && (action === 'up' || action === 'restart')) {

@@ -127,7 +127,12 @@
                             <span>刷新</span>
                         </button>
                         <button class="btn btn-ghost" type="button" onclick="navigateRoute('diff')">运行检查</button>
-                        <button class="btn btn-primary" type="button" onclick="navigateRoute('deployment')">前往部署控制台</button>
+                        <button class="btn btn-primary" type="button" onclick="startAllServices()">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                            <span>启动全部服务</span>
+                        </button>
                     </div>
                 </div>
 
@@ -136,19 +141,33 @@
                 </div>
 
                 <div class="cm-overview-grid">
-                    <section class="cm-overview-card">
-                        <header class="cm-overview-card-header">
-                            <div>
-                                <div class="cm-overview-card-title">服务运行状况</div>
-                                <div class="cm-overview-card-subtitle" id="overview-services-meta">--</div>
+                    <div class="cm-overview-main">
+                        <section class="cm-overview-card">
+                            <header class="cm-overview-card-header">
+                                <div>
+                                    <div class="cm-overview-card-title">服务运行状况</div>
+                                    <div class="cm-overview-card-subtitle" id="overview-services-meta">--</div>
+                                </div>
+                                <button class="cm-overview-card-action" type="button" onclick="navigateRoute('deployment')">全部服务 →</button>
+                            </header>
+                            <div id="overview-services" class="cm-overview-services">
+                                <div class="cm-overview-empty">正在读取服务列表...</div>
                             </div>
-                            <button class="cm-overview-card-action" type="button" onclick="navigateRoute('deployment')">全部服务 →</button>
-                        </header>
-                        <div id="overview-services" class="cm-overview-services">
-                            <div class="cm-overview-empty">正在读取服务列表...</div>
-                        </div>
-                        <div id="overview-alerts" class="cm-overview-alerts"></div>
-                    </section>
+                            <div id="overview-alerts" class="cm-overview-alerts"></div>
+                        </section>
+
+                        <section class="cm-overview-card">
+                            <header class="cm-overview-card-header">
+                                <div>
+                                    <div class="cm-overview-card-title">按层级分布</div>
+                                    <div class="cm-overview-card-subtitle">按服务用途归类</div>
+                                </div>
+                            </header>
+                            <div id="overview-tier-legend" class="cm-tier-legend-grid">
+                                <!-- 5 个 tier 子卡由 ConfigMateOverviewUi.renderTierLegend 渲染 -->
+                            </div>
+                        </section>
+                    </div>
 
                     <aside class="cm-overview-side">
                         <section class="cm-overview-card cm-overview-card-tight">
@@ -173,6 +192,10 @@
                                 <button class="cm-quick-action" type="button" onclick="navigateRoute('logs')">
                                     <span class="cm-quick-action-title">实时日志</span>
                                     <span class="cm-quick-action-desc">容器 stdout</span>
+                                </button>
+                                <button class="cm-quick-action" type="button" onclick="navigateRoute('diff')">
+                                    <span class="cm-quick-action-title">运行配置检查</span>
+                                    <span class="cm-quick-action-desc">运行漂移对比</span>
                                 </button>
                                 <button class="cm-quick-action" type="button" onclick="navigateRoute('install')">
                                     <span class="cm-quick-action-title">初始化向导</span>
