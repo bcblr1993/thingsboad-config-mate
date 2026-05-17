@@ -247,7 +247,7 @@
                 tone: 'info',
                 title: `${driftCount} 项配置已修改未生效`,
                 desc: '运行中的容器环境与本地 .env 存在差异',
-                action: { label: '运行检查', target: 'diff' }
+                action: { label: '去业务配置', target: 'config' }
             });
         }
         if (alerts.length === 0) {

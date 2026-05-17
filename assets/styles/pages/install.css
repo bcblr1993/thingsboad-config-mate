@@ -317,7 +317,7 @@
 }
 
 .install-log-btn {
-    height: 28px;
+    min-height: 32px;
     padding: 0 10px;
     border: 1px solid #334155;
     border-radius: 6px;

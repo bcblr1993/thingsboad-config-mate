@@ -123,7 +123,13 @@
         `;
     }
 
-    function renderServiceCards({ services = [], requiredIds = new Set(), selectedServiceId = '', portsByService = {} } = {}) {
+    function renderServiceCards({
+        services = [],
+        requiredIds = new Set(),
+        selectedServiceId = '',
+        portsByService = {},
+        cleanupInFlightService = ''
+    } = {}) {
         return services.map(service => {
             const required = requiredIds.has(service.id);
             const disabled = isDisabledStatus(service.status);
@@ -131,13 +137,14 @@
             const canOperateRunning = !disabled && service.running;
             const selected = selectedServiceId === service.id;
             const idArg = jsArg(service.id);
+            const cleanupSupported = isCleanupSupportedService(service.id);
+            const cleanupBusy = cleanupInFlightService === service.id;
+            const cleanupDisabled = disabled || !!cleanupInFlightService;
             const tier = inferTier(service);
             const running = !!service.running;
             const status = service.status || 'unknown';
             const statusLabel = STATUS_LABEL[status] || status;
             const image = service.image || service.composeService || '';
-            const uptime = running ? formatUptime(service.startedAt) : '—';
-            const ports = portsByService[service.id] || '—';
             const tierIcon = getTierIcon(tier);
             const messageHtml = service.message
                 ? `<div class="cm-svc-message">${escapeHtml(service.message)}</div>`
@@ -150,13 +157,8 @@
                 selected ? 'selected' : '',
                 running ? 'is-running' : 'is-stopped',
             ].filter(Boolean).join(' ');
-            // C 方案三按钮: 日志 / 重启 or 启动 / 更多 (danger 动作下放到详情面板).
-            const primaryBtn = running
-                ? `<button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')" ${canOperateRunning ? '' : 'disabled'}>重启</button>`
-                : `<button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')" ${canStart ? '' : 'disabled'}>启动</button>`;
-
             return `
-                <div class="${classes}" data-service-id="${escapeHtml(service.id)}" data-tier="${escapeHtml(tier)}" onclick="selectService(${idArg})">
+                <div class="${classes}" data-service-id="${escapeHtml(service.id)}" data-tier="${escapeHtml(tier)}">
                     <div class="cm-svc-head">
                         <div class="cm-svc-head-left">
                             <span class="cm-svc-icon">${tierIcon}</span>
@@ -170,16 +172,12 @@
                         </span>
                     </div>
                     ${messageHtml}
-                    <div class="cm-svc-metrics">
-                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Uptime</span><span class="cm-svc-metric-val">${escapeHtml(uptime)}</span></div>
-                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">CPU</span><span class="cm-svc-metric-val">—</span></div>
-                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Mem</span><span class="cm-svc-metric-val">—</span></div>
-                        <div class="cm-svc-metric"><span class="cm-svc-metric-key">Ports</span><span class="cm-svc-metric-val" title="${escapeHtml(ports)}">${escapeHtml(ports)}</span></div>
-                    </div>
                     <div class="cm-svc-actions">
-                        <button type="button" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${disabled ? 'disabled' : ''}>日志</button>
-                        ${primaryBtn}
-                        <button type="button" class="cm-svc-action-more" onclick="event.stopPropagation(); selectService(${idArg})" title="查看更多">…</button>
+                        <button type="button" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${isDisabledStatus(status) ? 'disabled' : ''}>日志</button>
+                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')" ${canStart ? '' : 'disabled'}>启动</button>
+                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'down')" ${canOperateRunning ? '' : 'disabled'}>停止</button>
+                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')" ${canOperateRunning ? '' : 'disabled'}>重启</button>
+                        <button type="button" class="cm-svc-action-more" onclick="openServiceCardMenu(event, ${idArg}, ${cleanupSupported ? 'true' : 'false'}, ${cleanupDisabled ? 'true' : 'false'}, ${cleanupBusy ? 'true' : 'false'})" aria-haspopup="menu" aria-label="${escapeHtml(service.id)} 更多操作">...</button>
                     </div>
                 </div>
             `;
@@ -194,11 +192,6 @@
         const running = !!serviceStatus.running;
         const status = serviceStatus.status || (running ? 'running' : 'stopped');
         const statusLabel = STATUS_LABEL[status] || status;
-        const idArg = jsArg(serviceId);
-        const cleanupInFlightService = options.cleanupInFlightService || '';
-        const cleanupDisabled = !isCleanupSupportedService(serviceId)
-            || isDisabledStatus(status)
-            || !!cleanupInFlightService;
 
         const sections = data.sections || [];
         const portSection = sections.find(s => (s.title || '') === '端口');
@@ -207,7 +200,6 @@
 
         const portsHtml = renderPortsList(portSection);
         const volumesHtml = renderVolumesList(volumeSection);
-        const dependenciesHtml = renderDetailDependencies(options.dependencyServices, options.appServiceId, serviceId);
 
         const containerKvs = [
             { k: 'Service ID', v: serviceId || '—' },
@@ -237,12 +229,7 @@
                     <div class="cm-detail-subtitle">${escapeHtml(data.service?.label || serviceId)} · tier=${escapeHtml(tier)}</div>
                 </div>
                 <div class="cm-detail-actions">
-                    <button class="btn btn-ghost" type="button" onclick="showLogs(true, ${idArg})" ${isDisabledStatus(status) ? 'disabled' : ''}>查看日志</button>
-                    <button class="btn btn-ghost" type="button" onclick="serviceAction(${idArg}, 'down')" ${running ? '' : 'disabled'}>停止</button>
-                    <button class="btn btn-primary" type="button" onclick="serviceAction(${idArg}, ${running ? '\'restart\'' : '\'up\''})" ${isDisabledStatus(status) ? 'disabled' : ''}>${running ? '重启' : '启动'}</button>
-                    ${isCleanupSupportedService(serviceId)
-                        ? `<button class="btn btn-danger service-detail-cleanup-btn" type="button" onclick="cleanupService(${jsArg(serviceId)})" ${cleanupDisabled ? 'disabled' : ''}>${cleanupInFlightService === serviceId ? '清理中' : '清理数据'}</button>`
-                        : ''}
+                    <button class="cm-detail-close-btn" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
                 </div>
             </div>
 
@@ -259,24 +246,18 @@
                 </section>
                 <section class="cm-detail-col">
                     <div class="cm-detail-col-title">端口与卷 (Ports &amp; Volumes)</div>
-                    <div class="cm-detail-sub-title">端口</div>
-                    ${portsHtml}
-                    <div class="cm-detail-sub-title">挂载</div>
-                    ${volumesHtml}
-                </section>
-                <section class="cm-detail-col">
-                    <div class="cm-detail-col-title">依赖健康 (Dependencies)</div>
-                    ${dependenciesHtml}
+                    <div class="cm-detail-port-volume-grid">
+                        <div class="cm-detail-port-volume-block">
+                            <div class="cm-detail-sub-title">端口</div>
+                            ${portsHtml}
+                        </div>
+                        <div class="cm-detail-port-volume-block">
+                            <div class="cm-detail-sub-title">挂载</div>
+                            ${volumesHtml}
+                        </div>
+                    </div>
                 </section>
             </div>
-
-            <section class="cm-detail-recent-logs" id="cm-detail-recent-logs" data-service-id="${escapeHtml(serviceId)}">
-                <div class="cm-detail-recent-logs-head">
-                    <span>最近日志 · ${escapeHtml(serviceId)} · stdout</span>
-                    <button class="btn btn-ghost" type="button" onclick="showLogs(true, ${idArg})">打开完整日志</button>
-                </div>
-                <div class="cm-detail-recent-logs-body" data-state="idle">等待加载日志...</div>
-            </section>
 
             ${sectionsHtml ? `
                 <section class="cm-detail-sections">
@@ -324,27 +305,6 @@
                 <code class="cm-detail-list-key" title="${escapeHtml(src || raw)}">${escapeHtml(src || raw)}</code>
                 <span class="cm-detail-list-arrow">→</span>
                 <code class="cm-detail-list-val" title="${escapeHtml(dst || '')}">${escapeHtml(dst || '')}</code>
-            </li>`;
-        }).join('')}</ul>`;
-    }
-
-    function renderDetailDependencies(services, appServiceId, currentServiceId) {
-        if (!Array.isArray(services) || services.length === 0) {
-            return '<div class="cm-detail-empty">未声明依赖</div>';
-        }
-        const deps = services.filter(s => s.id !== currentServiceId && s.id !== appServiceId);
-        if (deps.length === 0) {
-            return '<div class="cm-detail-empty">未声明依赖</div>';
-        }
-        return `<ul class="cm-detail-deps">${deps.map(s => {
-            const running = !!s.running;
-            const status = s.status || (running ? 'running' : 'stopped');
-            const statusLabel = running ? '健康' : (STATUS_LABEL[status] || status);
-            return `<li class="cm-detail-deps-row">
-                <span class="cm-detail-deps-name">${escapeHtml(s.id || s.label || '')}</span>
-                <span class="cm-svc-status ${escapeHtml(status)}">
-                    <span class="cm-svc-status-dot"></span>${escapeHtml(statusLabel)}
-                </span>
             </li>`;
         }).join('')}</ul>`;
     }

@@ -207,10 +207,15 @@
 
 #service-grid.cm-service-grid {
     display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(4, minmax(280px, 1fr));
+    gap: 16px;
     margin-bottom: 18px;
     width: 100%;
+    height: auto !important;
+    flex: 0 0 auto !important;
+    align-items: start;
+    align-content: start;
+    overflow: visible !important;
     /* legacy styles.css declared the list in a single column; reset that. */
     grid-template-rows: none;
 }
@@ -223,23 +228,18 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px;
+    gap: 14px;
+    padding: 14px;
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     background: var(--cm-cloud-surface);
     box-shadow: var(--cm-cloud-shadow-sm);
-    cursor: pointer;
+    cursor: default;
     grid-template-columns: none;
     grid-template-areas: none;
-    min-height: 0;
+    min-height: 132px;
+    overflow: hidden;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
-}
-
-/* 指标行和按钮组之间加分隔线, 增强视觉层级. */
-#service-grid.cm-service-grid .service-card .cm-svc-metrics {
-    padding: 8px 0 4px;
-    border-bottom: 1px dashed var(--cm-cloud-border-subtle);
 }
 
 #service-grid.cm-service-grid .service-card:hover {
@@ -262,24 +262,27 @@
 
 .cm-svc-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
+    gap: 12px;
     min-width: 0;
+    width: 100%;
 }
 
 .cm-svc-head-left {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 1 1 0;
     min-width: 0;
+    max-width: 100%;
 }
 
 .cm-svc-icon {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     flex-shrink: 0;
-    border-radius: 9px;
+    border-radius: var(--cm-radius-lg);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -291,13 +294,17 @@
 .cm-svc-meta {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 3px;
+    flex: 1 1 0;
     min-width: 0;
+    max-width: 100%;
+    padding-top: 1px;
 }
 
 .cm-svc-name {
     font-family: var(--cm-font-mono);
-    font-size: var(--cm-text-sm);
+    font-size: 14px;
+    line-height: 1.2;
     font-weight: 800;
     color: var(--cm-cloud-fg);
     overflow: hidden;
@@ -307,7 +314,8 @@
 
 .cm-svc-image {
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: 12px;
+    line-height: 1.25;
     color: var(--cm-cloud-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -318,7 +326,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 10px;
+    padding: 3px 9px;
     border-radius: var(--cm-radius-full);
     border: 1px solid transparent;
     font-family: var(--cm-font-mono);
@@ -343,41 +351,13 @@
 .cm-svc-status['missing-image'] { color: var(--cm-cloud-warning); background: var(--cm-cloud-warning-soft); border-color: var(--cm-cloud-warning-border); }
 
 .cm-svc-message {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--cm-cloud-warning);
     background: var(--cm-cloud-warning-soft);
     border: 1px solid var(--cm-cloud-warning-border);
-    border-radius: 8px;
-    padding: 6px 8px;
-    line-height: 1.45;
-}
-
-.cm-svc-metrics {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px 12px;
-    font-size: 11px;
-    color: var(--cm-cloud-muted);
-}
-
-.cm-svc-metric {
-    display: flex;
-    justify-content: space-between;
-    gap: 6px;
-    min-width: 0;
-}
-
-.cm-svc-metric-key {
-    color: var(--cm-cloud-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 600;
-}
-
-.cm-svc-metric-val {
-    color: var(--cm-cloud-fg);
-    font-family: var(--cm-font-mono);
-    font-weight: 600;
+    border-radius: var(--cm-radius-md);
+    padding: 7px 9px;
+    line-height: 1.4;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -387,9 +367,11 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 #service-grid.cm-service-grid .service-card .cm-svc-actions,
 .cm-svc-card .cm-svc-actions {
     display: grid !important;
-    grid-template-columns: 1fr 1fr 36px !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     gap: 6px !important;
-    margin-top: 4px !important;
+    margin-top: auto !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
     width: 100% !important;
     align-self: stretch !important;
     box-sizing: border-box !important;
@@ -401,18 +383,20 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 .cm-svc-card .cm-svc-actions > button {
     width: 100% !important;
     min-width: 0 !important;
-    min-height: 32px;
+    min-height: 36px;
     box-sizing: border-box !important;
 }
 
 .cm-svc-actions button {
-    padding: 6px 0;
+    padding: 8px 6px;
     border: 1px solid var(--cm-cloud-border);
     background: var(--cm-cloud-surface);
     color: var(--cm-cloud-fg);
-    border-radius: 6px;
+    border-radius: var(--cm-radius-md);
     font-size: 11px;
     font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease;
 }
@@ -431,9 +415,62 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 }
 
 .cm-svc-actions .cm-svc-action-more {
+    border-color: var(--cm-cloud-primary-border);
+    background: var(--cm-cloud-primary-soft);
+    color: var(--cm-cloud-primary);
     font-size: 14px;
-    line-height: 1;
-    padding: 0;
+    letter-spacing: 0.08em;
+}
+
+.cm-service-card-menu {
+    position: fixed;
+    z-index: 10080;
+    min-width: 132px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    background: var(--cm-cloud-surface);
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-lg);
+    box-shadow: var(--cm-cloud-shadow-lg);
+}
+
+.cm-service-card-menu button {
+    width: 100%;
+    min-height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--cm-radius-md);
+    background: transparent;
+    color: var(--cm-cloud-fg);
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cm-service-card-menu button:hover:not(:disabled) {
+    background: var(--cm-cloud-primary-soft);
+    color: var(--cm-cloud-primary);
+}
+
+.cm-service-card-menu button.is-danger {
+    color: var(--cm-cloud-danger);
+}
+
+.cm-service-card-menu button.is-danger:hover:not(:disabled) {
+    background: var(--cm-cloud-danger-soft);
+    color: var(--cm-cloud-danger);
+}
+
+.cm-service-card-menu button:disabled {
+    color: var(--cm-cloud-subtle);
+    cursor: not-allowed;
+    opacity: 0.65;
 }
 
 /* Tier-tinted icon box when service is running. */
@@ -453,12 +490,53 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 /* ---- Service detail panel (Cloud-Console 3-column layout) ------------ */
 
 #service-config-panel.cm-service-detail {
-    margin-top: 8px;
+    position: fixed;
+    inset: 0;
+    z-index: 10020;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    padding: 32px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: hidden;
+}
+
+body.cm-service-detail-open {
+    overflow: hidden;
+}
+
+.cm-service-detail-backdrop {
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--cm-cloud-fg) 38%, transparent);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+.cm-service-detail-dialog {
+    position: relative;
+    z-index: 1;
+    width: min(1040px, calc(100vw - 64px));
+    max-height: calc(100vh - 64px);
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 14px;
-    box-shadow: var(--cm-cloud-shadow-sm);
-    overflow: hidden;
+    border-radius: 16px;
+    box-shadow: var(--cm-shadow-lg);
+}
+
+.cm-service-detail-dialog-state {
+    width: min(520px, calc(100vw - 48px));
+    min-height: 180px;
+    align-items: center;
+    justify-content: center;
+    padding: 28px;
 }
 
 /* Suppress legacy service-config-header/body declared in styles.css. */
@@ -472,6 +550,7 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
     padding: 16px 20px;
     border-bottom: 1px solid var(--cm-cloud-border-subtle);
     background: var(--cm-cloud-surface);
+    flex-shrink: 0;
 }
 
 .cm-detail-header-titles {
@@ -518,6 +597,34 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
     flex-wrap: wrap;
 }
 
+.cm-detail-close-btn {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-md);
+    background: var(--cm-cloud-surface);
+    color: var(--cm-cloud-muted);
+    font-size: 22px;
+    line-height: 1;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.cm-detail-close-btn:hover {
+    border-color: var(--cm-cloud-primary-border);
+    background: var(--cm-cloud-primary-soft);
+    color: var(--cm-cloud-primary);
+}
+
+.cm-detail-state-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+}
+
 .cm-detail-actions .btn {
     font-size: 12px;
     padding: 6px 12px;
@@ -525,7 +632,8 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 
 .cm-detail-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.35fr);
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
 }
 
 .cm-detail-col {
@@ -562,6 +670,16 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
+}
+
+.cm-detail-port-volume-grid {
+    display: grid;
+    grid-template-columns: minmax(120px, 0.45fr) minmax(260px, 1fr);
+    gap: 18px;
+}
+
+.cm-detail-port-volume-block {
+    min-width: 0;
 }
 
 .cm-detail-kv-key {
@@ -632,94 +750,10 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
     font-style: italic;
 }
 
-.cm-detail-deps {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.cm-detail-deps-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 7px 0;
-    border-top: 1px solid var(--cm-cloud-border-subtle);
-}
-
-.cm-detail-deps-row:first-child {
-    border-top: none;
-}
-
-.cm-detail-deps-name {
-    font-family: var(--cm-font-mono);
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--cm-cloud-fg);
-}
-
-/* ---- Recent logs preview (black terminal) --------------------------- */
-
-.cm-detail-recent-logs {
-    padding: 14px 20px 16px;
-    border-top: 1px solid var(--cm-cloud-border-subtle);
-    background: var(--cm-cloud-surface);
-}
-
-.cm-detail-recent-logs-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--cm-cloud-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.cm-detail-recent-logs-head .btn {
-    text-transform: none;
-    font-size: 11px;
-    padding: 4px 10px;
-    letter-spacing: 0;
-}
-
-.cm-detail-recent-logs-body {
-    background: var(--cm-term-bg);
-    border: 1px solid var(--cm-term-border);
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-family: var(--cm-font-mono);
-    font-size: 11.5px;
-    line-height: 1.6;
-    color: var(--cm-term-fg);
-    max-height: 140px;
-    overflow: hidden;
-}
-
-.cm-detail-recent-logs-body[data-state="loading"],
-.cm-detail-recent-logs-body[data-state="empty"],
-.cm-detail-recent-logs-body[data-state="error"] {
-    color: var(--cm-term-fg-muted);
-    font-style: italic;
-}
-
-.cm-detail-recent-log-line {
-    white-space: pre;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.cm-detail-recent-log-error { color: #FCA5A5; }
-.cm-detail-recent-log-warn  { color: #FDE68A; }
-.cm-detail-recent-log-info  { color: #93C5FD; }
-
 /* ---- Bottom: full env-var sections (legacy table rendered cleanly) --- */
 
 .cm-detail-sections {
     padding: 16px 20px 20px;
-    border-top: 1px solid var(--cm-cloud-border-subtle);
     background: var(--cm-cloud-surface-muted);
 }
 
@@ -740,24 +774,26 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 /* ---- Responsive ------------------------------------------------------ */
 
 @media (max-width: 1280px) {
-    #service-grid.cm-service-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    #service-grid.cm-service-grid { grid-template-columns: repeat(3, minmax(260px, 1fr)); }
 }
 
 @media (max-width: 1280px) {
-    .cm-detail-grid { grid-template-columns: 1fr 1fr; }
-    .cm-detail-col:nth-child(3) { border-top: 1px solid var(--cm-cloud-border-subtle); border-right: 0; grid-column: 1 / -1; }
+    .cm-detail-grid { grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.25fr); }
 }
 
 @media (max-width: 960px) {
     .cm-deployment { padding: 18px 16px; }
-    #service-grid.cm-service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #service-grid.cm-service-grid { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
     .cm-deployment-toolbar { flex-direction: column; align-items: stretch; }
     .cm-deployment-search { width: 100%; }
     .cm-segmented { overflow-x: auto; }
     .cm-detail-grid { grid-template-columns: 1fr; }
+    .cm-detail-port-volume-grid { grid-template-columns: 1fr; }
     .cm-detail-col { border-right: 0; border-bottom: 1px solid var(--cm-cloud-border-subtle); }
     .cm-detail-col:last-child { border-bottom: 0; }
     .cm-detail-header { flex-direction: column; align-items: stretch; }
+    #service-config-panel.cm-service-detail { padding: 14px; }
+    .cm-service-detail-dialog { width: calc(100vw - 28px); max-height: calc(100vh - 28px); }
 }
 
 @media (max-width: 640px) {

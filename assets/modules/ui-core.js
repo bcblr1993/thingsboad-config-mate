@@ -114,6 +114,26 @@
         return 'primary';
     }
 
+    function confirmTitleForVariant(variant, confirmBtnText) {
+        const actionText = String(confirmBtnText || '');
+        if (actionText.includes('知道') || actionText.includes('继续')) return '需要注意';
+        if (variant === 'danger') return '危险操作';
+        if (variant === 'warning') return '需要确认';
+        if (variant === 'success') return '确认执行';
+        return '确认操作';
+    }
+
+    function formatConfirmMessage(message) {
+        const raw = String(message || '');
+        const lines = raw.replace(/\r\n/g, '\n')
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean);
+        const html = (lines.length ? lines.join('<br>') : raw.trim())
+            .replace(/(?:<br\s*\/?>\s*){3,}/gi, '<br><br>');
+        return html || '确认要执行此操作吗？';
+    }
+
     function customConfirm(message, confirmBtnText = '确定', confirmBtnColor = 'var(--primary)') {
         return new Promise((resolve) => {
             confirmResolver = resolve;
@@ -121,8 +141,10 @@
             const btnYes = document.getElementById('btn-confirm-yes');
             const modal = document.getElementById('confirm-modal');
             const box = modal?.querySelector('.confirm-box');
+            const titleText = modal?.querySelector('#confirm-title .confirm-title-text');
             const variant = confirmVariantFromColor(confirmBtnColor);
-            if (messageEl) messageEl.innerHTML = String(message || '').replace(/\n/g, '<br>');
+            if (messageEl) messageEl.innerHTML = formatConfirmMessage(message);
+            if (titleText) titleText.textContent = confirmTitleForVariant(variant, confirmBtnText);
             if (box) {
                 box.classList.remove('is-primary', 'is-success', 'is-warning', 'is-danger');
                 box.classList.add(`is-${variant}`);

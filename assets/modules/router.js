@@ -9,9 +9,6 @@
         overview:   { container: '#overview-page' },
         deployment: { container: '#deployment-panel' },
         config:     { container: '#config-workspace' },
-        diff:       { container: '#runtime-diff-modal' },
-        history:    { container: '#history-modal' },
-        logs:       { container: '#logs-modal' },
         install:    { container: '#install-modal' },
     };
 
@@ -19,6 +16,10 @@
     const LEGACY_HASH_MAP = {
         'deployment-panel': 'deployment',
         'config-workspace': 'config',
+        diff: 'config',
+        history: 'config',
+        'runtime-diff-modal': 'config',
+        'history-modal': 'config',
     };
     const listeners = new Set();
 
@@ -27,6 +28,11 @@
         if (!m) return null;
         const raw = m[1].toLowerCase();
         return LEGACY_HASH_MAP[raw] || raw;
+    }
+
+    function rawHashRoute(hash) {
+        const m = (hash || '').match(/^#\/?([a-z][a-z0-9-]*)/i);
+        return m ? m[1].toLowerCase() : null;
     }
 
     function currentRoute() {
@@ -58,8 +64,8 @@
             /* Two visibility mechanisms coexist:
                - SPA route containers (#overview-page / #deployment-panel /
                  #config-workspace) toggle [hidden] for display:none.
-               - Modal-derived containers (#logs-modal / #history-modal /
-                 #runtime-diff-modal / #install-modal) keep [hidden] alone
+               - Modal-derived containers (#history-modal / #runtime-diff-modal /
+                 #install-modal) keep [hidden] alone
                  (their CSS owns visibility via .modal-overlay + class
                  .route-active set below) — touching hidden would interfere
                  with the overlay/opacity transition. */
@@ -81,9 +87,20 @@
     }
 
     function init() {
-        window.addEventListener('hashchange', () => apply(currentRoute()));
-        if (!parseHash(location.hash)) {
+        window.addEventListener('hashchange', () => {
+            const raw = rawHashRoute(location.hash);
+            const key = currentRoute();
+            if (raw && raw !== key) {
+                history.replaceState(null, '', '#/' + key);
+            }
+            apply(key);
+        });
+        const raw = rawHashRoute(location.hash);
+        const key = currentRoute();
+        if (!raw) {
             history.replaceState(null, '', '#/' + DEFAULT_ROUTE);
+        } else if (raw !== key) {
+            history.replaceState(null, '', '#/' + key);
         }
         apply(currentRoute());
     }

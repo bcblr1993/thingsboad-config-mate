@@ -273,9 +273,7 @@ function handleRouteTransition(newKey) {
     if (lastRouteKey === newKey) return;
 
     /* Teardown previous route */
-    if (lastRouteKey === 'logs') {
-        try { typeof closeLogs === 'function' && closeLogs(); } catch (_) {}
-    } else if (lastRouteKey === 'history') {
+    if (lastRouteKey === 'history') {
         try { typeof closeHistoryModal === 'function' && closeHistoryModal(); } catch (_) {}
     } else if (lastRouteKey === 'diff') {
         try { typeof closeRuntimeDiffModal === 'function' && closeRuntimeDiffModal(); } catch (_) {}
@@ -285,16 +283,11 @@ function handleRouteTransition(newKey) {
 
     /* Setup the new route. Mount-functions talk to the underlying
        controllers directly so that we don't recurse back into navigateRoute. */
-    if (newKey === 'logs') {
-        mountLogsRoute();
-    } else if (newKey === 'history') {
-        if (typeof openHistoryModal === 'function') openHistoryModal();
-    } else if (newKey === 'diff') {
-        // 路由进入立即显示 idle 占位 (不是 spinner), 异步触发检查;
-        // 防止 docker API 慢响应导致 spinner 长时间停留.
-        if (typeof prepareRuntimeDiffIdle === 'function') prepareRuntimeDiffIdle();
-        if (typeof checkRuntimeSync === 'function') checkRuntimeSync();
-    } else if (newKey === 'install') {
+    if (newKey !== 'deployment') {
+        try { typeof closeLogs === 'function' && closeLogs(); } catch (_) {}
+    }
+
+    if (newKey === 'install') {
         if (typeof checkInstallAndConfirm === 'function') checkInstallAndConfirm();
     } else if (newKey === 'overview') {
         refreshOverview(false);
@@ -839,7 +832,7 @@ async function showDependencyBlock(dependencies, actionText) {
         ${escapeHtml(appName)} 依赖服务尚未全部启动：<br>
         <b>${escapeHtml(names)}</b><br><br>
         请先在上方部署控制台启动这些服务，等待状态变为 <code>running</code> 后再继续操作。
-    `, '知道了', '#F59E0B');
+    `, '知道了', 'var(--cm-warning)');
 }
 
 async function ensureRequiredDependenciesRunning(actionText) {
@@ -892,6 +885,7 @@ async function refreshServices() {
 function renderServices() {
     const grid = document.getElementById('service-grid');
     if (!grid || !latestServices) return;
+    closeServiceCardMenu();
     const countEl = document.getElementById('service-count');
     if (latestServices.length === 0) {
         if (countEl) {
@@ -899,7 +893,7 @@ function renderServices() {
             countEl.title = '正在读取服务状态';
         }
         grid.innerHTML = '<div class="service-loading">正在读取服务状态...</div>';
-        renderServiceConfigState('等待服务状态返回...');
+        clearServiceSelection();
         updateDeploymentTierCounts([]);
         return;
     }
@@ -912,9 +906,10 @@ function renderServices() {
         services: latestServices,
         requiredIds: new Set((latestPlan?.services || []).map(s => s.id)),
         selectedServiceId,
-        portsByService: deploymentPortsCache
+        portsByService: deploymentPortsCache,
+        cleanupInFlightService
     });
-    ensureSelectedService();
+    syncSelectedServiceDetail();
     updateDeploymentTierCounts(latestServices);
     applyDeploymentFilters();
     renderDeploymentSummary();
@@ -1050,26 +1045,39 @@ function renderDeploymentSummary() {
     `;
 }
 
-function getDefaultSelectedServiceId() {
-    if (!latestServices || latestServices.length === 0) return null;
-    const appService = deploymentInfo?.appService;
-    const requiredIds = (latestPlan?.services || []).map(s => s.id).filter(id => id !== appService);
-    const required = latestServices.find(s => requiredIds.includes(s.id));
-    if (required) return required.id;
-    const nonApp = latestServices.find(s => s.id !== appService);
-    return nonApp ? nonApp.id : latestServices[0].id;
+function hideServiceConfigPanel() {
+    closeServiceCardMenu();
+    const panel = document.getElementById('service-config-panel');
+    if (!panel) return;
+    document.body.classList.remove('cm-service-detail-open');
+    panel.style.display = 'none';
+    panel.innerHTML = '';
 }
 
-function ensureSelectedService() {
+function clearServiceSelection() {
+    serviceConfigRequestSeq += 1;
+    selectedServiceId = null;
+    selectedServiceConfig = null;
+    window.__CM__?.stateBridge.pushSelectedService(null, null);
+    hideServiceConfigPanel();
+}
+
+function syncSelectedServiceDetail() {
     if (!latestServices || latestServices.length === 0) {
-        renderServiceConfigState('暂无服务配置');
+        clearServiceSelection();
         return;
     }
 
-    const exists = selectedServiceId && latestServices.some(s => s.id === selectedServiceId);
+    if (!selectedServiceId) {
+        hideServiceConfigPanel();
+        return;
+    }
+
+    const exists = latestServices.some(s => s.id === selectedServiceId);
     if (!exists) {
-        selectedServiceId = getDefaultSelectedServiceId();
-        selectedServiceConfig = null;
+        clearServiceSelection();
+        renderServices();
+        return;
     }
 
     if (selectedServiceId && (!selectedServiceConfig || selectedServiceConfig.service?.id !== selectedServiceId)) {
@@ -1080,6 +1088,67 @@ function ensureSelectedService() {
 }
 
 function selectService(serviceId) {
+    openServiceDetail(serviceId);
+}
+
+let serviceCardMenuEl = null;
+
+function closeServiceCardMenu() {
+    if (!serviceCardMenuEl) return;
+    serviceCardMenuEl.remove();
+    serviceCardMenuEl = null;
+    document.removeEventListener('pointerdown', handleServiceCardMenuOutside, true);
+    document.removeEventListener('keydown', handleServiceCardMenuKeydown, true);
+}
+
+function handleServiceCardMenuOutside(event) {
+    if (!serviceCardMenuEl || serviceCardMenuEl.contains(event.target)) return;
+    closeServiceCardMenu();
+}
+
+function handleServiceCardMenuKeydown(event) {
+    if (event.key === 'Escape') closeServiceCardMenu();
+}
+
+function openServiceCardMenu(event, serviceId, cleanupSupported = false, cleanupDisabled = false, cleanupBusy = false) {
+    event?.stopPropagation();
+    if (!serviceId) return;
+    closeServiceCardMenu();
+
+    const idArg = escapeHtml(JSON.stringify(String(serviceId)));
+    const menu = document.createElement('div');
+    menu.className = 'cm-service-card-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = `
+        <button type="button" role="menuitem" onclick="closeServiceCardMenu(); openServiceDetail(${idArg})">详细信息</button>
+        ${cleanupSupported
+            ? `<button type="button" role="menuitem" class="is-danger" onclick="closeServiceCardMenu(); cleanupService(${idArg})" ${cleanupDisabled ? 'disabled' : ''}>${cleanupBusy ? '清理中' : '数据清理'}</button>`
+            : ''}
+    `;
+    document.body.appendChild(menu);
+    serviceCardMenuEl = menu;
+
+    const anchor = event?.currentTarget || event?.target;
+    const rect = anchor?.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const viewportGap = 10;
+    const topDefault = rect ? rect.bottom + 8 : viewportGap;
+    const top = topDefault + menuRect.height > window.innerHeight - viewportGap && rect
+        ? Math.max(viewportGap, rect.top - menuRect.height - 8)
+        : topDefault;
+    const left = rect
+        ? Math.min(window.innerWidth - menuRect.width - viewportGap, Math.max(viewportGap, rect.right - menuRect.width))
+        : viewportGap;
+    menu.style.top = `${Math.max(viewportGap, top)}px`;
+    menu.style.left = `${Math.max(viewportGap, left)}px`;
+
+    setTimeout(() => {
+        document.addEventListener('pointerdown', handleServiceCardMenuOutside, true);
+        document.addEventListener('keydown', handleServiceCardMenuKeydown, true);
+    }, 0);
+}
+
+function openServiceDetail(serviceId) {
     if (!serviceId) return;
     if (selectedServiceId === serviceId) {
         if (selectedServiceConfig) renderServiceConfig(selectedServiceConfig);
@@ -1090,6 +1159,20 @@ function selectService(serviceId) {
     selectedServiceConfig = null;
     window.__CM__?.stateBridge.pushSelectedService(serviceId, null);
     renderServices();
+}
+
+function closeServiceDetail() {
+    clearServiceSelection();
+    renderServices();
+}
+
+function renderServiceDetailShell(innerHtml, extraClass = '') {
+    return `
+        <div class="cm-service-detail-backdrop" onclick="closeServiceDetail()" aria-hidden="true"></div>
+        <article class="cm-service-detail-dialog ${extraClass}" role="dialog" aria-modal="true" aria-label="服务详细信息">
+            ${innerHtml}
+        </article>
+    `;
 }
 
 async function loadServiceConfig(serviceId) {
@@ -1115,8 +1198,13 @@ async function loadServiceConfig(serviceId) {
 function renderServiceConfigState(message, type = '') {
     const panel = document.getElementById('service-config-panel');
     if (!panel) return;
-    panel.style.display = 'block';
-    panel.innerHTML = `<div class="service-config-state ${type}">${escapeHtml(message)}</div>`;
+    document.body.classList.add('cm-service-detail-open');
+    panel.style.display = 'flex';
+    panel.innerHTML = renderServiceDetailShell(
+        `<button class="cm-detail-close-btn cm-detail-state-close" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
+        <div class="service-config-state ${type}">${escapeHtml(message)}</div>`,
+        'cm-service-detail-dialog-state'
+    );
 }
 
 function renderServiceConfig(data) {
@@ -1125,67 +1213,16 @@ function renderServiceConfig(data) {
     selectedServiceConfig = data;
     const serviceId = data.service?.id || selectedServiceId || '';
     const serviceStatus = (latestServices || []).find(s => s.id === serviceId);
-    panel.style.display = 'block';
-    panel.innerHTML = ConfigMateServicesUi.renderServiceConfig(data, {
+    document.body.classList.add('cm-service-detail-open');
+    panel.style.display = 'flex';
+    panel.innerHTML = renderServiceDetailShell(ConfigMateServicesUi.renderServiceConfig(data, {
         selectedServiceId,
         serviceStatus,
-        cleanupInFlightService,
-        dependencyServices: latestServices || [],
-        appServiceId: deploymentInfo?.appService || ''
-    });
+        cleanupInFlightService
+    }));
     // Cache port digest used by service-card metric row.
     const portsText = ConfigMateServicesUi.summarizePorts(data.sections);
     if (serviceId) deploymentPortsCache[serviceId] = portsText;
-    loadRecentLogsPreview(serviceId);
-}
-
-let recentLogsPreviewSource = null;
-function loadRecentLogsPreview(serviceId) {
-    const body = document.querySelector('#cm-detail-recent-logs .cm-detail-recent-logs-body');
-    if (!body || !serviceId) return;
-    // 上一个 preview 流先关掉,避免在快速切换服务时叠加事件回调.
-    if (recentLogsPreviewSource) {
-        try { recentLogsPreviewSource.close(); } catch (e) { /* noop */ }
-        recentLogsPreviewSource = null;
-    }
-    body.dataset.state = 'loading';
-    body.textContent = '正在读取最近日志...';
-    const collected = [];
-    let stopped = false;
-    const finalize = (label) => {
-        if (stopped) return;
-        stopped = true;
-        if (recentLogsPreviewSource) {
-            try { recentLogsPreviewSource.close(); } catch (e) { /* noop */ }
-            recentLogsPreviewSource = null;
-        }
-        if (collected.length === 0) {
-            body.textContent = label || '暂无日志输出';
-            body.dataset.state = 'empty';
-            return;
-        }
-        body.innerHTML = collected.slice(-8).map(raw => {
-            const level = /\bERROR\b|\bERR\b/i.test(raw) ? 'error'
-                : /\bWARN\b/i.test(raw) ? 'warn'
-                : /\bINFO\b/i.test(raw) ? 'info'
-                : '';
-            return `<div class="cm-detail-recent-log-line${level ? ' cm-detail-recent-log-' + level : ''}">${escapeHtml(raw)}</div>`;
-        }).join('');
-        body.dataset.state = 'loaded';
-    };
-    try {
-        recentLogsPreviewSource = new EventSource(ConfigMateApi.logsUrl(serviceId));
-        recentLogsPreviewSource.onmessage = (ev) => {
-            if (ev?.data) collected.push(ev.data);
-            if (collected.length >= 8) finalize();
-        };
-        recentLogsPreviewSource.onerror = () => finalize('日志流暂不可用');
-        // 1.5s 内仍未收到则按已有数据收尾.
-        setTimeout(() => finalize(), 1500);
-    } catch (e) {
-        body.textContent = '加载日志失败：' + e.message;
-        body.dataset.state = 'error';
-    }
 }
 
 function toggleServiceSecret(sectionIndex, itemIndex, btn) {
@@ -1401,16 +1438,16 @@ function renderField(key) {
         <div class="cm-cfg-field-head">
             <div class="cm-cfg-field-label-wrap">
                 <span class="field-label ${reqClass}">${safeLabel}</span>
+                ${safeComment ? `<span class="field-desc" title="${safeComment}">${safeComment}</span>` : ''}
             </div>
-            <span class="cm-cfg-field-mod-badge" aria-label="已修改">MODIFIED</span>
+            <div class="cm-cfg-field-badges">
+                <code class="var-code" title="${safeKey}">${safeKey}</code>
+                <span class="cm-cfg-field-mod-badge" aria-label="已修改">已修改</span>
+            </div>
         </div>
         <div class="cm-cfg-field-input">
             ${inputHtml}
             <div class="field-error" id="error-${key}"></div>
-        </div>
-        <div class="cm-cfg-field-foot">
-            <code class="var-code" title="${safeKey}">${safeKey}</code>
-            <span class="field-desc" title="${safeComment}">${safeComment}</span>
         </div>
     </div>`;
 }
@@ -1543,6 +1580,7 @@ function renderConfigPendingPanel() {
     const list = document.getElementById('cm-config-pending-list');
     const count = document.getElementById('cm-config-pending-count');
     if (!panel || !list) return;
+    const shell = panel.closest('.cm-config-shell');
     const diff = [];
     Object.keys(configMeta || {}).forEach(key => {
         const initial = initialConfigValues[key];
@@ -1554,11 +1592,13 @@ function renderConfigPendingPanel() {
     });
     if (diff.length === 0) {
         panel.hidden = true;
+        shell?.classList.remove('cm-has-pending');
         list.innerHTML = '';
         if (count) count.textContent = '0';
         return;
     }
     panel.hidden = false;
+    shell?.classList.add('cm-has-pending');
     if (count) count.textContent = String(diff.length);
     list.innerHTML = diff.map(d => `
         <li class="cm-cfg-pending-item">
@@ -1916,7 +1956,7 @@ async function saveAndApplyPlan() {
     const missingNote = missingDependencyNames.length
         ? `\n\n当前仍有依赖服务未运行：${missingDependencyNames.join('、')}。本操作不会自动启动它们。`
         : '';
-    if (!await customConfirm(`将保存配置，并只重启：${appServiceName}。${missingNote}`, '保存并重启', '#00B894')) return;
+    if (!await customConfirm(`将保存配置，并只重启：${appServiceName}。${missingNote}`, '保存并重启', 'var(--cm-success)')) return;
 
     try {
         const res = await ConfigMateApi.applyPlan(configValues, true);
@@ -1955,12 +1995,13 @@ let pendingLogsParams = null;
 
 function showLogs(isManual = false, serviceId = null) {
     pendingLogsParams = { isManual, serviceId };
-    if (window.ConfigMateRouter && ConfigMateRouter.hasContainer('logs')) {
-        if (ConfigMateRouter.currentRoute() === 'logs') {
+    if (window.ConfigMateRouter && ConfigMateRouter.hasContainer('deployment')) {
+        if (ConfigMateRouter.currentRoute() === 'deployment') {
             mountLogsRoute();
             return;
         }
-        ConfigMateRouter.navigate('logs');
+        ConfigMateRouter.navigate('deployment');
+        setTimeout(mountLogsRoute, 0);
         return;
     }
     /* Pre-router fallback (boot-time call before initWorkbenchNavigation). */
@@ -2013,7 +2054,7 @@ function updateLogsPageSubtitle(serviceId) {
     const text = document.getElementById('logs-page-subtitle-text');
     if (!text) return;
     if (!serviceId) {
-        text.textContent = '选择左侧服务源开始查看实时日志';
+        text.textContent = '从部署控制台选择服务后查看容器 stdout';
         return;
     }
     text.textContent = `${serviceId} · stdout`;
@@ -2242,7 +2283,7 @@ async function checkStatus() {
 
 boot();
 async function stopService(event) {
-    if (!await customConfirm('确认要停止服务吗？此操作将停止容器。', '停止服务', '#D63031')) return;
+    if (!await customConfirm('确认要停止服务吗？此操作将停止容器。', '停止服务', 'var(--cm-danger)')) return;
 
     const btn = event.target;
     const originalText = btn.innerText;
@@ -2274,7 +2315,7 @@ async function restartServiceOnly(event) {
     const isStart = btn.innerText.includes('启动');
     const msg = isStart ? '确定要启动服务吗？' : '确定要重启服务吗？重启将重新加载最新的配置。';
     const title = isStart ? '启动服务' : '重启服务';
-    const color = isStart ? '#2ecc71' : '#FDCB6E'; // Green for Start, Orange for Restart
+    const color = isStart ? 'var(--cm-success)' : 'var(--cm-warning)';
     const dependencyAction = `${isStart ? '启动' : '重启'} ${getServiceDisplayNameById(getCurrentAppServiceId()) || getAppDisplayName()}`;
 
     if (!await ensureRequiredDependenciesRunning(dependencyAction)) return;
@@ -2316,7 +2357,7 @@ async function restartService() {
     const dependencyAction = `重启 ${getServiceDisplayNameById(getCurrentAppServiceId()) || getAppDisplayName()}`;
     if (!await ensureRequiredDependenciesRunning(dependencyAction)) return;
 
-    if (!await customConfirm('确定要重启服务以应用更改吗？', '重启服务', '#FDCB6E')) return;
+    if (!await customConfirm('确定要重启服务以应用更改吗？', '重启服务', 'var(--cm-warning)')) return;
 
     const btn = document.getElementById('btn-restart-from-diff');
     const originalText = btn ? btn.innerText : '立即重启服务';
@@ -2374,6 +2415,8 @@ function getHistoryUi() {
 }
 
 function openHistoryModal() {
+    const modal = document.getElementById('history-modal');
+    modal?.classList.remove('route-active');
     getHistoryUi().open();
 }
 
@@ -2387,6 +2430,23 @@ function handleHistoryAction(event) {
 
 function closeDiffModal() {
     getHistoryUi().closeDiff();
+}
+
+function openConfigHistoryModal() {
+    if (typeof navigateRoute === 'function' && window.ConfigMateRouter?.currentRoute?.() !== 'config') {
+        navigateRoute('config');
+    }
+    openHistoryModal();
+}
+
+function openConfigRuntimeDiffModal() {
+    if (typeof navigateRoute === 'function' && window.ConfigMateRouter?.currentRoute?.() !== 'config') {
+        navigateRoute('config');
+    }
+    const modal = document.getElementById('runtime-diff-modal');
+    modal?.classList.remove('route-active');
+    prepareRuntimeDiffIdle();
+    setTimeout(checkRuntimeSync, 0);
 }
 
 // Initialize Modal Listeners
@@ -2464,8 +2524,20 @@ async function cancelEdit() {
 async function checkRuntimeSync() {
     const btn = document.querySelector('.btn-header[onclick="checkRuntimeSync()"]');
     const originalHtml = btn ? btn.innerHTML : '';
+    const tbody = document.getElementById('runtime-diff-tbody');
+    const loadingDiv = document.getElementById('runtime-diff-loading');
+    const resultDiv = document.getElementById('runtime-diff-result');
+    const restartBtn = document.getElementById('btn-restart-from-diff');
 
     // Banner 切到 info 态 "正在检查...", 不再依赖独立的 loading spinner.
+    if (loadingDiv) loadingDiv.classList.add('is-hidden');
+    if (resultDiv) resultDiv.classList.remove('is-hidden');
+    if (restartBtn) restartBtn.style.display = 'none';
+    ['cm-diff-kpi-match', 'cm-diff-kpi-mod', 'cm-diff-kpi-onlylocal', 'cm-diff-kpi-onlyruntime'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '—';
+    });
+    if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="runtime-empty-cell">正在读取容器环境变量...</td></tr>';
     renderRuntimeDiffStatus('info', '正在检查运行配置...', '正在通过 docker inspect 读取容器环境变量。');
 
     try {
@@ -2504,7 +2576,7 @@ async function checkRuntimeSync() {
     }
 }
 
-/* 进入 #/diff 路由的"idle"占位 — 不显示 spinner, 立即显示空态 banner
+/* 打开运行检查弹窗的 idle 占位 — 不显示 spinner, 立即显示空态 banner
    + KPI 全 "—" + 表格区放占位提示. checkRuntimeSync 接管后切换. */
 function prepareRuntimeDiffIdle() {
     const modal = document.getElementById('runtime-diff-modal');
@@ -2536,7 +2608,7 @@ function renderRuntimeDiffStatus(tone, title, detail) {
     };
     const cls = tone === 'warn' ? 'is-warn'
         : tone === 'ok' ? 'is-ok'
-        : tone === 'danger' ? 'is-warn'
+        : tone === 'danger' ? 'is-danger'
         : 'is-info';
     banner.className = 'cm-diff-banner ' + cls;
     banner.innerHTML = `
@@ -2686,8 +2758,10 @@ function renderRuntimeDiff(data) {
 function closeRuntimeDiffModal() {
     closeModal('runtime-diff-modal', {
         afterClose: () => {
-            document.getElementById('runtime-diff-result').classList.add('is-hidden');
-            document.getElementById('runtime-diff-loading').classList.remove('is-hidden');
+            const resultDiv = document.getElementById('runtime-diff-result');
+            const loadingDiv = document.getElementById('runtime-diff-loading');
+            if (resultDiv) resultDiv.classList.remove('is-hidden');
+            if (loadingDiv) loadingDiv.classList.add('is-hidden');
         }
     });
 }
@@ -2730,7 +2804,7 @@ async function checkInstallAndConfirm() {
     `;
     try {
         // customConfirm(message, btnText, btnColor)
-        const confirmed = await customConfirm(message, "开始初始化", "#0F766E");
+        const confirmed = await customConfirm(message, "开始初始化", "var(--cm-success)");
         if (confirmed) {
             startInstallService();
         }
@@ -3074,6 +3148,15 @@ window.addEventListener('load', () => {
     }, 500);
 });
 
+function setConfirmTitleText(titleEl, text) {
+    const textEl = titleEl?.querySelector('.confirm-title-text');
+    if (textEl) {
+        textEl.textContent = text;
+        return;
+    }
+    if (titleEl) titleEl.textContent = text;
+}
+
 // Startup Validation Check
 async function checkEnvConfigValidation() {
     try {
@@ -3097,7 +3180,7 @@ async function checkEnvConfigValidation() {
             listEl.style.display = 'none';
             hintEl.style.display = 'none';
 
-            titleEl.textContent = '关键配置缺失';
+            setConfirmTitleText(titleEl, '关键配置缺失');
 
             msgEl.innerHTML = `
                 <div class="confirm-callout confirm-callout-danger">
@@ -3133,7 +3216,7 @@ async function checkEnvConfigValidation() {
             ).join('');
 
             // Blocking Mode
-            titleEl.textContent = '严重配置错误';
+            setConfirmTitleText(titleEl, '严重配置错误');
 
             msgEl.innerHTML = `
                 <div class="confirm-callout confirm-callout-danger">

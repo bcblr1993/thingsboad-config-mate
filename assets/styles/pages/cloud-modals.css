@@ -234,6 +234,69 @@
     .modal-overlay.route-active { padding: 18px 16px !important; }
 }
 
+/* ---- Config page entry dialogs -------------------------------------- */
+
+.cm-history-route.active:not(.route-active),
+.cm-diff-route.active:not(.route-active) {
+    padding: 24px !important;
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-container,
+.cm-diff-route.active:not(.route-active) .cm-diff-container {
+    width: min(1180px, calc(100vw - 48px)) !important;
+    height: min(820px, calc(100vh - 64px)) !important;
+    max-width: calc(100vw - 48px) !important;
+    max-height: calc(100vh - 64px) !important;
+    margin: 0 !important;
+    padding: 18px !important;
+    border: 1px solid var(--cm-cloud-border) !important;
+    border-radius: 14px !important;
+    background: var(--cm-cloud-bg) !important;
+    box-shadow: var(--cm-cloud-shadow-lg) !important;
+    overflow: hidden;
+}
+
+.cm-diff-route.active:not(.route-active) .cm-diff-container {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: min(620px, calc(100vh - 64px));
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-container {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-grid {
+    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+}
+
+.cm-diff-route.active:not(.route-active) .cm-diff-table-shell {
+    min-height: 0;
+}
+
+@media (max-width: 880px) {
+    .cm-history-route.active:not(.route-active),
+    .cm-diff-route.active:not(.route-active) {
+        padding: 12px !important;
+    }
+
+    .cm-history-route.active:not(.route-active) .cm-history-container,
+    .cm-diff-route.active:not(.route-active) .cm-diff-container {
+        width: calc(100vw - 24px) !important;
+        height: calc(100vh - 24px) !important;
+        max-width: calc(100vw - 24px) !important;
+        max-height: calc(100vh - 24px) !important;
+        padding: 14px !important;
+    }
+
+    .cm-history-route.active:not(.route-active) .cm-history-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ========================================================================
    Stage G — runtime diff & install route-page refinements (Cloud Console).
    ====================================================================== */
@@ -309,12 +372,17 @@
     border-color: var(--cm-cloud-info-border);
 }
 
+.cm-diff-banner.is-danger {
+    background: var(--cm-cloud-danger-soft);
+    border-color: var(--cm-cloud-danger-border);
+}
+
 .cm-diff-banner-icon {
     width: 36px;
     height: 36px;
     flex-shrink: 0;
     border-radius: 9px;
-    background: #fff;
+    background: var(--cm-cloud-surface);
     border: 1px solid currentColor;
     display: inline-flex;
     align-items: center;
@@ -324,6 +392,7 @@
 .cm-diff-banner.is-warn .cm-diff-banner-icon { color: var(--cm-cloud-warning); }
 .cm-diff-banner.is-ok   .cm-diff-banner-icon { color: var(--cm-cloud-success); }
 .cm-diff-banner.is-info .cm-diff-banner-icon { color: var(--cm-cloud-info); }
+.cm-diff-banner.is-danger .cm-diff-banner-icon { color: var(--cm-cloud-danger); }
 
 .cm-diff-banner-title {
     font-size: 14px;
@@ -331,9 +400,10 @@
     color: var(--cm-cloud-fg);
 }
 
-.cm-diff-banner.is-warn .cm-diff-banner-title { color: #92400E; }
-.cm-diff-banner.is-ok   .cm-diff-banner-title { color: #065F46; }
-.cm-diff-banner.is-info .cm-diff-banner-title { color: #075985; }
+.cm-diff-banner.is-warn .cm-diff-banner-title { color: var(--cm-cloud-warning); }
+.cm-diff-banner.is-ok   .cm-diff-banner-title { color: var(--cm-cloud-success); }
+.cm-diff-banner.is-info .cm-diff-banner-title { color: var(--cm-cloud-info); }
+.cm-diff-banner.is-danger .cm-diff-banner-title { color: var(--cm-cloud-danger); }
 
 .cm-diff-banner-desc {
     font-size: 12px;
@@ -383,7 +453,7 @@
 .cm-diff-kpi[data-tone="warn"]   .cm-diff-kpi-value { color: var(--cm-cloud-warning); }
 .cm-diff-kpi[data-tone="danger"] .cm-diff-kpi-value { color: var(--cm-cloud-danger); }
 .cm-diff-kpi[data-tone="info"]   .cm-diff-kpi-value { color: var(--cm-cloud-info); }
-.cm-diff-kpi[data-tone="purple"] .cm-diff-kpi-value { color: #7C3AED; }
+.cm-diff-kpi[data-tone="purple"] .cm-diff-kpi-value { color: var(--cm-tier-cache-fg); }
 
 .cm-diff-table-shell {
     background: var(--cm-cloud-surface);
@@ -776,10 +846,12 @@
 
 .cm-install-log-btn {
     padding: 7px 12px;
-    min-height: 32px;
+    min-height: 34px;
+    height: 34px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    box-sizing: border-box;
     border: 1px solid var(--cm-cloud-border);
     border-radius: 6px;
     background: var(--cm-cloud-surface);

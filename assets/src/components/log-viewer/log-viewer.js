@@ -65,7 +65,7 @@ export function createLogViewer(options = {}) {
         const titleText = document.getElementById('logs-title-text');
 
         if (titleText) {
-            titleText.textContent = `${isManual ? '实时容器日志' : '服务重启日志'}${serviceLabel}`;
+            titleText.textContent = `${isManual ? '服务日志' : '服务重启日志'}${serviceLabel}`;
         }
 
         if (modal) window.ConfigMateUi.openModal(modal, '');
@@ -220,7 +220,7 @@ export function createLogViewer(options = {}) {
         };
 
         logsEventSource.onerror = () => {
-            handleData({ type: 'error', message: '[连接错误] 实时日志连接中断，3 秒后尝试重连...' });
+            handleData({ type: 'error', message: '[连接错误] 日志连接中断，3 秒后尝试重连...' });
             updateStatus('连接中断，准备重连...', 'error');
             closeStream();
             logReconnectTimer = setTimeout(() => {
@@ -489,7 +489,7 @@ export function createLogViewer(options = {}) {
         if (!statusEl) return;
         statusEl.classList.remove('success', 'paused', 'error');
         if (state && state !== 'live') statusEl.classList.add(state);
-        const span = statusEl.querySelector('span');
+        const span = statusEl.querySelector('span:not(.logs-status-dot)');
         if (span) span.textContent = text;
     }
 

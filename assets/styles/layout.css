@@ -9,12 +9,19 @@
 .header-inner {
     gap: 10px !important;
     display: flex !important;
+    flex-direction: row !important;
     flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
     align-items: center;
     min-height: 60px;
     height: 60px;
     padding: 0 var(--cm-space-8) !important;
     background: transparent !important;
+}
+
+.header-inner > .header-actions,
+.header-inner > .user-menu {
+    align-self: center;
 }
 
 /* Brand block — 28px mark + name + version pill */
@@ -70,6 +77,7 @@
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
+    max-width: 100%;
 }
 
 .mega-nav::-webkit-scrollbar {
@@ -120,6 +128,7 @@
     align-items: center;
     gap: 14px;
     flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .header-search {
@@ -134,6 +143,7 @@
     color: var(--cm-cloud-muted);
     cursor: not-allowed;
     box-sizing: border-box;
+    flex: 0 0 auto;
 }
 
 .header-search svg {
@@ -214,6 +224,7 @@
     padding-left: 14px;
     border-left: 1px solid var(--cm-cloud-border-subtle);
     flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .user-chip {
@@ -302,7 +313,7 @@
     }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 720px) {
     .header-inner {
         flex-wrap: wrap !important;
         padding: 10px var(--cm-space-4) !important;
@@ -376,6 +387,7 @@ body[data-workbench-page="config-workspace"] .action-bar {
 .cm-logs-tool-btn,
 .cm-install-log-btn,
 .cm-segmented-item,
+.cm-config-anchor-chip,
 .btn-header,
 .btn-logs,
 .install-log-btn {
