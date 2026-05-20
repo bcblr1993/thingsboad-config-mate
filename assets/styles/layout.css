@@ -19,7 +19,6 @@
     background: transparent !important;
 }
 
-.header-inner > .header-actions,
 .header-inner > .user-menu {
     align-self: center;
 }
@@ -116,61 +115,11 @@
     outline-offset: 2px;
 }
 
-/* === Header right tools (search + notify + divider + user) ============== */
+/* === User menu (avatar + name + project, divider on left) ============== */
 
-.header-inner > .mega-nav + .header-actions,
-.header-inner > .header-actions {
+.header-inner > .mega-nav + .user-menu {
     margin-left: auto;
 }
-
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-shrink: 0;
-    white-space: nowrap;
-}
-
-.header-notif {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    color: var(--cm-cloud-muted);
-    cursor: pointer;
-    border-radius: 8px;
-    padding: 0;
-    transition: background 0.15s ease, color 0.15s ease;
-}
-
-.header-notif:hover {
-    background: var(--cm-cloud-surface-muted);
-    color: var(--cm-cloud-fg);
-}
-
-.header-notif-badge {
-    position: absolute;
-    top: 4px;
-    right: 3px;
-    min-width: 14px;
-    height: 14px;
-    padding: 0 4px;
-    border-radius: 50%;
-    background: var(--cm-cloud-danger);
-    color: #fff;
-    font-size: 9px;
-    font-weight: 700;
-    line-height: 14px;
-    text-align: center;
-    pointer-events: none;
-    box-sizing: border-box;
-}
-
-/* === User menu (avatar + name + project, divider on left) ============== */
 
 .user-menu {
     display: none;

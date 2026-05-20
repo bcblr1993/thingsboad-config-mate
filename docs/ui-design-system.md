@@ -8,19 +8,10 @@ Config Mate 是一个运维控制台。视觉风格定位为 **企业级、克�
 
 本设计系统基于 CSS 变量（`--cm-*` token），不依赖任何前端框架，可以在纯 HTML 页面里直接使用。
 
-### 在线预览
+### 预览方式
 
-```bash
-npm run dev
-open http://localhost:3300/assets/ui-preview.html
-```
-
-预览页内置三套候选主题，可实时切换：
-- **A · ThingsBoard Blue** `#2563EB` — 保留现有品牌色
-- **B · Indigo Modern** `#4F46E5` — Linear / Vercel 风
-- **C · Slate Tooling** `#0F172A` 主 + `#2563EB` 强调 — 最克制工具风
-
-主题选定后，回写到 [assets/styles/tokens.css](../assets/styles/tokens.css) 即可被业务页面继承，无需改业务代码。
+重构版不再保留独立 UI 预览页，避免把设计草稿带入生产镜像。视觉验证以
+`index.html` 的实际业务页面、Playwright 截图和 Backstop 基准图为准。
 
 ---
 
@@ -243,6 +234,3 @@ Page Header (标题 + 取消/保存按钮)
 | [assets/styles/base.css](../assets/styles/base.css) | 全局基础样式 |
 | [assets/styles/components.css](../assets/styles/components.css) | 通用组件样式 |
 | [assets/styles/layout.css](../assets/styles/layout.css) | 页面框架样式 |
-| [assets/styles/preview-tokens.css](../assets/styles/preview-tokens.css) | 三套候选主题 token（仅预览页用） |
-| [assets/styles/preview-layout.css](../assets/styles/preview-layout.css) | 预览页布局扩展（不污染业务） |
-| [assets/ui-preview.html](../assets/ui-preview.html) | UI 风格预览页 |

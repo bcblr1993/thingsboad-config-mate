@@ -88,8 +88,6 @@ JS:   api.js → ui-core.js → services-ui.js → logs-ui.js → history-ui.js 
 .
 ├── assets/                                # 前端根
 │   ├── index.html                         # （已存在）入口模板，未来逐步精简
-│   ├── ui-preview.html                    # （已存在）样式预览页，保留
-│   │
 │   ├── styles/                            # 样式分层（已存在，继续延用）
 │   │   ├── tokens.css                     # 设计令牌（颜色/间距/圆角/阴影/字号）
 │   │   ├── base.css                       # 全局基础
@@ -455,11 +453,11 @@ const schema = {
 const result = validate(formValues, schema);
 ```
 
-字段组件统一：`<input class="cm-field-input"> + 错误态 .is-error + 帮助文 .cm-field-helper`（[预览页](../assets/ui-preview.html) 已示范）。
+字段组件统一：`<input class="cm-field-input"> + 错误态 .is-error + 帮助文 .cm-field-helper`，以 [components.css](../assets/styles/components.css) 的通用组件为准。
 
 ### 4.15 表格列表页规范
 
-每个列表页都遵循相同的结构（已在 [ui-preview.html](../assets/ui-preview.html) 演示）：
+每个列表页都遵循相同的结构：
 
 ```
 PageHeader (标题 + 操作)
@@ -489,7 +487,7 @@ modal.close();
 
 ### 4.17 移动端适配规范
 
-- **断点**：`< 768px` / `768-1023px` / `≥ 1024px`（已在 [preview-layout.css](../assets/styles/preview-layout.css) 落地）
+- **断点**：`< 768px` / `768-1023px` / `≥ 1024px`
 - **侧边栏**：< 768px 收起为抽屉
 - **表格**：< 768px 启用横向滚动（`overflow-x: auto`）
 - **表单**：`cm-form-grid` 自动从 2 列 → 1 列
@@ -654,7 +652,6 @@ npm run check                # 已有的 node scripts/check.js
 | 历史回滚 | 选版本 → diff → 恢复 | 配置回到旧值 |
 | 初始化 | 触发 install | 进度条 + 终端日志 |
 | 移动端 | 拖窄到 < 768px | 抽屉、表格横滚 |
-| UI 预览 | 访问 `/assets/ui-preview.html` | 三主题切换正常 |
 
 ### 8.3 性能基线
 
@@ -670,7 +667,7 @@ npm run check                # 已有的 node scripts/check.js
 
 你已选定 **Slate Tooling**。建议**阶段 1 之前的预备工作**直接做：
 
-把 [preview-tokens.css](../assets/styles/preview-tokens.css) 中 `[data-theme="slate"]` 的颜色覆盖回写到 [tokens.css](../assets/styles/tokens.css) 的 `:root` —— 这样业务页面立刻获得新主题，无需等重构。
+主题已统一沉淀到 [tokens.css](../assets/styles/tokens.css) 的 `:root`，后续只在 token 层调整颜色。
 
 ### 9.2 优先级建议
 
@@ -724,4 +721,3 @@ npm run check                # 已有的 node scripts/check.js
 | 历史 UI（工厂模式） | [assets/modules/history-ui.js](../assets/modules/history-ui.js) |
 | 新设计系统 | [docs/ui-design-system.md](./ui-design-system.md) |
 | UI Foundation 历史 | [docs/ui-foundation.md](./ui-foundation.md) |
-| UI 预览页 | [assets/ui-preview.html](../assets/ui-preview.html) |

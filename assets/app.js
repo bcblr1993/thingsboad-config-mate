@@ -87,17 +87,6 @@ function buildUserProjectLabel() {
     return '';
 }
 
-function showHeaderNotifs() {
-    // Lightweight stand-in: surface a toast pointing at the runtime drift page.
-    // Replace once a real notification stream exists.
-    if (typeof showToast === 'function') {
-        showToast('通知中心即将上线。当前可在「校验配置」中查看配置漂移。', 'info');
-    }
-    if (typeof navigateRoute === 'function') {
-        // 不强制跳转，仅提示。
-    }
-}
-
 function showLoginOverlay(message = '') {
     stopPollingTimers();
     updateAuthUI('');

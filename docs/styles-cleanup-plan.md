@@ -21,8 +21,6 @@ assets/styles/
 │   └── (logs.css)
 │   └── (history.css)
 │   └── (install.css)
-├── preview-tokens.css    # 三套候选主题（仅 ui-preview.html 加载）
-└── preview-layout.css    # ui-preview.html 专用布局
 ```
 
 ## 为什么本次不直接动 styles.css
