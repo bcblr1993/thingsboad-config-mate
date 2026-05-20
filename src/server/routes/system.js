@@ -3,6 +3,8 @@ const os = require('os');
 const { readRequestBody, writeJson } = require('../http');
 const { getDiskUsageForPath } = require('../services/disk-usage');
 
+const ADMIN_OPERATOR = 'admin';
+
 function createSystemRoutes({
     appRoot,
     appDir,
@@ -57,14 +59,14 @@ function createSystemRoutes({
             readRequestBody(req).then(body => {
                 try {
                     const payload = JSON.parse(body || '{}');
-                    const operator = normalizeOperatorName(payload.operator);
-                    if (!operator) {
-                        writeJson(res, 400, { status: 'error', message: '请输入操作员名称' }, headers);
+                    const operator = normalizeOperatorName(payload.operator || ADMIN_OPERATOR);
+                    if (operator !== ADMIN_OPERATOR) {
+                        writeJson(res, 401, { status: 'error', message: '仅支持 admin 账号登录' }, headers);
                         return;
                     }
-                    if (!authRequired || payload.password === configMatePassword) {
-                        const token = createSession(req, operator);
-                        writeJson(res, 200, { status: 'success', operator: normalizeOperatorName(operator) || 'operator' }, {
+                    if (payload.password === configMatePassword) {
+                        const token = createSession(req, ADMIN_OPERATOR);
+                        writeJson(res, 200, { status: 'success', operator: ADMIN_OPERATOR }, {
                             ...headers,
                             'Set-Cookie': `config_mate_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400`
                         });
@@ -142,5 +144,6 @@ function createSystemRoutes({
 }
 
 module.exports = {
+    ADMIN_OPERATOR,
     createSystemRoutes
 };

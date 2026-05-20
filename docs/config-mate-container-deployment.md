@@ -153,7 +153,7 @@ Config Mate Web: http://服务器IP:3300
 Config Mate 管理口令: xxxxxxxxxxxxxxxx
 ```
 
-访问 Web 后，用操作员名称 + 管理口令登录。
+访问 Web 后，使用唯一账号 `admin` + 管理口令登录。默认密码为 `123456`，现场可通过 `CONFIG_MATE_PASSWORD` 覆盖。
 
 ## 7. 不改 install.sh 的手动启动方式
 

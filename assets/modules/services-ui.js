@@ -90,6 +90,94 @@
         return DISABLED_STATUSES.has(status);
     }
 
+    function serviceMetric(label, value, extraClass = '') {
+        const safeValue = value === undefined || value === null || value === '' ? '—' : String(value);
+        return `
+            <span class="cm-svc-stat ${extraClass}">
+                <span class="cm-svc-stat-label">${escapeHtml(label)}</span>
+                <strong>${escapeHtml(safeValue)}</strong>
+            </span>
+        `;
+    }
+
+    function formatBytes(bytes) {
+        if (!Number.isFinite(bytes)) return '';
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let value = bytes;
+        let unit = 0;
+        while (value >= 1024 && unit < units.length - 1) {
+            value /= 1024;
+            unit += 1;
+        }
+        const digits = value >= 100 ? 0 : value >= 10 ? 1 : 1;
+        return `${value.toFixed(digits)} ${units[unit]}`;
+    }
+
+    function formatCpu(service) {
+        if (typeof service?.cpu === 'string' && service.cpu) return service.cpu;
+        if (Number.isFinite(service?.cpuPercent)) {
+            const value = service.cpuPercent;
+            return `${value.toFixed(value >= 10 ? 1 : 2)}%`;
+        }
+        return '';
+    }
+
+    function formatMemory(service) {
+        if (typeof service?.memory === 'string' && service.memory) return service.memory;
+        if (typeof service?.memoryUsage === 'string' && service.memoryUsage) return service.memoryUsage;
+        if (Number.isFinite(service?.memoryBytes)) return formatBytes(service.memoryBytes);
+        return '';
+    }
+
+    function renderServiceStats(service, portsByService = {}) {
+        const uptime = service.running ? formatUptime(service.startedAt) : '—';
+        const ports = portsByService[service.id] || service.portsSummary || '';
+        const cpu = service.running ? formatCpu(service) : '';
+        const memory = service.running ? formatMemory(service) : '';
+        const stats = [
+            serviceMetric('UP', uptime, service.running ? '' : 'is-muted'),
+            serviceMetric('PORTS', ports || '查看详情', ports ? '' : 'is-muted'),
+        ];
+        if (cpu) {
+            stats.push(serviceMetric('CPU', cpu));
+        }
+        if (memory) {
+            stats.push(serviceMetric('MEM', memory));
+        }
+        return `<div class="cm-svc-stats">${stats.join('')}</div>`;
+    }
+
+    function renderServiceActionButtons({
+        idArg,
+        status,
+        canStart,
+        canOperateRunning,
+        cleanupSupported,
+        cleanupDisabled,
+        cleanupBusy
+    }) {
+        const logDisabled = isDisabledStatus(status) ? 'disabled' : '';
+        if (isDisabledStatus(status)) {
+            return `
+                <button type="button" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${logDisabled}>日志</button>
+                <button type="button" class="cm-svc-action-primary" disabled>启动</button>
+                <button type="button" class="cm-svc-action-more" onclick="openServiceCardMenu(event, ${idArg}, ${cleanupSupported ? 'true' : 'false'}, ${cleanupDisabled ? 'true' : 'false'}, ${cleanupBusy ? 'true' : 'false'})" aria-haspopup="menu" aria-label="更多操作">...</button>
+            `;
+        }
+        const primaryAction = canStart
+            ? `<button type="button" class="cm-svc-action-primary" onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')">启动</button>`
+            : `<button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'down')" ${canOperateRunning ? '' : 'disabled'}>停止</button>`;
+        const restartAction = canOperateRunning
+            ? `<button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')">重启</button>`
+            : '';
+        return `
+            <button type="button" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${logDisabled}>日志</button>
+            ${primaryAction}
+            ${restartAction}
+            <button type="button" class="cm-svc-action-more" onclick="openServiceCardMenu(event, ${idArg}, ${cleanupSupported ? 'true' : 'false'}, ${cleanupDisabled ? 'true' : 'false'}, ${cleanupBusy ? 'true' : 'false'})" aria-haspopup="menu" aria-label="更多操作">...</button>
+        `;
+    }
+
     function renderDependencyStatusChips(plan = {}) {
         const statuses = Array.isArray(plan.statuses) && plan.statuses.length
             ? plan.statuses
@@ -126,12 +214,14 @@
     function renderServiceCards({
         services = [],
         requiredIds = new Set(),
+        appServiceId = '',
         selectedServiceId = '',
         portsByService = {},
         cleanupInFlightService = ''
     } = {}) {
         return services.map(service => {
             const required = requiredIds.has(service.id);
+            const startupDependency = required && service.id !== appServiceId;
             const disabled = isDisabledStatus(service.status);
             const canStart = !disabled && !service.running;
             const canOperateRunning = !disabled && service.running;
@@ -146,14 +236,27 @@
             const statusLabel = STATUS_LABEL[status] || status;
             const image = service.image || service.composeService || '';
             const tierIcon = getTierIcon(tier);
+            const actionsHtml = renderServiceActionButtons({
+                idArg,
+                status,
+                canStart,
+                canOperateRunning,
+                cleanupSupported,
+                cleanupDisabled,
+                cleanupBusy
+            });
             const messageHtml = service.message
                 ? `<div class="cm-svc-message">${escapeHtml(service.message)}</div>`
+                : '';
+            const dependencyBadgeHtml = startupDependency
+                ? '<span class="cm-svc-dependency-badge" title="根据平台配置，启动业务服务前必须先运行该服务"><span class="cm-svc-dependency-star">*</span><span>启动依赖</span></span>'
                 : '';
             const classes = [
                 'service-card',
                 'cm-svc-card',
                 `cm-tier-${tier}`,
                 required ? 'required' : '',
+                startupDependency ? 'is-startup-dependency' : '',
                 selected ? 'selected' : '',
                 running ? 'is-running' : 'is-stopped',
             ].filter(Boolean).join(' ');
@@ -163,7 +266,10 @@
                         <div class="cm-svc-head-left">
                             <span class="cm-svc-icon">${tierIcon}</span>
                             <div class="cm-svc-meta">
-                                <span class="cm-svc-name" title="${escapeHtml(service.label || service.id)}">${escapeHtml(service.id || service.label)}</span>
+                                <div class="cm-svc-name-row">
+                                    <span class="cm-svc-name" title="${escapeHtml(service.label || service.id)}">${escapeHtml(service.id || service.label)}</span>
+                                    ${dependencyBadgeHtml}
+                                </div>
                                 <span class="cm-svc-image" title="${escapeHtml(image || service.label || '')}">${escapeHtml(image || service.label || '')}</span>
                             </div>
                         </div>
@@ -173,11 +279,7 @@
                     </div>
                     ${messageHtml}
                     <div class="cm-svc-actions">
-                        <button type="button" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${isDisabledStatus(status) ? 'disabled' : ''}>日志</button>
-                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')" ${canStart ? '' : 'disabled'}>启动</button>
-                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'down')" ${canOperateRunning ? '' : 'disabled'}>停止</button>
-                        <button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')" ${canOperateRunning ? '' : 'disabled'}>重启</button>
-                        <button type="button" class="cm-svc-action-more" onclick="openServiceCardMenu(event, ${idArg}, ${cleanupSupported ? 'true' : 'false'}, ${cleanupDisabled ? 'true' : 'false'}, ${cleanupBusy ? 'true' : 'false'})" aria-haspopup="menu" aria-label="${escapeHtml(service.id)} 更多操作">...</button>
+                        ${actionsHtml}
                     </div>
                 </div>
             `;
@@ -229,7 +331,7 @@
                     <div class="cm-detail-subtitle">${escapeHtml(data.service?.label || serviceId)} · tier=${escapeHtml(tier)}</div>
                 </div>
                 <div class="cm-detail-actions">
-                    <button class="cm-detail-close-btn" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
+                    <button class="cm-icon-close cm-detail-close-btn" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
                 </div>
             </div>
 

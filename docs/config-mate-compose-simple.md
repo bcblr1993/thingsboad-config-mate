@@ -119,11 +119,11 @@ http://服务器IP:3300
 
 ## 5. 字段说明
 
-- `env_file: .env`：把登录口令和可选 `APP_TYPE` 传给容器。
+- `env_file: .env`：把 admin 登录口令和可选 `APP_TYPE` 传给容器；不配置 `CONFIG_MATE_PASSWORD` 时默认密码为 `123456`。
 - `ports: "3300:3300"`：宿主机 3300 端口映射到容器 3300 端口；如果要换端口，直接改左侧端口，例如 `"3301:3300"`。
 - `working_dir` / `APP_ROOT`：使用当前执行目录 `$PWD/../..`，所以必须在 `services/config-mate` 目录执行 `docker compose up -d`。
 - `volumes` 第一行：把安装包目录挂载到容器内相同绝对路径，避免业务 compose 中的 `./data`、`./conf`、`./logs` 相对路径解析错误。
-- `/var/run/docker.sock`：让 Config Mate 控制宿主机 Docker，权限很高，必须设置强登录口令。
+- `/var/run/docker.sock`：让 Config Mate 控制宿主机 Docker，权限很高，生产环境必须修改默认登录口令。
 - `restart: always`：宿主机或 Docker 重启后自动恢复。
 
 ## 6. 常用命令

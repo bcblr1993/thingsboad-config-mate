@@ -9,6 +9,7 @@ services:
     working_dir: "${PWD:?Please run docker compose from services/config-mate}/../.."
     environment:
       APP_ROOT: "${PWD:?Please run docker compose from services/config-mate}/../.."
+      CONFIG_MATE_PASSWORD: "${CONFIG_MATE_PASSWORD:-123456}"
       PORT: "3300"
       NO_BROWSER: "1"
       TZ: Asia/Shanghai

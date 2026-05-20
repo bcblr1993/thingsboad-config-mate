@@ -83,7 +83,7 @@ EOF
 
 说明：
 
-- `CONFIG_MATE_PASSWORD`：登录密码，必须设置。
+- `CONFIG_MATE_PASSWORD`：admin 登录密码；不设置时默认使用 `123456`，生产环境建议改成强口令。
 
 一般不需要配置 `APP_TYPE`，程序会自动识别 Cloud 或 Edge。
 
@@ -149,8 +149,8 @@ http://服务器IP:3301
 
 登录时输入：
 
-- 操作员名称：任意填写，例如 `admin`
-- 管理口令：`services/config-mate/.env` 里的 `CONFIG_MATE_PASSWORD`
+- 管理员账号：`admin`
+- 管理口令：`services/config-mate/.env` 里的 `CONFIG_MATE_PASSWORD`，未配置时为 `123456`
 
 ## 9. 查看运行状态
 

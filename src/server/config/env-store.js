@@ -53,6 +53,24 @@ function ensureParentDir(filePath) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
+function normalizeConfigValue(value) {
+    return value === undefined || value === null ? '' : String(value);
+}
+
+function configsEqual(left, right) {
+    const keys = new Set([
+        ...Object.keys(left || {}),
+        ...Object.keys(right || {})
+    ]);
+
+    for (const key of keys) {
+        if (normalizeConfigValue(left?.[key]) !== normalizeConfigValue(right?.[key])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 function createEnvStore({
     envFilePath,
     historyDir,
@@ -165,9 +183,17 @@ function createEnvStore({
     }
 
     function saveEnvFile(newConfig) {
-        backupEnv();
+        const currentConfig = parseEnvFile();
+        const nextConfig = { ...currentConfig, ...(newConfig || {}) };
+        if (fs.existsSync(envFilePath) && configsEqual(currentConfig, nextConfig)) {
+            logger.log?.('[Info] No .env value changes detected. Skipped backup/write.');
+            return { changed: false, backupPath: null };
+        }
+
+        const backupPath = backupEnv();
         ensureParentDir(envFilePath);
-        fs.writeFileSync(envFilePath, buildEnvContent(newConfig), 'utf-8');
+        fs.writeFileSync(envFilePath, buildEnvContent(nextConfig), 'utf-8');
+        return { changed: true, backupPath };
     }
 
     function readRaw() {

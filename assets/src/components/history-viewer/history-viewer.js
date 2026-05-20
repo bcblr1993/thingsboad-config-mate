@@ -156,7 +156,7 @@ export function createHistoryUi(options = {}) {
                     <div class="timeline-marker"></div>
                     <div class="timeline-content">
                         <div class="timeline-header">
-                            <div>
+                            <div class="timeline-main">
                                 <div class="timeline-time">
                                     <span>${timeStr}</span>
                                     <span class="timeline-date-badge">${dateStr}</span>
@@ -166,7 +166,7 @@ export function createHistoryUi(options = {}) {
                                     <span class="timeline-file-tag">ENV</span>
                                     <span class="timeline-file-name" title="${safeFilename}">${safeFilename}</span>
                                     <span>${escapeHtml(size)}</span>
-                                    <span>${escapeHtml(relative)}</span>
+                                    <span class="timeline-age">${escapeHtml(relative)}</span>
                                 </div>
                             </div>
                             <div class="timeline-actions">

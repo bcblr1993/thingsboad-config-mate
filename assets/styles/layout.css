@@ -131,52 +131,6 @@
     white-space: nowrap;
 }
 
-.header-search {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 11px;
-    width: 240px;
-    border: 1px solid var(--cm-cloud-border);
-    border-radius: var(--cm-radius-full);
-    background: var(--cm-cloud-surface-muted);
-    color: var(--cm-cloud-muted);
-    cursor: not-allowed;
-    box-sizing: border-box;
-    flex: 0 0 auto;
-}
-
-.header-search svg {
-    flex: 0 0 auto;
-    color: var(--cm-cloud-muted);
-}
-
-.header-search input {
-    flex: 1 1 auto;
-    min-width: 0;
-    border: none;
-    outline: none;
-    background: transparent;
-    font-family: var(--cm-font-sans);
-    font-size: var(--cm-text-xs);
-    color: var(--cm-cloud-fg);
-    cursor: not-allowed;
-}
-
-.header-search input::placeholder {
-    color: var(--cm-cloud-muted);
-}
-
-.header-search-kbd {
-    font-family: var(--cm-font-mono);
-    font-size: 10px;
-    color: var(--cm-cloud-subtle);
-    border: 1px solid var(--cm-cloud-border);
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: var(--cm-cloud-surface);
-}
-
 .header-notif {
     position: relative;
     display: inline-flex;
@@ -221,6 +175,7 @@
 .user-menu {
     display: none;
     align-items: center;
+    gap: 8px;
     padding-left: 14px;
     border-left: 1px solid var(--cm-cloud-border-subtle);
     flex-shrink: 0;
@@ -234,16 +189,11 @@
     padding: 0;
     border: none;
     background: transparent;
-    cursor: pointer;
+    cursor: default;
     color: inherit;
     text-align: left;
     height: auto;
     border-radius: 8px;
-    transition: background 0.15s ease;
-}
-
-.user-chip:hover {
-    background: var(--cm-cloud-surface-muted);
 }
 
 .user-avatar {
@@ -296,21 +246,45 @@
     display: none;
 }
 
+.user-logout-action {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 10px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-md);
+    background: var(--cm-cloud-surface);
+    color: var(--cm-cloud-muted);
+    font-family: var(--cm-font-sans);
+    font-size: var(--cm-text-xs);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: var(--cm-cloud-shadow-sm);
+    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.user-logout-action:hover {
+    border-color: var(--cm-danger-border);
+    background: var(--cm-danger-soft);
+    color: var(--cm-danger);
+    transform: translateY(-1px);
+}
+
+.user-logout-action:focus-visible {
+    outline: 2px solid var(--cm-cloud-primary);
+    outline-offset: 2px;
+}
+
+.user-logout-action svg {
+    flex: 0 0 auto;
+}
+
 /* Hide legacy logout button if it still exists in older markup */
 .logout-btn {
     display: none !important;
-}
-
-@media (max-width: 1280px) {
-    .header-search {
-        width: 200px;
-    }
-}
-
-@media (max-width: 1024px) {
-    .header-search {
-        display: none;
-    }
 }
 
 @media (max-width: 720px) {
@@ -332,6 +306,32 @@
     background:
         linear-gradient(180deg, rgba(239, 246, 255, 0.58), rgba(246, 248, 251, 0) 260px),
         var(--cm-background);
+}
+
+/* SPA route containers must keep the native hidden contract even when later
+   page-level styles set display for their active layouts. */
+.route-page[hidden],
+#deployment-panel[hidden],
+#config-workspace[hidden] {
+    display: none !important;
+}
+
+body[data-route-booting="true"] #overview-page,
+body[data-route-booting="true"] #deployment-panel,
+body[data-route-booting="true"] #config-workspace {
+    visibility: hidden;
+}
+
+body[data-workbench-page="overview-page"] #deployment-panel,
+body[data-workbench-page="overview-page"] #config-workspace,
+body[data-workbench-page="deployment-panel"] #overview-page,
+body[data-workbench-page="deployment-panel"] #config-workspace,
+body[data-workbench-page="config-workspace"] #overview-page,
+body[data-workbench-page="config-workspace"] #deployment-panel,
+body[data-workbench-page="install-modal"] #overview-page,
+body[data-workbench-page="install-modal"] #deployment-panel,
+body[data-workbench-page="install-modal"] #config-workspace {
+    display: none !important;
 }
 
 .deployment-header,

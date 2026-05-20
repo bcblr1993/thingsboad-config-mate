@@ -34,11 +34,11 @@ EOF
 docker compose up -d
 ```
 
-访问 `http://服务器IP:3300` 后可在 Web 控制台中管理 `postgres`、`redis`、`kafka`、`cassandra`、`netdata`、`wechat` 以及 `iotcloud/iotedge`。
+访问 `http://服务器IP:3300` 后使用唯一账号 `admin` 登录。默认密码为 `123456`，可通过 `services/config-mate/.env` 或 docker-compose 环境变量 `CONFIG_MATE_PASSWORD` 修改。登录后可在 Web 控制台中管理 `postgres`、`redis`、`kafka`、`cassandra`、`netdata`、`wechat` 以及 `iotcloud/iotedge`。
 
 这个标准目录下不需要配置 `DEPLOY_ROOT`，compose 会通过 `services/config-mate/../..` 自动挂载整个安装包根目录。`APP_TYPE` 可选，标准安装包中存在 `services/iotcloud` 会自动识别为 Cloud，存在 `services/iotedge` 会自动识别为 Edge；如果业务 `.env` 中写了 `APP_TYPE` 或 `APPTYPE`，也会自动读取。
 
-> 注意：该模式会挂载 `/var/run/docker.sock`，Config Mate 容器具备宿主机 Docker 管理权限，请务必设置 `CONFIG_MATE_PASSWORD` 并仅在可信网络开放端口。
+> 注意：该模式会挂载 `/var/run/docker.sock`，Config Mate 容器具备宿主机 Docker 管理权限，请务必将默认密码改为强口令，并仅在可信网络开放端口。
 
 ### 开发环境运行
 

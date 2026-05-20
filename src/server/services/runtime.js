@@ -28,7 +28,81 @@ function composeContainerMatchesDefinition(def, inspectData, preparedDefinition 
     return true;
 }
 
+function parseDockerPercent(value) {
+    const n = parseFloat(String(value || '').replace('%', '').trim());
+    return Number.isFinite(n) ? n : null;
+}
+
+function parseDockerSize(value) {
+    const match = String(value || '').trim().match(/^([0-9.]+)\s*([KMGTPE]?i?B?)$/i);
+    if (!match) return null;
+    const n = parseFloat(match[1]);
+    if (!Number.isFinite(n)) return null;
+    const unit = match[2].toUpperCase();
+    const multipliers = {
+        B: 1,
+        KB: 1000,
+        MB: 1000 ** 2,
+        GB: 1000 ** 3,
+        TB: 1000 ** 4,
+        KIB: 1024,
+        MIB: 1024 ** 2,
+        GIB: 1024 ** 3,
+        TIB: 1024 ** 4
+    };
+    return Math.round(n * (multipliers[unit] || 1));
+}
+
+function formatRuntimeBytes(bytes) {
+    if (!Number.isFinite(bytes)) return '';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    const digits = value >= 100 ? 0 : value >= 10 ? 1 : 1;
+    return `${value.toFixed(digits)} ${units[unit]}`;
+}
+
+function parseDockerStatsPayload(stdout) {
+    const raw = String(stdout || '').trim().split(/\r?\n/).filter(Boolean).pop();
+    if (!raw) return {};
+    let data = null;
+    try {
+        data = JSON.parse(raw);
+    } catch (e) {
+        return {};
+    }
+    const cpuPercent = parseDockerPercent(data.CPUPerc);
+    const memoryPercent = parseDockerPercent(data.MemPerc);
+    const [memoryUsedRaw, memoryLimitRaw] = String(data.MemUsage || '').split('/').map(v => v && v.trim());
+    const memoryBytes = parseDockerSize(memoryUsedRaw);
+    const memoryLimitBytes = parseDockerSize(memoryLimitRaw);
+    return {
+        cpu: cpuPercent == null ? '' : `${cpuPercent.toFixed(cpuPercent >= 10 ? 1 : 2)}%`,
+        cpuPercent,
+        memory: formatRuntimeBytes(memoryBytes),
+        memoryUsage: formatRuntimeBytes(memoryBytes),
+        memoryBytes,
+        memoryLimitBytes,
+        memoryPercent
+    };
+}
+
 function createServiceRuntime({ docker, getServiceDefinition }) {
+    async function getContainerStats(containerId) {
+        if (!containerId) return {};
+        const stats = await docker.exec(
+            docker.dockerPath,
+            ['stats', '--no-stream', '--format', '{{json .}}', containerId],
+            { timeout: 4500 }
+        );
+        if (stats.error) return {};
+        return parseDockerStatsPayload(stats.stdout);
+    }
+
     async function getServiceStatus(def) {
         if (!def) {
             return { id: 'unknown', label: 'Unknown', status: 'missing', running: false, containerId: '', message: 'service definition missing' };
@@ -83,7 +157,8 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
 
         const running = !!inspectData?.State?.Running;
         const startedAt = inspectData?.State?.StartedAt || '';
-        return { ...def, status: running ? 'running' : 'stopped', running, containerId, startedAt };
+        const runtimeStats = running ? await getContainerStats(containerId) : {};
+        return { ...def, status: running ? 'running' : 'stopped', running, containerId, startedAt, ...runtimeStats };
     }
 
     async function runComposeAction(id, action) {
@@ -127,5 +202,6 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
 
 module.exports = {
     composeContainerMatchesDefinition,
+    parseDockerStatsPayload,
     createServiceRuntime
 };

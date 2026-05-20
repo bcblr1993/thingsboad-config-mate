@@ -159,6 +159,22 @@
         return '刚刚';
     }
 
+    function formatCpu(service) {
+        if (typeof service?.cpu === 'string' && service.cpu) return service.cpu;
+        if (Number.isFinite(service?.cpuPercent)) {
+            const value = service.cpuPercent;
+            return `${value.toFixed(value >= 10 ? 1 : 2)}%`;
+        }
+        return '—';
+    }
+
+    function formatMemory(service) {
+        if (typeof service?.memory === 'string' && service.memory) return service.memory;
+        if (typeof service?.memoryUsage === 'string' && service.memoryUsage) return service.memoryUsage;
+        if (Number.isFinite(service?.memoryBytes)) return formatBytes(service.memoryBytes);
+        return '—';
+    }
+
     function renderServiceTiles(services) {
         if (!services || services.length === 0) {
             return '<div class="cm-overview-empty">暂无服务记录</div>';
@@ -171,6 +187,8 @@
             const image = s.image || s.composeService || s.label || '';
             const tierIcon = TIER_ICONS[tier] || TIER_ICONS.business;
             const uptime = running ? formatUptime(s.startedAt) : '—';
+            const cpu = running ? formatCpu(s) : '—';
+            const memory = running ? formatMemory(s) : '—';
             return `
                 <button type="button" class="cm-service-tile cm-tier-${tier} ${running ? 'is-running' : 'is-stopped'}" data-service-id="${escapeHtml(s.id)}" onclick="navigateRoute('deployment')">
                     <div class="cm-tile-head">
@@ -190,43 +208,14 @@
                         </div>
                         <div class="cm-tile-metric">
                             <span class="cm-tile-metric-key">CPU</span>
-                            <span class="cm-tile-metric-val">—</span>
+                            <span class="cm-tile-metric-val">${escapeHtml(cpu)}</span>
                         </div>
                         <div class="cm-tile-metric">
                             <span class="cm-tile-metric-key">MEM</span>
-                            <span class="cm-tile-metric-val">—</span>
+                            <span class="cm-tile-metric-val">${escapeHtml(memory)}</span>
                         </div>
                     </div>
                 </button>`;
-        }).join('');
-    }
-
-    function renderTierLegend(services) {
-        const tiers = ['business', 'storage', 'cache', 'queue', 'monitor'];
-        const counts = Object.fromEntries(tiers.map(t => [t, { total: 0, stopped: 0 }]));
-        (services || []).forEach(s => {
-            const t = classifyTier(s);
-            if (!counts[t]) return;
-            counts[t].total += 1;
-            if (!s.running) counts[t].stopped += 1;
-        });
-        return tiers.map(t => {
-            const c = counts[t];
-            const icon = TIER_ICONS[t] || '';
-            const sub = c.total === 0
-                ? '<span class="cm-tier-legend-sub muted">无服务</span>'
-                : c.stopped > 0
-                    ? `<span class="cm-tier-legend-sub warn">${c.stopped} 停止</span>`
-                    : '<span class="cm-tier-legend-sub ok">全部健康</span>';
-            return `
-                <div class="cm-tier-legend-card cm-tier-${t}">
-                    <div class="cm-tier-legend-head">
-                        <span class="cm-tier-legend-icon" aria-hidden="true">${icon}</span>
-                        <span class="cm-tier-legend-label">${escapeHtml(TIER_LABEL[t] || t)}</span>
-                    </div>
-                    <div class="cm-tier-legend-count">${c.total}</div>
-                    ${sub}
-                </div>`;
         }).join('');
     }
 
@@ -247,7 +236,7 @@
                 tone: 'info',
                 title: `${driftCount} 项配置已修改未生效`,
                 desc: '运行中的容器环境与本地 .env 存在差异',
-                action: { label: '去业务配置', target: 'config' }
+                action: { label: '去平台配置管理', target: 'config' }
             });
         }
         if (alerts.length === 0) {
@@ -290,7 +279,6 @@
     function mount(overview) {
         const kpiRow = document.getElementById('overview-kpi-row');
         const grid = document.getElementById('overview-services');
-        const tierLegend = document.getElementById('overview-tier-legend');
         const meta = document.getElementById('overview-services-meta');
         const alerts = document.getElementById('overview-alerts');
         const activity = document.getElementById('overview-activity');
@@ -298,7 +286,6 @@
 
         if (kpiRow) kpiRow.innerHTML = renderKPIs(overview);
         if (grid) grid.innerHTML = renderServiceTiles(overview.services);
-        if (tierLegend) tierLegend.innerHTML = renderTierLegend(overview.services);
         if (alerts) alerts.innerHTML = renderAlerts(overview);
         if (activity) activity.innerHTML = renderActivity(overview.history);
         if (meta) {
@@ -318,7 +305,6 @@
         mount,
         renderKPIs,
         renderServiceTiles,
-        renderTierLegend,
         renderAlerts,
         renderActivity,
         classifyTier,

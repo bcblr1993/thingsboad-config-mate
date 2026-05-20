@@ -244,8 +244,8 @@ http://服务器IP:3300
 
 登录：
 
-- 操作员名称：现场操作人名称，例如 `admin`
-- 管理口令：`services/config-mate/.env` 中的 `CONFIG_MATE_PASSWORD`
+- 管理员账号：`admin`
+- 管理口令：`services/config-mate/.env` 中的 `CONFIG_MATE_PASSWORD`，未配置时为 `123456`
 
 ## 6. 常用维护命令
 

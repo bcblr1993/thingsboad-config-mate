@@ -54,16 +54,12 @@ async function checkSession() {
 }
 
 /**
- * Log in with operator id and password.
+ * Log in with the single admin account and password.
  * Pushes a toast on failure; throws so callers can react further.
  *
- * @param {{operator: string, password: string}} credentials
+ * @param {{operator?: string, password: string}} credentials
  */
-async function login({ operator, password }) {
-    if (!operator) {
-        uiStore.pushToast({ message: '请输入操作员名称', type: TOAST_TYPE.WARNING });
-        throw new Error('operator required');
-    }
+async function login({ operator = 'admin', password }) {
     uiStore.setLoading(LOADING_KEY.LOGIN, true);
     try {
         const data = await authApi.login({ operator, password });

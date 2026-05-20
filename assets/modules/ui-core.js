@@ -47,7 +47,7 @@
                 <div class="toast-title">${toastTitle(type)}</div>
                 <div class="toast-message">${escapeHtml(message).replace(/\n/g, '<br>')}</div>
             </div>
-            <button class="toast-close" type="button" aria-label="关闭提示">&times;</button>
+            <button class="cm-icon-close toast-close" type="button" aria-label="关闭提示">&times;</button>
             <div class="toast-progress" aria-hidden="true"></div>
         `;
         container.appendChild(toast);
@@ -69,6 +69,7 @@
     function openModal(modalOrId, display = 'flex') {
         const modal = typeof modalOrId === 'string' ? document.getElementById(modalOrId) : modalOrId;
         if (!modal) return null;
+        modal.classList.remove('is-closing');
         /* In route-page mode the modal lives inline in .content; the
            overlay's display is owned by cloud-modals.css. Avoid stomping
            it with an inline flex/block style. */
@@ -85,12 +86,16 @@
         if (!modal) return;
         const delay = options.delay ?? 200;
         const display = options.display ?? 'none';
+        const wasRouteActive = modal.classList.contains('route-active');
+        if (!wasRouteActive && modal.classList.contains('active')) {
+            modal.classList.add('is-closing');
+        }
         modal.classList.remove('active');
         if (options.removeClasses) {
             options.removeClasses.forEach(className => modal.classList.remove(className));
         }
-        const wasRouteActive = modal.classList.contains('route-active');
         setTimeout(() => {
+            modal.classList.remove('is-closing');
             if (!wasRouteActive) {
                 modal.style.display = display;
             } else {
@@ -125,6 +130,7 @@
 
     function formatConfirmMessage(message) {
         const raw = String(message || '');
+        if (raw.includes('dependency-check-dialog')) return raw.trim();
         const lines = raw.replace(/\r\n/g, '\n')
             .split('\n')
             .map(line => line.trim())
@@ -146,8 +152,11 @@
             if (messageEl) messageEl.innerHTML = formatConfirmMessage(message);
             if (titleText) titleText.textContent = confirmTitleForVariant(variant, confirmBtnText);
             if (box) {
-                box.classList.remove('is-primary', 'is-success', 'is-warning', 'is-danger');
+                box.classList.remove('is-primary', 'is-success', 'is-warning', 'is-danger', 'has-dependency-check');
                 box.classList.add(`is-${variant}`);
+                if (String(message || '').includes('dependency-check-dialog')) {
+                    box.classList.add('has-dependency-check');
+                }
             }
             if (btnYes) {
                 btnYes.innerText = confirmBtnText;

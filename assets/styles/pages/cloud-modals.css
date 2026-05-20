@@ -22,6 +22,7 @@
     backdrop-filter: none !important;
     opacity: 1 !important;
     visibility: visible !important;
+    pointer-events: auto !important;
     transition: none !important;
     display: block !important;
 }
@@ -168,7 +169,7 @@
 #install-modal.route-active .install-modal-content {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 0 !important;
 }
 
 #install-modal.route-active .install-body {
@@ -223,7 +224,7 @@
     content: attr(data-route-breadcrumb);
     display: block;
     color: var(--cm-cloud-muted);
-    font-family: var(--cm-font-mono);
+    font-family: var(--cm-font-sans);
     font-size: var(--cm-text-xs);
     margin-bottom: 14px;
 }
@@ -566,6 +567,241 @@
     font-family: var(--cm-font-sans);
 }
 
+/* Platform config entry dialogs: keep history and runtime checks as
+   centered overlays when opened from the config toolbar. */
+.cm-history-route.active:not(.route-active),
+.cm-diff-route.active:not(.route-active) {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 28px !important;
+    background: rgba(15, 23, 42, 0.34) !important;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-container,
+.cm-diff-route.active:not(.route-active) .cm-diff-container {
+    width: min(1320px, calc(100vw - 64px)) !important;
+    height: min(780px, calc(100vh - 64px)) !important;
+    max-width: calc(100vw - 56px) !important;
+    max-height: calc(100vh - 56px) !important;
+    margin: 0 !important;
+    padding: 26px !important;
+    border: 1px solid var(--cm-cloud-border) !important;
+    border-radius: 14px !important;
+    background: var(--cm-cloud-surface) !important;
+    box-shadow: var(--cm-cloud-shadow-xl) !important;
+    overflow: hidden !important;
+    transform: translateY(0) scale(1) !important;
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+}
+
+.cm-diff-route.active:not(.route-active) .cm-diff-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 18px !important;
+    min-height: min(620px, calc(100vh - 56px)) !important;
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-breadcrumb,
+.cm-diff-route.active:not(.route-active) .cm-diff-breadcrumb {
+    display: none !important;
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-page-header,
+.cm-diff-route.active:not(.route-active) .cm-diff-page-header {
+    margin: 0 !important;
+    padding-bottom: 18px !important;
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
+    flex-shrink: 0;
+}
+
+.cm-history-route.active:not(.route-active) .cm-page-title,
+.cm-diff-route.active:not(.route-active) .cm-page-title {
+    font-size: 20px;
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr) !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: start;
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-timeline-shell {
+    align-self: stretch;
+}
+
+.cm-history-route.active:not(.route-active) .cm-history-diff {
+    align-self: start;
+}
+
+.cm-diff-route.active:not(.route-active) .cm-diff-kpis {
+    flex-shrink: 0;
+    gap: 16px;
+}
+
+.cm-diff-route.active:not(.route-active) .cm-diff-table-shell {
+    min-height: 0;
+    overflow: auto;
+}
+
+.cm-diff-route.active:not(.route-active) .cm-diff-result {
+    gap: 18px;
+    padding: 12px 0 0 !important;
+    overflow: auto;
+}
+
+.cm-diff-route.active:not(.route-active) .cm-diff-banner {
+    padding: 18px 22px;
+}
+
+.cm-diff-route.active:not(.route-active) .cm-diff-kpi {
+    padding: 18px 20px;
+}
+
+.cm-diff-route.active:not(.route-active) .cm-diff-table-shell {
+    margin-top: 2px;
+}
+
+/* Keep config-entry dialogs geometrically stable while they fade out.
+   Without this, removing .active drops the container back to legacy route
+   dimensions for one transition frame, which reads as a close flicker. */
+.cm-history-route.is-closing:not(.route-active),
+.cm-diff-route.is-closing:not(.route-active) {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 28px !important;
+    background: rgba(15, 23, 42, 0.34) !important;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+.cm-history-route.is-closing:not(.route-active) .cm-history-container,
+.cm-diff-route.is-closing:not(.route-active) .cm-diff-container {
+    width: min(1320px, calc(100vw - 64px)) !important;
+    height: min(780px, calc(100vh - 64px)) !important;
+    max-width: calc(100vw - 56px) !important;
+    max-height: calc(100vh - 56px) !important;
+    margin: 0 !important;
+    padding: 26px !important;
+    border: 1px solid var(--cm-cloud-border) !important;
+    border-radius: 14px !important;
+    background: var(--cm-cloud-surface) !important;
+    box-shadow: var(--cm-cloud-shadow-xl) !important;
+    overflow: hidden !important;
+    transform: translateY(0) scale(1) !important;
+}
+
+.cm-history-route.is-closing:not(.route-active) .cm-history-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+}
+
+.cm-diff-route.is-closing:not(.route-active) .cm-diff-container {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 18px !important;
+    min-height: min(620px, calc(100vh - 56px)) !important;
+}
+
+.cm-history-route.is-closing:not(.route-active) .cm-history-breadcrumb,
+.cm-diff-route.is-closing:not(.route-active) .cm-diff-breadcrumb {
+    display: none !important;
+}
+
+.cm-history-route.is-closing:not(.route-active) .cm-history-page-header,
+.cm-diff-route.is-closing:not(.route-active) .cm-diff-page-header {
+    margin: 0 !important;
+    padding-bottom: 18px !important;
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
+    flex-shrink: 0;
+}
+
+.cm-history-route.is-closing:not(.route-active) .cm-page-title,
+.cm-diff-route.is-closing:not(.route-active) .cm-page-title {
+    font-size: 20px;
+}
+
+.cm-history-route.is-closing:not(.route-active) .cm-history-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr) !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: start;
+}
+
+.cm-history-route.is-closing:not(.route-active) .cm-history-timeline-shell {
+    align-self: stretch;
+}
+
+.cm-history-route.is-closing:not(.route-active) .cm-history-diff {
+    align-self: start;
+}
+
+.cm-diff-route.is-closing:not(.route-active) .cm-diff-kpis {
+    flex-shrink: 0;
+    gap: 16px;
+}
+
+.cm-diff-route.is-closing:not(.route-active) .cm-diff-result {
+    gap: 18px;
+    padding: 12px 0 0 !important;
+    overflow: auto;
+}
+
+.cm-diff-route.is-closing:not(.route-active) .cm-diff-banner {
+    padding: 18px 22px;
+}
+
+.cm-diff-route.is-closing:not(.route-active) .cm-diff-kpi {
+    padding: 18px 20px;
+}
+
+.cm-diff-route.is-closing:not(.route-active) .cm-diff-table-shell {
+    min-height: 0;
+    margin-top: 2px;
+    overflow: auto;
+}
+
+@media (max-width: 880px) {
+    .cm-history-route.active:not(.route-active),
+    .cm-diff-route.active:not(.route-active),
+    .cm-history-route.is-closing:not(.route-active),
+    .cm-diff-route.is-closing:not(.route-active) {
+        padding: 12px !important;
+    }
+
+    .cm-history-route.active:not(.route-active) .cm-history-container,
+    .cm-diff-route.active:not(.route-active) .cm-diff-container,
+    .cm-history-route.is-closing:not(.route-active) .cm-history-container,
+    .cm-diff-route.is-closing:not(.route-active) .cm-diff-container {
+        width: calc(100vw - 24px) !important;
+        height: calc(100vh - 24px) !important;
+        max-width: calc(100vw - 24px) !important;
+        max-height: calc(100vh - 24px) !important;
+        padding: 18px !important;
+    }
+
+    .cm-history-route.active:not(.route-active) .cm-history-grid,
+    .cm-history-route.is-closing:not(.route-active) .cm-history-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
 @media (max-width: 1024px) {
     .cm-diff-kpis { grid-template-columns: repeat(2, 1fr); }
 }
@@ -576,49 +812,70 @@
 
 /* ---- Install wizard: KPI + 6 列 step grid + 彩色终端 -------------- */
 
-.cm-install-route::before {
+.cm-install-route {
+    padding: 22px 32px 32px;
+    width: 100%;
+    background: var(--cm-card);
+    color: var(--cm-cloud-fg);
+    font-family: var(--cm-font-sans);
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.cm-install-route[hidden] {
     display: none !important;
 }
 
-.cm-install-route.modal-overlay {
-    background: var(--cm-cloud-bg);
-}
-
-.cm-install-route.modal-overlay.route-active {
-    align-items: stretch;
-    justify-content: stretch;
-    padding: 0 !important;
+body[data-workbench-page="install-modal"] .content {
+    width: min(1540px, 100%);
+    max-width: none;
+    height: calc(100vh - 60px);
+    margin: 0 auto;
+    padding: 12px 22px !important;
+    overflow: hidden;
+    background:
+        linear-gradient(180deg, var(--cm-accent-soft), rgba(248, 250, 252, 0) 260px),
+        var(--cm-background);
+    box-sizing: border-box;
 }
 
 .cm-install-route .cm-install-container {
-    width: 100%;
-    height: 100vh;
+    width: 100% !important;
     max-width: none;
     max-height: none;
     margin: 0;
-    padding: 22px 32px;
+    padding: 0;
     background: transparent;
     border: none;
     border-radius: 0;
     box-shadow: none;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    overflow: auto;
+    gap: 0;
+    height: 100% !important;
+    min-height: 0;
+    overflow: hidden;
+    transform: none !important;
+    transition: none !important;
     color: var(--cm-cloud-fg);
     font-family: var(--cm-font-sans);
 }
 
 .cm-install-page-header {
-    margin-bottom: 4px;
+    margin-bottom: 22px;
 }
 
 .cm-install-page-header .install-state-badge {
     display: inline-flex;
     align-items: center;
     margin-left: 10px;
-    font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-family: var(--cm-font-sans);
+    font-size: var(--cm-text-xs);
     font-weight: 700;
     padding: 3px 10px;
     border-radius: var(--cm-radius-full);
@@ -646,10 +903,18 @@
     border-color: var(--cm-cloud-danger-border);
 }
 
+.cm-install-page-header .install-state-badge.initialized {
+    color: var(--cm-cloud-danger);
+    background: var(--cm-cloud-danger-soft);
+    border-color: var(--cm-cloud-danger-border);
+}
+
 .cm-install-kpis {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: minmax(360px, 2fr) repeat(3, minmax(180px, 1fr));
     gap: 12px;
+    margin-bottom: 18px;
+    flex-shrink: 0;
 }
 
 .cm-install-kpi {
@@ -669,9 +934,11 @@
 }
 
 .cm-install-kpi-value {
-    font-family: var(--cm-font-mono);
-    font-size: 26px;
+    font-family: var(--cm-font-sans);
+    font-size: var(--cm-text-xl);
     font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: 0;
     color: var(--cm-cloud-fg);
     margin-top: 6px;
     font-variant-numeric: tabular-nums;
@@ -680,10 +947,22 @@
     white-space: nowrap;
 }
 
+#install-compose-label {
+    font-size: var(--cm-text-lg);
+}
+
+#install-percent,
+#install-elapsed {
+    font-family: var(--cm-font-mono);
+    font-size: var(--cm-text-2xl);
+    line-height: 1.2;
+}
+
 .cm-install-kpi-sub {
-    font-size: 11px;
+    font-size: var(--cm-text-xs);
     color: var(--cm-cloud-muted);
     margin-top: 2px;
+    line-height: 1.4;
 }
 
 .cm-install-kpi[data-tone="primary"] .cm-install-kpi-value {
@@ -717,6 +996,11 @@
     background: linear-gradient(90deg, #14B8A6, #22C55E);
     border-radius: inherit;
     transition: width 0.3s ease;
+}
+
+.cm-install-progress-card .progress-bar-fill.initialized,
+.cm-install-progress-card .progress-bar-fill.error {
+    background: var(--cm-cloud-danger);
 }
 
 .cm-install-steps-grid {
@@ -760,6 +1044,12 @@
     color: var(--cm-cloud-danger);
 }
 
+.cm-install-route .install-step.initialized {
+    border-color: var(--cm-cloud-danger-border);
+    background: var(--cm-cloud-danger-soft);
+    color: var(--cm-cloud-danger);
+}
+
 .cm-install-route .install-step-dot {
     display: inline-flex;
     align-items: center;
@@ -794,6 +1084,12 @@
     color: #fff;
 }
 
+.cm-install-route .install-step.initialized .install-step-dot {
+    background: var(--cm-cloud-danger);
+    border-color: var(--cm-cloud-danger);
+    color: #fff;
+}
+
 .cm-install-route .install-step-label {
     font-family: var(--cm-font-sans);
     font-size: 12px;
@@ -807,7 +1103,7 @@
     border-radius: 12px;
     overflow: hidden;
     flex: 1;
-    min-height: 280px;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     box-shadow: var(--cm-cloud-shadow-sm);
@@ -826,7 +1122,7 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
+    font-size: var(--cm-text-sm);
     font-weight: 700;
     color: var(--cm-cloud-fg);
 }
@@ -842,6 +1138,8 @@
 .cm-install-log-actions {
     display: inline-flex;
     gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 .cm-install-log-btn {
@@ -871,25 +1169,73 @@
 
 .cm-install-route #install-logs.install-terminal {
     flex: 1;
+    min-height: 0;
     overflow: auto;
     background: var(--cm-term-bg);
     color: var(--cm-term-fg);
-    padding: 8px 0;
+    padding: 10px 0;
     font-family: var(--cm-font-mono);
     font-size: 12px;
-    line-height: 1.6;
+    line-height: 1.62;
+    white-space: pre;
 }
 
 .cm-install-route .install-log-line {
+    min-width: 100%;
+    width: max-content;
     padding: 2px 18px;
     border-left: 2px solid transparent;
+    white-space: pre;
+}
+
+.cm-install-route #install-logs.install-terminal.wrap-mode .install-log-line {
+    width: auto;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.cm-install-route.install-log-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 10080;
+    padding: 12px;
+    background: var(--cm-cloud-bg);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.cm-install-route.install-log-fullscreen .cm-install-container {
+    gap: 0;
+}
+
+.cm-install-route.install-log-fullscreen .cm-install-breadcrumb,
+.cm-install-route.install-log-fullscreen .cm-install-page-header,
+.cm-install-route.install-log-fullscreen .cm-install-kpis {
+    display: none;
+}
+
+.cm-install-route.install-log-fullscreen .cm-install-log-card {
+    height: 100%;
+    border-radius: 12px;
+}
+
+.cm-install-route.install-log-fullscreen #install-logs.install-terminal {
+    font-size: 13px;
+    line-height: 1.7;
 }
 
 .cm-install-route .install-log-line.error {
     color: #FDA4AF;
     background: rgba(239, 68, 68, 0.10);
     border-left-color: #EF4444;
+}
+
+.cm-install-route .install-log-line.initialized {
+    color: var(--cm-cloud-danger-border);
+    background: color-mix(in srgb, var(--cm-cloud-danger) 14%, transparent);
+    border-left-color: var(--cm-cloud-danger);
+    font-weight: 800;
 }
 
 .cm-install-route .install-log-line.warn {

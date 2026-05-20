@@ -55,7 +55,7 @@
         return true;
     }
 
-    function apply(routeKey) {
+    function apply(routeKey, options = {}) {
         const key = ROUTES[routeKey] ? routeKey : DEFAULT_ROUTE;
         Object.entries(ROUTES).forEach(([k, def]) => {
             const el = document.querySelector(def.container);
@@ -81,9 +81,23 @@
             else btn.removeAttribute('aria-current');
         });
         document.body.dataset.workbenchPage = (ROUTES[key].container || '').replace('#', '');
-        listeners.forEach(fn => {
-            try { fn(key); } catch (err) { console.warn('[router] listener failed', err); }
-        });
+        if (options.notify !== false) {
+            listeners.forEach(fn => {
+                try { fn(key); } catch (err) { console.warn('[router] listener failed', err); }
+            });
+        }
+    }
+
+    function syncCurrentRoute(options = {}) {
+        const raw = rawHashRoute(location.hash);
+        const key = currentRoute();
+        if (!raw) {
+            history.replaceState(null, '', '#/' + DEFAULT_ROUTE);
+        } else if (raw !== key) {
+            history.replaceState(null, '', '#/' + key);
+        }
+        apply(key, { notify: options.notify !== false });
+        return key;
     }
 
     function init() {
@@ -95,14 +109,7 @@
             }
             apply(key);
         });
-        const raw = rawHashRoute(location.hash);
-        const key = currentRoute();
-        if (!raw) {
-            history.replaceState(null, '', '#/' + DEFAULT_ROUTE);
-        } else if (raw !== key) {
-            history.replaceState(null, '', '#/' + key);
-        }
-        apply(currentRoute());
+        syncCurrentRoute();
     }
 
     function onChange(fn) {
@@ -110,5 +117,5 @@
         return () => listeners.delete(fn);
     }
 
-    window.ConfigMateRouter = { init, navigate, onChange, currentRoute, hasContainer, ROUTES, DEFAULT_ROUTE };
+    window.ConfigMateRouter = { init, navigate, onChange, currentRoute, hasContainer, syncCurrentRoute, ROUTES, DEFAULT_ROUTE };
 })();

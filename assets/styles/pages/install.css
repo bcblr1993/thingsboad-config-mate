@@ -112,6 +112,12 @@
     border-color: #FECACA;
 }
 
+.install-state-badge.initialized {
+    color: var(--cm-danger-hover);
+    background: var(--cm-danger-soft);
+    border-color: var(--cm-danger-border);
+}
+
 .install-body {
     min-height: 0;
     flex: 1;
@@ -278,6 +284,18 @@
     border-color: #EF4444;
 }
 
+.install-step.initialized {
+    color: var(--cm-danger-hover);
+    background: var(--cm-danger-soft);
+    border-color: var(--cm-danger-border);
+}
+
+.install-step.initialized .install-step-dot {
+    color: var(--cm-danger-foreground, #FFFFFF);
+    background: var(--cm-danger);
+    border-color: var(--cm-danger);
+}
+
 .install-log-card {
     min-height: 0;
     display: flex;
@@ -340,7 +358,7 @@
     flex: 1;
     background: #0F172A;
     color: #CBD5E1;
-    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-family: var(--cm-font-mono);
     font-size: 12px;
     line-height: 1.55;
     padding: 12px;
@@ -379,6 +397,13 @@
     color: #FDA4AF;
     background: rgba(239, 68, 68, 0.1);
     border-left-color: #EF4444;
+}
+
+.install-log-line.initialized {
+    color: var(--cm-danger-border);
+    background: color-mix(in srgb, var(--cm-danger) 14%, transparent);
+    border-left-color: var(--cm-danger);
+    font-weight: 800;
 }
 
 .install-log-line.system {

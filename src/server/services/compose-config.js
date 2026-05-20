@@ -175,7 +175,7 @@ function createServiceComposeConfigBuilder({
             response.sections.push({
                 title: '说明',
                 items: [
-                    configItem('业务配置', '业务配置仍在当前主配置表单中维护'),
+                    configItem('平台配置', '平台配置仍在当前主配置表单中维护'),
                     configItem('env_file', normalizeComposeList(service.env_file).join(', ') || '无'),
                     configItem('compose 摘要', '这里只读展示运行摘要，不提供 compose 编辑')
                 ]

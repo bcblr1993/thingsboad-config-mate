@@ -91,7 +91,7 @@ function showHeaderNotifs() {
     // Lightweight stand-in: surface a toast pointing at the runtime drift page.
     // Replace once a real notification stream exists.
     if (typeof showToast === 'function') {
-        showToast('通知中心即将上线。当前可在「运行检查」中查看配置漂移。', 'info');
+        showToast('通知中心即将上线。当前可在「校验配置」中查看配置漂移。', 'info');
     }
     if (typeof navigateRoute === 'function') {
         // 不强制跳转，仅提示。
@@ -104,19 +104,13 @@ function showLoginOverlay(message = '') {
     const overlay = document.getElementById('login-overlay');
     const operator = document.getElementById('login-operator');
     const password = document.getElementById('login-password');
-    const remember = document.getElementById('login-remember');
-    const rememberPref = localStorage.getItem('configMateRememberOperator');
     if (overlay) overlay.style.display = 'flex';
-    if (operator && !operator.value) {
-        operator.value = localStorage.getItem('configMateOperator') || '';
+    if (operator) {
+        operator.value = 'admin';
     }
     if (password) {
         password.value = '';
-        (operator && !operator.value ? operator : password).focus();
-    }
-    if (remember) {
-        // Default: stay checked; only uncheck if user explicitly opted out before.
-        remember.checked = rememberPref !== 'off';
+        password.focus();
     }
     fillLoginMeta();
     if (message) {
@@ -147,7 +141,7 @@ async function boot() {
             showLoginOverlay();
             return;
         }
-        updateAuthUI(auth.operator || localStorage.getItem('configMateOperator') || 'operator');
+        updateAuthUI(auth.operator || 'admin');
         document.getElementById('login-overlay').style.display = 'none';
         await init();
     } catch (e) {
@@ -158,15 +152,8 @@ async function boot() {
 async function login(event) {
     event.preventDefault();
     const btn = document.getElementById('btn-login');
-    const operator = document.getElementById('login-operator').value.trim();
+    const operator = 'admin';
     const password = document.getElementById('login-password').value;
-    const rememberEl = document.getElementById('login-remember');
-    const remember = rememberEl ? !!rememberEl.checked : true;
-    if (!operator) {
-        showToast('请输入操作员名称', 'warning');
-        document.getElementById('login-operator').focus();
-        return;
-    }
     btn.disabled = true;
     const originalLabel = btn.textContent;
     btn.textContent = '登录中...';
@@ -177,13 +164,6 @@ async function login(event) {
             showToast(data.message || '登录失败', 'error');
             btn.textContent = originalLabel;
             return;
-        }
-        if (remember) {
-            localStorage.setItem('configMateOperator', operator);
-            localStorage.removeItem('configMateRememberOperator');
-        } else {
-            localStorage.removeItem('configMateOperator');
-            localStorage.setItem('configMateRememberOperator', 'off');
         }
         updateAuthUI(data.operator || operator);
         ConfigMateApi.resetAuthExpiredNotice();
@@ -215,7 +195,6 @@ async function logout() {
     } catch (e) {
         // Even if the network request fails, clear local UI state and ask for login again.
     }
-    localStorage.removeItem('configMateOperator');
     ConfigMateApi.resetAuthExpiredNotice();
     stopPollingTimers();
     updateAuthUI('');
@@ -225,6 +204,7 @@ async function logout() {
 async function init() {
     try {
         stopPollingTimers();
+        initWorkbenchNavigation();
         const res = await ConfigMateApi.config();
         if (res.status === 401) {
             showLoginOverlay();
@@ -244,7 +224,6 @@ async function init() {
         checkAllDependencies(); // Initial check
         await refreshDeployment();
         await checkInstallAvailability();
-        initWorkbenchNavigation();
         // Default config-view = form (overview/source 通过 segmented 切换).
         if (typeof setConfigView === 'function') setConfigView(configView || 'form');
 
@@ -277,8 +256,8 @@ function handleRouteTransition(newKey) {
         try { typeof closeHistoryModal === 'function' && closeHistoryModal(); } catch (_) {}
     } else if (lastRouteKey === 'diff') {
         try { typeof closeRuntimeDiffModal === 'function' && closeRuntimeDiffModal(); } catch (_) {}
-    } else if (lastRouteKey === 'install') {
-        try { typeof closeInstallModal === 'function' && closeInstallModal(); } catch (_) {}
+    } else if (lastRouteKey === 'install' && newKey !== 'install') {
+        try { typeof exitInstallLogFullscreen === 'function' && exitInstallLogFullscreen(); } catch (_) {}
     }
 
     /* Setup the new route. Mount-functions talk to the underlying
@@ -288,7 +267,7 @@ function handleRouteTransition(newKey) {
     }
 
     if (newKey === 'install') {
-        if (typeof checkInstallAndConfirm === 'function') checkInstallAndConfirm();
+        if (typeof prepareInstallRoute === 'function') prepareInstallRoute();
     } else if (newKey === 'overview') {
         refreshOverview(false);
     }
@@ -297,36 +276,129 @@ function handleRouteTransition(newKey) {
 }
 
 let overviewLastFetched = 0;
+let overviewRefreshInFlight = false;
+let overviewRefreshResetTimer = null;
+let overviewRefreshCooldownUntil = 0;
+let deploymentRefreshInFlight = false;
+let deploymentRefreshResetTimer = null;
+let deploymentRefreshCooldownUntil = 0;
 const OVERVIEW_TTL_MS = 30 * 1000;
+const MANUAL_REFRESH_COOLDOWN_MS = 1800;
+
+function isManualRefreshCooling(cooldownUntil) {
+    return cooldownUntil && Date.now() < cooldownUntil;
+}
+
+function normalizeRefreshState(state, label) {
+    if (state && typeof state === 'object') return state;
+    return { refreshing: !!state, label };
+}
+
+function setManualRefreshButtonState(buttonId, labelId, state, fallbackLabel = '刷新') {
+    const options = normalizeRefreshState(state);
+    const refreshing = !!options.refreshing;
+    const cooling = !!options.cooling;
+    const btn = document.getElementById(buttonId);
+    const labelEl = document.getElementById(labelId);
+    if (btn) {
+        btn.disabled = refreshing || cooling;
+        btn.classList.toggle('is-refreshing', refreshing);
+        btn.classList.toggle('is-cooling', cooling);
+        btn.setAttribute('aria-busy', refreshing ? 'true' : 'false');
+    }
+    if (labelEl) {
+        labelEl.textContent = options.label || (refreshing ? '刷新中' : fallbackLabel);
+    }
+}
+
+function setOverviewRefreshState(state, label) {
+    const options = normalizeRefreshState(state, label);
+    const btn = document.getElementById('btn-overview-refresh');
+    if (overviewRefreshResetTimer) {
+        clearTimeout(overviewRefreshResetTimer);
+        overviewRefreshResetTimer = null;
+    }
+    setManualRefreshButtonState('btn-overview-refresh', 'overview-refresh-label', options, '刷新');
+    if (btn) btn.title = options.title || '';
+}
+
+function setDeploymentRefreshState(state, label) {
+    const options = normalizeRefreshState(state, label);
+    const btn = document.getElementById('btn-deployment-refresh');
+    if (deploymentRefreshResetTimer) {
+        clearTimeout(deploymentRefreshResetTimer);
+        deploymentRefreshResetTimer = null;
+    }
+    setManualRefreshButtonState('btn-deployment-refresh', 'deployment-refresh-label', options, '刷新');
+    if (btn) btn.title = options.title || '';
+}
 
 async function refreshOverview(force) {
     if (!window.ConfigMateOverviewUi) return;
+    const interactive = !!force;
+    if (interactive && (overviewRefreshInFlight || isManualRefreshCooling(overviewRefreshCooldownUntil))) {
+        showToast('刷新太频繁，请稍后再试', 'info');
+        return;
+    }
     if (!force && Date.now() - overviewLastFetched < OVERVIEW_TTL_MS) {
         ConfigMateOverviewUi.mount(buildOverviewSnapshot());
         return;
     }
-    overviewLastFetched = Date.now();
-    ConfigMateOverviewUi.mount(buildOverviewSnapshot()); // immediate render with cached state
+    if (interactive) {
+        overviewRefreshInFlight = true;
+        setOverviewRefreshState({ refreshing: true, label: '刷新中' });
+    }
+    try {
+        overviewLastFetched = Date.now();
+        ConfigMateOverviewUi.mount(buildOverviewSnapshot()); // immediate render with cached state
 
-    const [diskRes, driftRes, historyRes] = await Promise.allSettled([
-        ConfigMateApi.diskUsage().then(r => r.json()).catch(() => null),
-        ConfigMateApi.runtimeDiff().then(r => r.json()).catch(() => null),
-        ConfigMateApi.history().then(r => r.json()).catch(() => null)
-    ]);
+        const [servicesRes, diskRes, driftRes, historyRes] = await Promise.allSettled([
+            ConfigMateApi.services().then(r => r.json()).catch(() => null),
+            ConfigMateApi.diskUsage().then(r => r.json()).catch(() => null),
+            ConfigMateApi.runtimeDiff().then(r => r.json()).catch(() => null),
+            ConfigMateApi.history().then(r => r.json()).catch(() => null)
+        ]);
 
-    const disk = diskRes.status === 'fulfilled' ? (diskRes.value?.usage || diskRes.value) : null;
-    const driftJson = driftRes.status === 'fulfilled' ? driftRes.value : null;
-    const drift = driftJson ? {
-        modifiedCount: Array.isArray(driftJson.diffs)
-            ? driftJson.diffs.filter(d => d.state === 'MODIFIED').length
-            : 0
-    } : null;
-    const historyJson = historyRes.status === 'fulfilled' ? historyRes.value : null;
-    const history = Array.isArray(historyJson?.data) ? historyJson.data
-        : Array.isArray(historyJson?.versions) ? historyJson.versions
-        : Array.isArray(historyJson) ? historyJson : [];
+        const servicesJson = servicesRes.status === 'fulfilled' ? servicesRes.value : null;
+        if (servicesJson?.status === 'success' && Array.isArray(servicesJson.services)) {
+            latestServices = servicesJson.services;
+            window.__CM__?.stateBridge.pushServices(latestServices);
+            renderServices();
+        }
 
-    ConfigMateOverviewUi.mount(buildOverviewSnapshot({ disk, drift, history }));
+        const disk = diskRes.status === 'fulfilled' ? (diskRes.value?.usage || diskRes.value) : null;
+        const driftJson = driftRes.status === 'fulfilled' ? driftRes.value : null;
+        const drift = driftJson ? {
+            modifiedCount: Array.isArray(driftJson.diffs)
+                ? driftJson.diffs.filter(d => d.state === 'MODIFIED').length
+                : 0
+        } : null;
+        const historyJson = historyRes.status === 'fulfilled' ? historyRes.value : null;
+        const history = Array.isArray(historyJson?.data) ? historyJson.data
+            : Array.isArray(historyJson?.versions) ? historyJson.versions
+            : Array.isArray(historyJson) ? historyJson : [];
+
+        ConfigMateOverviewUi.mount(buildOverviewSnapshot({ disk, drift, history }));
+        if (interactive) {
+            overviewRefreshCooldownUntil = Date.now() + MANUAL_REFRESH_COOLDOWN_MS;
+            setOverviewRefreshState({ cooling: true, label: '已刷新', title: '刚刚刷新过，请稍候再试' });
+            showToast('总览已刷新', 'success');
+            overviewRefreshResetTimer = setTimeout(() => setOverviewRefreshState({ label: '刷新' }), MANUAL_REFRESH_COOLDOWN_MS);
+        }
+    } catch (e) {
+        if (interactive) {
+            overviewRefreshCooldownUntil = Date.now() + MANUAL_REFRESH_COOLDOWN_MS;
+            setOverviewRefreshState({ cooling: true, label: '刷新失败', title: '刚刚刷新过，请稍候再试' });
+            showToast('刷新总览失败：' + e.message, 'error');
+            overviewRefreshResetTimer = setTimeout(() => setOverviewRefreshState({ label: '刷新' }), MANUAL_REFRESH_COOLDOWN_MS);
+        } else {
+            console.warn('Overview refresh failed:', e);
+        }
+    } finally {
+        if (interactive) {
+            overviewRefreshInFlight = false;
+        }
+    }
 }
 
 function buildOverviewSnapshot(extra) {
@@ -341,6 +413,7 @@ function initWorkbenchNavigation() {
     if (!window.ConfigMateRouter) return;
     if (workbenchNavInitialized) return;
     workbenchNavInitialized = true;
+    mountInstallRouteInWorkbench();
 
     ConfigMateRouter.onChange(key => {
         activeWorkbenchPage = ConfigMateRouter.ROUTES[key]
@@ -351,6 +424,34 @@ function initWorkbenchNavigation() {
         handleRouteTransition(key);
     });
     ConfigMateRouter.init();
+}
+
+function mountInstallRouteInWorkbench() {
+    const content = document.querySelector('.content');
+    const installRoute = document.getElementById('install-modal');
+    if (!content || !installRoute || installRoute.parentElement === content) return;
+    content.appendChild(installRoute);
+}
+
+function syncInitialWorkbenchRoute() {
+    if (window.ConfigMateRouter && typeof ConfigMateRouter.syncCurrentRoute === 'function') {
+        ConfigMateRouter.syncCurrentRoute({ notify: false });
+    }
+    document.body?.removeAttribute('data-route-booting');
+}
+
+function getConfigGroupDescription(groupName) {
+    const descriptions = {
+        'SQL 数据库': '业务数据库连接和凭据。',
+        '核心存储': '决定时序数据存储类型和保留策略。',
+        'Cassandra': 'Cassandra 连接、keyspace 和过期策略。',
+        '缓存配置': 'Redis 地址、端口、密码和缓存行为。',
+        '消息队列': 'Kafka broker、队列类型和消费配置。',
+        'MQTT 传输': '设备 MQTT 接入端口和消息限制。',
+        '规则引擎脚本': '脚本执行、队列容量和超时参数。',
+        '高级设置': '低频使用的高级运行参数。'
+    };
+    return descriptions[groupName] || '当前分组的业务运行参数。';
 }
 
 function renderAll() {
@@ -391,7 +492,7 @@ function renderAll() {
         const allConfigItem = `
             <button class="config-nav-item config-nav-item-all ${activeConfigGroupId === ALL_CONFIG_GROUPS_ID ? 'active' : ''}"
                 type="button" data-target="${ALL_CONFIG_GROUPS_ID}" onclick="showAllConfigGroups(this)"
-                title="查看全部业务配置项">
+                title="查看全部平台配置项">
                 <span class="config-nav-name">全部配置</span>
                 <span class="config-nav-item-count">${totalVisibleFields}</span>
             </button>
@@ -424,8 +525,13 @@ function renderAll() {
     // Render Form
     const formContainer = document.getElementById('form-container');
     formContainer.classList.toggle('single-group-mode', activeConfigGroupId !== ALL_CONFIG_GROUPS_ID);
-    formContainer.innerHTML = visibleGroupNames.map((g) => {
+    formContainer.innerHTML = visibleGroupNames.map((g, groupIndex) => {
         const visibleKeys = groups[g].filter(key => !configMeta[key].hidden);
+        const modifiedKeys = visibleKeys.filter(key => {
+            const current = configValues[key];
+            const initial = initialConfigValues[key];
+            return initial !== undefined && String(current || '') !== String(initial || '');
+        });
         const fieldsHtml = visibleKeys
             .map(key => renderField(key)).join('');
 
@@ -433,15 +539,25 @@ function renderAll() {
         const groupId = groupDomId(g);
         const isActiveGroup = activeConfigGroupId === ALL_CONFIG_GROUPS_ID || groupId === activeConfigGroupId;
         const groupStateClass = isActiveGroup ? 'active-group' : 'inactive-group';
+        const groupDensityClass = visibleKeys.length <= 2 ? 'group-density-few'
+            : visibleKeys.length <= 4 ? 'group-density-short'
+                : visibleKeys.length <= 6 ? 'group-density-medium'
+                    : 'group-density-many';
 
         return `
-            <div id="${groupId}" class="group-section ${groupStateClass}" data-group-name="${escapeHtml(g)}">
+            <div id="${groupId}" class="group-section ${groupStateClass} ${groupDensityClass}" data-group-name="${escapeHtml(g)}">
                 <div class="group-header" onclick="toggleGroup(this.parentNode)">
                     <div class="group-title-block">
-                        <div class="group-title">${escapeHtml(g)}</div>
-                        <div class="group-subtitle">当前分组 ${visibleKeys.length} 个配置项</div>
+                        <div class="group-title">
+                            <span class="group-title-index">${String(groupIndex + 1).padStart(2, '0')}</span>
+                            <span>${escapeHtml(g)}</span>
+                        </div>
+                        <div class="group-subtitle">${getConfigGroupDescription(g)}</div>
                     </div>
-                    <span class="group-field-count">${visibleKeys.length}</span>
+                    <div class="group-header-badges">
+                        <span class="group-field-count">${visibleKeys.length} 项</span>
+                        ${modifiedKeys.length > 0 ? `<span class="group-mod-count">${modifiedKeys.length} 已修改</span>` : ''}
+                    </div>
                     <svg class="icon-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </div>
                 <div class="group-content">
@@ -489,6 +605,9 @@ function activateConfigTab(btn) {
     if (!btn) return;
     const target = btn.dataset.target;
     if (!target) return;
+    if (configView === 'overview') {
+        setConfigView('form');
+    }
     document.querySelectorAll('#cm-config-tabs .cm-segmented-item').forEach(el => {
         el.classList.toggle('active', el === btn);
     });
@@ -654,14 +773,48 @@ function setActiveConfigNav(groupId) {
         item.classList.toggle('active', item.dataset.target === groupId && !item.classList.contains('hidden'));
     });
     document.querySelectorAll('#cm-config-tabs .cm-segmented-item').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.target === groupId);
+        const active = btn.dataset.target === groupId;
+        btn.classList.toggle('active', active);
+        if (active && configView !== 'overview') {
+            btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
     });
 }
 
-async function refreshDeployment() {
-    await loadDeploymentInfo();
-    await updateDeploymentPlan();
-    await refreshServices();
+async function refreshDeployment(options = {}) {
+    const interactive = options === true || !!options.interactive;
+    if (interactive && (deploymentRefreshInFlight || isManualRefreshCooling(deploymentRefreshCooldownUntil))) {
+        showToast('刷新太频繁，请稍后再试', 'info');
+        return;
+    }
+    if (interactive) {
+        deploymentRefreshInFlight = true;
+        setDeploymentRefreshState({ refreshing: true, label: '刷新中' });
+    }
+    try {
+        await loadDeploymentInfo();
+        await updateDeploymentPlan();
+        await refreshServices();
+        if (interactive) {
+            deploymentRefreshCooldownUntil = Date.now() + MANUAL_REFRESH_COOLDOWN_MS;
+            setDeploymentRefreshState({ cooling: true, label: '已刷新', title: '刚刚刷新过，请稍候再试' });
+            showToast('部署状态已刷新', 'success');
+            deploymentRefreshResetTimer = setTimeout(() => setDeploymentRefreshState({ label: '刷新' }), MANUAL_REFRESH_COOLDOWN_MS);
+        }
+    } catch (e) {
+        if (interactive) {
+            deploymentRefreshCooldownUntil = Date.now() + MANUAL_REFRESH_COOLDOWN_MS;
+            setDeploymentRefreshState({ cooling: true, label: '刷新失败', title: '刚刚刷新过，请稍候再试' });
+            showToast('刷新部署状态失败：' + e.message, 'error');
+            deploymentRefreshResetTimer = setTimeout(() => setDeploymentRefreshState({ label: '刷新' }), MANUAL_REFRESH_COOLDOWN_MS);
+            return;
+        }
+        throw e;
+    } finally {
+        if (interactive) {
+            deploymentRefreshInFlight = false;
+        }
+    }
 }
 
 async function loadDeploymentInfo() {
@@ -675,7 +828,7 @@ async function loadDeploymentInfo() {
     metaEl.innerHTML = `
         部署根目录：<span title="${escapeHtml(deploymentInfo.appRoot)}">${escapeHtml(shortPath(deploymentInfo.appRoot))}</span>
         <span class="meta-separator">/</span>
-        业务配置：<span title="${escapeHtml(deploymentInfo.envPath)}">${escapeHtml(shortPath(deploymentInfo.envPath))}</span>
+        平台配置：<span title="${escapeHtml(deploymentInfo.envPath)}">${escapeHtml(shortPath(deploymentInfo.envPath))}</span>
         <span class="meta-separator">/</span>
         ${escapeHtml(dockerText)}
     `;
@@ -738,17 +891,17 @@ function updateAppLayoutLabels() {
         packageNameEl.textContent = `${appType} / ${appService}`;
         if (deploymentInfo?.appRoot) packageNameEl.title = deploymentInfo.appRoot;
     }
-    if (workspaceTitleEl) workspaceTitleEl.textContent = `${appLabel} 业务配置`;
+    if (workspaceTitleEl) workspaceTitleEl.textContent = `${appLabel} 平台配置管理`;
     if (workspaceMetaEl) {
         const envPath = deploymentInfo?.envPath ? shortPath(deploymentInfo.envPath) : `${appService}/.env`;
-        workspaceMetaEl.textContent = `维护 ${envPath}；服务启停、日志和依赖状态在上方部署控制台中处理。`;
+        workspaceMetaEl.textContent = `维护 ${envPath}；服务启停、日志和依赖状态在上方服务管理中处理。`;
     }
     if (sourcePanelMetaEl) {
         const envPath = deploymentInfo?.envPath ? shortPath(deploymentInfo.envPath) : `${appService}/.env`;
         sourcePanelMetaEl.textContent = `当前文件：${envPath}。修改前请先开启编辑，保存按钮仍在页面底部。`;
     }
-    if (actionTitleEl) actionTitleEl.textContent = `${appLabel} 配置动作`;
-    if (actionSubtitleEl) actionSubtitleEl.textContent = '修改配置前先开启编辑；保存并重启只会处理当前业务服务，依赖服务请在部署控制台手动处理。';
+    if (actionTitleEl) actionTitleEl.textContent = `${appLabel} 平台配置动作`;
+    if (actionSubtitleEl) actionSubtitleEl.textContent = '修改平台配置前先开启编辑；保存并应用只会处理当前业务服务，依赖服务请在服务管理手动处理。';
 }
 
 function shortPath(value) {
@@ -801,6 +954,13 @@ function getCurrentAppServiceId() {
     return deploymentInfo?.appService || ((deploymentInfo?.appType || configValues?.APPTYPE || 'CLOUD').toUpperCase() === 'EDGE' ? 'iotedge' : 'iotcloud');
 }
 
+function getCurrentAppServiceStatus() {
+    const appServiceId = getCurrentAppServiceId();
+    const planStatus = (latestPlan?.statuses || []).find(status => status.id === appServiceId);
+    if (planStatus) return planStatus;
+    return (latestServices || []).find(service => service.id === appServiceId) || null;
+}
+
 function getMissingRequiredDependencies() {
     const appServiceId = getCurrentAppServiceId();
     const planStatuses = Array.isArray(latestPlan?.statuses) ? latestPlan.statuses : [];
@@ -823,16 +983,133 @@ function formatDependencyNames(dependencies) {
         .join('、');
 }
 
+function dependencyStateIcon(running) {
+    if (running) {
+        return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    }
+    return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="7" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+}
+
+function normalizeDependencyStatus(status) {
+    if (!status) return 'unknown';
+    return String(status).toLowerCase();
+}
+
+function dependencyStatusLabel(item) {
+    if (item.running) return '已启动';
+    const status = normalizeDependencyStatus(item.status);
+    if (status === 'missing') return '服务缺失';
+    if (status === 'unknown') return '状态未知';
+    if (status === 'missing-image') return '镜像缺失';
+    return '未启动';
+}
+
+function buildRequiredDependencyChecks(missingDependencies = []) {
+    const appServiceId = getCurrentAppServiceId();
+    const missingById = new Map((missingDependencies || [])
+        .filter(dep => dep?.id)
+        .map(dep => [dep.id, dep]));
+    const byId = new Map();
+
+    (latestPlan?.services || []).forEach(service => {
+        if (!service?.id || service.id === appServiceId) return;
+        byId.set(service.id, {
+            id: service.id,
+            label: service.label || getServiceDisplayNameById(service.id) || service.id,
+            order: service.order || 0,
+            running: false,
+            status: 'unknown',
+            message: ''
+        });
+    });
+
+    (latestPlan?.statuses || []).forEach(status => {
+        if (!status?.id || status.id === appServiceId) return;
+        const current = byId.get(status.id) || {};
+        byId.set(status.id, {
+            ...current,
+            ...status,
+            label: status.label || current.label || getServiceDisplayNameById(status.id) || status.id,
+            order: current.order || status.order || 0
+        });
+    });
+
+    (latestServices || []).forEach(service => {
+        if (!service?.id || service.id === appServiceId || !byId.has(service.id)) return;
+        const current = byId.get(service.id);
+        byId.set(service.id, {
+            ...current,
+            running: current.running || !!service.running,
+            status: current.status || service.status || (service.running ? 'running' : 'unknown'),
+            message: current.message || service.message || ''
+        });
+    });
+
+    (missingDependencies || []).forEach(dep => {
+        if (!dep?.id || dep.id === appServiceId) return;
+        const current = byId.get(dep.id) || {};
+        byId.set(dep.id, {
+            ...current,
+            ...dep,
+            id: dep.id,
+            label: dep.label || current.label || getServiceDisplayNameById(dep.id) || dep.id,
+            running: false,
+            status: dep.status || current.status || 'stopped',
+            message: dep.message || current.message || ''
+        });
+    });
+
+    return Array.from(byId.values()).sort((a, b) => {
+        const order = (a.order || 0) - (b.order || 0);
+        if (order !== 0) return order;
+        return String(a.label || a.id).localeCompare(String(b.label || b.id), 'zh-CN');
+    });
+}
+
+function renderDependencyCheckDialog(dependencies, actionText) {
+    const appName = getAppDisplayName();
+    const checks = buildRequiredDependencyChecks(dependencies);
+    const passedCount = checks.filter(item => item.running).length;
+    const totalCount = checks.length;
+    const listHtml = checks.map(item => {
+        const running = !!item.running;
+        const stateClass = running ? 'is-ready' : 'is-blocked';
+        const statusText = dependencyStatusLabel(item);
+        const label = item.label || item.id || 'service';
+        const message = item.message ? `<div class="dependency-check-message">${escapeHtml(item.message)}</div>` : '';
+        return `
+            <div class="dependency-check-item ${stateClass}">
+                <span class="dependency-check-icon">${dependencyStateIcon(running)}</span>
+                <span class="dependency-check-main">
+                    <span class="dependency-check-name">${escapeHtml(label)}</span>
+                    <span class="dependency-check-id">${escapeHtml(item.id || label)}</span>
+                    ${message}
+                </span>
+                <span class="dependency-check-state">${escapeHtml(statusText)}</span>
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <div class="dependency-check-dialog">
+            <div class="dependency-check-head">
+                <div>
+                    <div class="dependency-check-kicker">依赖检查未通过</div>
+                    <div class="dependency-check-title">暂不能${escapeHtml(actionText)}</div>
+                </div>
+                <div class="dependency-check-count">${passedCount} / ${totalCount}</div>
+            </div>
+            <div class="dependency-check-desc">${escapeHtml(appName)} 启动前需要以下依赖服务全部处于 <code>running</code> 状态。</div>
+            <div class="dependency-check-list">${listHtml}</div>
+            <div class="dependency-check-hint">请先在服务管理中启动红色标记的服务，等待检测通过后再继续操作。</div>
+        </div>
+    `;
+}
+
 async function showDependencyBlock(dependencies, actionText) {
     const names = formatDependencyNames(dependencies);
-    const appName = getAppDisplayName();
     showToast(`请先启动依赖服务：${names}`, 'warning');
-    await customConfirm(`
-        <b>暂不能${escapeHtml(actionText)}</b><br><br>
-        ${escapeHtml(appName)} 依赖服务尚未全部启动：<br>
-        <b>${escapeHtml(names)}</b><br><br>
-        请先在上方部署控制台启动这些服务，等待状态变为 <code>running</code> 后再继续操作。
-    `, '知道了', 'var(--cm-warning)');
+    await customConfirm(renderDependencyCheckDialog(dependencies, actionText), '知道了', 'var(--cm-warning)');
 }
 
 async function ensureRequiredDependenciesRunning(actionText) {
@@ -845,15 +1122,15 @@ async function ensureRequiredDependenciesRunning(actionText) {
 
 async function handleDependencyBlockedResponse(data, actionText) {
     if (data?.code !== 'DEPENDENCIES_NOT_RUNNING') return false;
+    if (data.plan) {
+        latestPlan = data.plan;
+        renderServices();
+    }
     const dependencies = data.missingDependencies || (data.missingDependencyIds || []).map(id => ({
         id,
         label: getServiceDisplayNameById(id)
     }));
     await showDependencyBlock(dependencies, actionText);
-    if (data.plan) {
-        latestPlan = data.plan;
-        renderServices();
-    }
     return true;
 }
 
@@ -905,6 +1182,7 @@ function renderServices() {
     grid.innerHTML = ConfigMateServicesUi.renderServiceCards({
         services: latestServices,
         requiredIds: new Set((latestPlan?.services || []).map(s => s.id)),
+        appServiceId: latestPlan?.appService || getCurrentAppServiceId(),
         selectedServiceId,
         portsByService: deploymentPortsCache,
         cleanupInFlightService
@@ -1201,7 +1479,7 @@ function renderServiceConfigState(message, type = '') {
     document.body.classList.add('cm-service-detail-open');
     panel.style.display = 'flex';
     panel.innerHTML = renderServiceDetailShell(
-        `<button class="cm-detail-close-btn cm-detail-state-close" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
+        `<button class="cm-icon-close cm-detail-close-btn cm-detail-state-close" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
         <div class="service-config-state ${type}">${escapeHtml(message)}</div>`,
         'cm-service-detail-dialog-state'
     );
@@ -1554,33 +1832,39 @@ function setDirty(dirty) {
     if (btnSaveOnly) {
         if (isDirty) {
             btnSaveOnly.disabled = false;
-            btnSaveOnly.textContent = "保存配置 *";
+            btnSaveOnly.textContent = "保存配置";
         } else {
             btnSaveOnly.disabled = true;
-            btnSaveOnly.textContent = "仅保存配置";
+            btnSaveOnly.textContent = "保存配置";
         }
     }
     if (btnSaveApply) {
         btnSaveApply.disabled = !isDirty;
     }
 
-    // Cloud Console 顶栏的 "仅保存" / "保存并重启"
+    // Cloud Console 顶栏的变更操作区
     const cfgSaveOnly = document.getElementById('btn-cfg-save-only');
     const cfgSaveApply = document.getElementById('btn-cfg-save-apply');
-    if (cfgSaveOnly) cfgSaveOnly.classList.toggle('is-hidden', !isDirty);
-    if (cfgSaveApply) cfgSaveApply.classList.toggle('is-hidden', !isDirty);
+    if (cfgSaveOnly) {
+        cfgSaveOnly.classList.toggle('is-hidden', !isEditMode || !isDirty);
+        cfgSaveOnly.disabled = !isDirty;
+        cfgSaveOnly.textContent = '保存配置';
+    }
+    if (cfgSaveApply) {
+        cfgSaveApply.textContent = '保存并应用到服务';
+    }
+    if (cfgSaveApply) {
+        cfgSaveApply.classList.toggle('is-hidden', !isEditMode || !isDirty);
+        cfgSaveApply.disabled = !isDirty;
+    }
+    syncConfigChangeActions();
 
     // 字段卡 modified 高亮 + 右侧 pending 面板
     if (typeof refreshAllFieldModifiedFlags === 'function') refreshAllFieldModifiedFlags();
     renderConfigPendingPanel();
 }
 
-function renderConfigPendingPanel() {
-    const panel = document.getElementById('cm-config-pending-panel');
-    const list = document.getElementById('cm-config-pending-list');
-    const count = document.getElementById('cm-config-pending-count');
-    if (!panel || !list) return;
-    const shell = panel.closest('.cm-config-shell');
+function getConfigDiffs() {
     const diff = [];
     Object.keys(configMeta || {}).forEach(key => {
         const initial = initialConfigValues[key];
@@ -1590,17 +1874,65 @@ function renderConfigPendingPanel() {
         if (configMeta[key].hidden) return;
         diff.push({ key, group: configMeta[key].group || '其他', before: initial, after: current });
     });
-    if (diff.length === 0) {
-        panel.hidden = true;
-        shell?.classList.remove('cm-has-pending');
+    return diff;
+}
+
+function syncConfigChangeActions() {
+    const changeActions = document.getElementById('cm-config-change-actions');
+    const summary = document.getElementById('cm-config-change-summary');
+    const cancelBtn = document.getElementById('btn-cfg-cancel-edit');
+    const pendingTrigger = document.getElementById('btn-config-pending-trigger');
+    const pendingInlineCount = document.getElementById('cm-config-pending-count-inline');
+    const diffCount = getConfigDiffs().length;
+    const hasDirty = isSourceMode ? isDirty : diffCount > 0;
+    const pendingCount = isSourceMode && isDirty && diffCount === 0 ? 1 : diffCount;
+    if (changeActions) {
+        changeActions.classList.remove('is-hidden');
+        changeActions.classList.toggle('is-idle', !isEditMode);
+        changeActions.classList.toggle('is-editing', isEditMode);
+        changeActions.classList.toggle('has-dirty', isEditMode && hasDirty);
+    }
+    if (pendingTrigger) pendingTrigger.classList.toggle('is-hidden', !isEditMode || pendingCount === 0);
+    if (pendingInlineCount) pendingInlineCount.textContent = String(pendingCount);
+    if (summary) {
+        summary.classList.toggle('is-hidden', !isEditMode || hasDirty);
+        summary.textContent = hasDirty
+            ? (isSourceMode ? '未保存源码修改' : `未保存 ${diffCount} 项`)
+            : '编辑中';
+        summary.classList.toggle('has-dirty', hasDirty);
+    }
+    if (cancelBtn) cancelBtn.textContent = hasDirty ? '取消修改' : '退出编辑';
+}
+
+function renderConfigPendingPanel() {
+    const list = document.getElementById('cm-config-pending-list');
+    const count = document.getElementById('cm-config-pending-count');
+    const inlineCount = document.getElementById('cm-config-pending-count-inline');
+    const trigger = document.getElementById('btn-config-pending-trigger');
+    const modal = document.getElementById('config-pending-modal');
+    if (!list) return;
+    const diff = getConfigDiffs();
+    const isSourceOnlyDirty = isSourceMode && isDirty && diff.length === 0;
+    const itemCount = isSourceOnlyDirty ? 1 : diff.length;
+    if (itemCount === 0) {
+        if (trigger) trigger.classList.add('is-hidden');
+        if (modal?.classList.contains('active')) closeConfigPendingModal();
         list.innerHTML = '';
         if (count) count.textContent = '0';
+        if (inlineCount) inlineCount.textContent = '0';
         return;
     }
-    panel.hidden = false;
-    shell?.classList.add('cm-has-pending');
-    if (count) count.textContent = String(diff.length);
-    list.innerHTML = diff.map(d => `
+    if (trigger) trigger.classList.toggle('is-hidden', !isEditMode);
+    if (count) count.textContent = String(itemCount);
+    if (inlineCount) inlineCount.textContent = String(itemCount);
+    list.innerHTML = isSourceOnlyDirty ? `
+        <li class="cm-cfg-pending-item">
+            <div class="cm-cfg-pending-group">源码配置</div>
+            <code class="cm-cfg-pending-key">.env</code>
+            <div class="cm-cfg-pending-diff">
+                <span class="cm-cfg-pending-after">源码内容已修改，保存前无法逐项解析差异。</span>
+            </div>
+        </li>` : diff.map(d => `
         <li class="cm-cfg-pending-item">
             <div class="cm-cfg-pending-group">${escapeHtml(d.group)}</div>
             <code class="cm-cfg-pending-key">${escapeHtml(d.key)}</code>
@@ -1612,9 +1944,23 @@ function renderConfigPendingPanel() {
         </li>`).join('');
 }
 
+function openConfigPendingModal() {
+    renderConfigPendingPanel();
+    const diff = getConfigDiffs();
+    const hasSourceOnlyDirty = isSourceMode && isDirty && diff.length === 0;
+    if (diff.length === 0 && !hasSourceOnlyDirty) {
+        showToast('当前没有未保存的配置变更。', 'info');
+        return;
+    }
+    openModal('config-pending-modal');
+}
+
+function closeConfigPendingModal() {
+    closeModal('config-pending-modal');
+}
+
 let configView = 'form';
-function setConfigView(mode) {
-    if (mode !== 'overview' && mode !== 'form' && mode !== 'source') return;
+function syncConfigViewControls(mode) {
     configView = mode;
     document.body.dataset.configView = mode;
     document.querySelectorAll('[data-config-view]').forEach(el => {
@@ -1622,11 +1968,29 @@ function setConfigView(mode) {
         el.classList.toggle('active', isActive);
         if (isActive) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
     });
+}
+
+async function setConfigView(mode) {
+    if (mode !== 'overview' && mode !== 'form' && mode !== 'source') return;
+    const previousMode = configView || 'form';
     if (mode === 'source') {
-        if (!isSourceMode && typeof toggleSourceMode === 'function') toggleSourceMode();
+        if (!isSourceMode && typeof toggleSourceMode === 'function') {
+            const switched = await toggleSourceMode();
+            if (!switched) {
+                syncConfigViewControls(previousMode);
+                return;
+            }
+        }
     } else {
-        if (isSourceMode && typeof toggleSourceMode === 'function') toggleSourceMode();
+        if (isSourceMode && typeof toggleSourceMode === 'function') {
+            const switched = await toggleSourceMode();
+            if (!switched) {
+                syncConfigViewControls('source');
+                return;
+            }
+        }
     }
+    syncConfigViewControls(mode);
     const chips = document.getElementById('cm-config-anchor-chips');
     if (mode === 'overview') {
         if (typeof showAllConfigGroups === 'function') showAllConfigGroups(null);
@@ -1794,7 +2158,6 @@ let isSourceFullscreen = false;
 
 async function toggleSourceMode() {
     const nextMode = !isSourceMode;
-    const btn = document.getElementById('btn-source-mode');
     const searchInput = document.querySelector('.search-input');
     const toggleAllBtn = document.getElementById('btn-toggle-all');
     const formContainer = document.getElementById('form-container');
@@ -1804,7 +2167,7 @@ async function toggleSourceMode() {
     // Check for unsaved changes before switching
     if (isDirty) {
         if (!await customConfirm('当前有未保存的修改，切换模式将丢失这些修改。是否继续？', '丢弃并切换', 'var(--danger)')) {
-            return;
+            return false;
         }
     }
 
@@ -1818,23 +2181,19 @@ async function toggleSourceMode() {
             editor.oninput = checkDirtyState;
             isSourceMode = true;
 
-            btn.innerText = "UI 模式";
-            btn.classList.add('btn-active');
-
             if (searchInput) searchInput.disabled = true;
             if (toggleAllBtn) toggleAllBtn.style.display = 'none';
             if (formContainer) formContainer.style.display = 'none';
             if (sourcePanel) sourcePanel.classList.add('active');
             document.body.classList.add('source-mode-active');
+            return true;
         } catch (e) {
             showToast('Failed to load raw config: ' + e.message, 'error');
+            return false;
         }
     } else {
         isSourceMode = false;
         setSourceFullscreen(false);
-
-        btn.innerText = "源码模式";
-        btn.classList.remove('btn-active');
 
         if (searchInput) searchInput.disabled = false;
         if (toggleAllBtn) toggleAllBtn.style.display = 'block';
@@ -1844,6 +2203,7 @@ async function toggleSourceMode() {
 
         // Reload UI config to reflect any changes
         init();
+        return true;
     }
 }
 
@@ -1947,8 +2307,24 @@ async function saveAndApplyPlan() {
 
     const appServiceId = getCurrentAppServiceId();
     const appServiceName = getServiceDisplayNameById(appServiceId) || '当前业务服务';
-    const dependenciesReady = await ensureRequiredDependenciesRunning(`保存并重启 ${appServiceName}`);
-    if (!dependenciesReady) return;
+    await updateDeploymentPlan();
+
+    const appStatus = getCurrentAppServiceStatus();
+    if (!appStatus?.running) {
+        const ok = await customConfirm(
+            `当前服务容器 ${appServiceName} 没有运行，无法把配置应用到服务。\n\n是否仅保存配置到 .env？`,
+            '仅保存配置',
+            'var(--cm-warning)'
+        );
+        if (ok) await saveConfig();
+        return;
+    }
+
+    const missingDependencies = getMissingRequiredDependencies();
+    if (missingDependencies.length > 0) {
+        await showDependencyBlock(missingDependencies, `保存并应用 ${appServiceName}`);
+        return;
+    }
 
     const missingDependencyNames = (latestPlan?.missingServices || [])
         .filter(id => id !== appServiceId)
@@ -1956,7 +2332,7 @@ async function saveAndApplyPlan() {
     const missingNote = missingDependencyNames.length
         ? `\n\n当前仍有依赖服务未运行：${missingDependencyNames.join('、')}。本操作不会自动启动它们。`
         : '';
-    if (!await customConfirm(`将保存配置，并只重启：${appServiceName}。${missingNote}`, '保存并重启', 'var(--cm-success)')) return;
+    if (!await customConfirm(`该操作会保存配置，并重启当前服务：${appServiceName}。\n重启期间服务会短暂不可用，是否确认？${missingNote}`, '保存并应用到服务', 'var(--cm-warning)')) return;
 
     try {
         const res = await ConfigMateApi.applyPlan(configValues, true);
@@ -1965,10 +2341,18 @@ async function saveAndApplyPlan() {
             initialConfigValues = JSON.parse(JSON.stringify(configValues));
             setDirty(false);
             setEditMode(false);
-            showToast(`✅ 配置已保存，已重启 ${getServiceDisplayNameById(data.restartedService || appServiceId)}`, 'success');
+            showToast(`✅ 配置已保存，并已应用到 ${getServiceDisplayNameById(data.restartedService || appServiceId)}`, 'success');
             await refreshDeployment();
             showLogs(true, deploymentInfo?.appService || null);
-        } else if (await handleDependencyBlockedResponse(data, `保存并重启 ${appServiceName}`)) {
+        } else if (await handleDependencyBlockedResponse(data, `保存并应用 ${appServiceName}`)) {
+            return;
+        } else if (data?.code === 'APP_SERVICE_NOT_RUNNING') {
+            const ok = await customConfirm(
+                `当前服务容器 ${appServiceName} 没有运行，无法把配置应用到服务。\n\n是否仅保存配置到 .env？`,
+                '仅保存配置',
+                'var(--cm-warning)'
+            );
+            if (ok) await saveConfig();
             return;
         } else {
             showToast('❌ 应用失败：\n' + (data.output || data.message || ''), 'error');
@@ -2054,7 +2438,7 @@ function updateLogsPageSubtitle(serviceId) {
     const text = document.getElementById('logs-page-subtitle-text');
     if (!text) return;
     if (!serviceId) {
-        text.textContent = '从部署控制台选择服务后查看容器 stdout';
+        text.textContent = '从服务管理选择服务后查看容器 stdout';
         return;
     }
     text.textContent = `${serviceId} · stdout`;
@@ -2281,6 +2665,7 @@ async function checkStatus() {
     }
 }
 
+syncInitialWorkbenchRoute();
 boot();
 async function stopService(event) {
     if (!await customConfirm('确认要停止服务吗？此操作将停止容器。', '停止服务', 'var(--cm-danger)')) return;
@@ -2439,14 +2824,37 @@ function openConfigHistoryModal() {
     openHistoryModal();
 }
 
-function openConfigRuntimeDiffModal() {
+async function ensureAppServiceRunningForConfigCheck() {
+    await updateDeploymentPlan();
+    const appServiceId = getCurrentAppServiceId();
+    const appServiceName = getServiceDisplayNameById(appServiceId) || '当前业务服务';
+    const appStatus = getCurrentAppServiceStatus();
+    if (appStatus?.running) return true;
+    showToast(`当前业务服务容器 ${appServiceName} 未运行，无法校验运行配置。请先在服务管理启动服务。`, 'warning');
+    return false;
+}
+
+async function openConfigRuntimeDiffModal() {
     if (typeof navigateRoute === 'function' && window.ConfigMateRouter?.currentRoute?.() !== 'config') {
         navigateRoute('config');
     }
+    const btn = document.getElementById('btn-config-runtime-check');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>校验中</span><span class="cm-config-verify-hint" aria-hidden="true">!</span>';
+    }
+    const canCheck = await ensureAppServiceRunningForConfigCheck();
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+    if (!canCheck) return;
     const modal = document.getElementById('runtime-diff-modal');
     modal?.classList.remove('route-active');
+    const sessionId = ++runtimeDiffSessionId;
     prepareRuntimeDiffIdle();
-    setTimeout(checkRuntimeSync, 0);
+    setTimeout(() => checkRuntimeSync(sessionId), 0);
 }
 
 // Initialize Modal Listeners
@@ -2493,11 +2901,22 @@ function setEditMode(enabled) {
     const btnCancel = document.getElementById('btn-cancel-edit');
     const btnSaveOnly = document.getElementById('btn-save-only');
     const btnSaveApply = document.getElementById('btn-save-apply');
+    const cfgEdit = document.getElementById('btn-cfg-edit');
+    const cfgSummary = document.getElementById('cm-config-change-summary');
+    const cfgCancel = document.getElementById('btn-cfg-cancel-edit');
+    const cfgSaveOnly = document.getElementById('btn-cfg-save-only');
+    const cfgSaveApply = document.getElementById('btn-cfg-save-apply');
 
     if (btnEdit) btnEdit.classList.toggle('is-hidden', enabled);
     if (btnCancel) btnCancel.classList.toggle('is-hidden', !enabled);
     if (btnSaveOnly) btnSaveOnly.classList.toggle('is-hidden', !enabled);
     if (btnSaveApply) btnSaveApply.classList.toggle('is-hidden', !enabled);
+    if (cfgEdit) cfgEdit.classList.toggle('is-hidden', enabled);
+    if (cfgSummary) cfgSummary.classList.toggle('is-hidden', !enabled);
+    if (cfgCancel) cfgCancel.classList.toggle('is-hidden', !enabled);
+    if (cfgSaveOnly) cfgSaveOnly.classList.toggle('is-hidden', !enabled || !isDirty);
+    if (cfgSaveApply) cfgSaveApply.classList.toggle('is-hidden', !enabled || !isDirty);
+    syncConfigChangeActions();
 
     // 2. Toggle Inputs State
     // Select all inputs, selects, textareas 
@@ -2521,8 +2940,16 @@ async function cancelEdit() {
 
 // Check if install file exists
 // --- Runtime Config Diff Logic ---
-async function checkRuntimeSync() {
-    const btn = document.querySelector('.btn-header[onclick="checkRuntimeSync()"]');
+let runtimeDiffSessionId = 0;
+
+function isRuntimeDiffSessionActive(sessionId) {
+    const modal = document.getElementById('runtime-diff-modal');
+    return sessionId === runtimeDiffSessionId && !!modal?.classList.contains('active');
+}
+
+async function checkRuntimeSync(sessionId = null) {
+    const activeSessionId = sessionId || ++runtimeDiffSessionId;
+    const btn = document.getElementById('btn-runtime-recheck');
     const originalHtml = btn ? btn.innerHTML : '';
     const tbody = document.getElementById('runtime-diff-tbody');
     const loadingDiv = document.getElementById('runtime-diff-loading');
@@ -2555,16 +2982,18 @@ async function checkRuntimeSync() {
         const json = await Promise.race([fetchPromise, timeoutPromise]);
 
         console.log("Runtime Check Response:", json);
+        if (!isRuntimeDiffSessionActive(activeSessionId)) return;
         if (json.status === 'success') {
             renderRuntimeDiff(json);
         } else if (json.status === 'not_running') {
-            renderRuntimeDiffError('服务未运行，无法获取运行时配置', '请先在部署控制台启动当前业务服务，再重新执行运行检查。');
+            renderRuntimeDiffError('服务未运行，无法获取运行时配置', '请先在服务管理启动当前业务服务，再重新执行配置校验。');
             showToast('⚠️ 服务未运行，无法获取运行时配置', 'error');
         } else {
             renderRuntimeDiffError('检查失败', json.message || '请求未返回有效结果。');
             showToast('❌ 检查失败: ' + (json.message || ''), 'error');
         }
     } catch (e) {
+        if (!isRuntimeDiffSessionActive(activeSessionId)) return;
         console.error("Diff check failed", e);
         renderRuntimeDiffError('请求失败', e.message);
         showToast('❌ 请求失败: ' + e.message, 'error');
@@ -2576,7 +3005,7 @@ async function checkRuntimeSync() {
     }
 }
 
-/* 打开运行检查弹窗的 idle 占位 — 不显示 spinner, 立即显示空态 banner
+/* 打开配置校验弹窗的 idle 占位 — 不显示 spinner, 立即显示空态 banner
    + KPI 全 "—" + 表格区放占位提示. checkRuntimeSync 接管后切换. */
 function prepareRuntimeDiffIdle() {
     const modal = document.getElementById('runtime-diff-modal');
@@ -2592,7 +3021,7 @@ function prepareRuntimeDiffIdle() {
         const el = document.getElementById(id);
         if (el) el.textContent = '—';
     });
-    renderRuntimeDiffStatus('info', '运行配置检查', '即将开始检查运行时配置与本地 .env 的差异...');
+    renderRuntimeDiffStatus('info', '配置校验', '即将开始检查运行时配置与本地 .env 的差异...');
     if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="runtime-empty-cell">等待检查结果...</td></tr>';
 }
 
@@ -2756,6 +3185,7 @@ function renderRuntimeDiff(data) {
 }
 
 function closeRuntimeDiffModal() {
+    runtimeDiffSessionId += 1;
     closeModal('runtime-diff-modal', {
         afterClose: () => {
             const resultDiv = document.getElementById('runtime-diff-result');
@@ -2771,28 +3201,56 @@ let installRunning = false;
 let installStartedAt = 0;
 let installTimer = null;
 let installFollowLogs = true;
+let installWrapLogs = true;
+let installLogFullscreen = false;
 let installLogRemainder = '';
 let installHadError = false;
+let installAvailable = false;
 
 async function checkInstallAvailability() {
-    const btn = document.getElementById('btn-install-init');
-    if (!btn) return;
+    const buttons = ['btn-install-init', 'btn-install-start']
+        .map(id => document.getElementById(id))
+        .filter(Boolean);
+    if (!buttons.length) return;
 
     try {
         const res = await ConfigMateApi.checkInstall();
         if (res.status === 401) {
-            btn.style.display = 'none';
+            installAvailable = false;
+            buttons.forEach(btn => {
+                btn.style.display = 'none';
+            });
             return;
         }
         const data = await res.json();
-        btn.style.display = data.exists ? 'block' : 'none';
+        installAvailable = !!data.exists;
+        buttons.forEach(btn => {
+            btn.style.display = data.exists ? '' : 'none';
+        });
     } catch (e) {
-        btn.style.display = 'none';
+        installAvailable = false;
+        buttons.forEach(btn => {
+            btn.style.display = 'none';
+        });
         console.error("Failed to check install availability", e);
     }
 }
 
+function prepareInstallRoute() {
+    if (installRunning) return;
+    resetInstallUi();
+    appendInstallLine('[INFO] 初始化安装已就绪。点击「开始初始化」后将进行确认并执行安装任务。', 'system');
+}
+
 async function checkInstallAndConfirm() {
+    if (installRunning) {
+        showToast('初始化任务正在执行，请等待完成', 'info');
+        return;
+    }
+    if (!installAvailable) {
+        showToast('未找到初始化安装文件，无法执行初始化', 'warning');
+        return;
+    }
     const appName = getAppDisplayName();
     if (!await ensureRequiredDependenciesRunning(`初始化安装 ${appName}`)) return;
 
@@ -2822,7 +3280,13 @@ function closeInstallModal() {
 }
 
 async function startInstallService() {
-    openModal('install-modal', '');
+    if (installRunning) {
+        showToast('初始化任务正在执行，请等待完成', 'info');
+        return;
+    }
+    if (window.ConfigMateRouter?.currentRoute?.() !== 'install') {
+        navigateRoute('install');
+    }
     resetInstallUi();
     setInstallState('running', '运行中');
     setInstallProgress(3, '准备启动安装任务', 'cleanup');
@@ -2832,6 +3296,7 @@ async function startInstallService() {
     let alreadyInitialized = false;
     installRunning = true;
     installHadError = false;
+    setInstallStartButton(true, '初始化中');
 
     try {
         const response = await ConfigMateApi.install();
@@ -2870,9 +3335,9 @@ async function startInstallService() {
         flushInstallLogRemainder();
 
         if (alreadyInitialized) {
-            setInstallProgress(100, '系统已初始化，无需重复安装', 'finish', 'success');
-            appendInstallLine('[TIP] 检测到系统数据已存在，初始化流程视为完成。', 'success');
-            finishInstallUi('success', '已完成', '初始化数据已存在，本次流程已安全结束。');
+            setInstallProgress(100, '系统已初始化，无需重复安装', 'finish', 'initialized');
+            appendInstallLine('[注意] 系统已经初始化，无需重复安装。', 'initialized');
+            finishInstallUi('initialized', '已初始化', '系统已经初始化，无需重复安装；如需重装请先确认数据清理策略。');
         } else if (installHadError) {
             setInstallProgress(getCurrentInstallPercent(), '初始化失败，请查看错误日志', 'finish', 'error');
             finishInstallUi('error', '失败', '初始化流程未完成，请根据红色日志处理后重试。');
@@ -2892,25 +3357,39 @@ async function startInstallService() {
 function resetInstallUi() {
     installLogRemainder = '';
     installFollowLogs = true;
+    installWrapLogs = true;
     installHadError = false;
 
     const logsContainer = document.getElementById('install-logs');
-    const closeBtn = document.getElementById('btn-close-install');
+    const startBtn = document.getElementById('btn-install-start');
     const followBtn = document.getElementById('btn-install-follow');
+    const wrapBtn = document.getElementById('btn-install-wrap');
+    const fullscreenBtn = document.getElementById('btn-install-fullscreen');
     const subtitle = document.getElementById('install-subtitle');
     const composeLabel = document.getElementById('install-compose-label');
     const elapsedEl = document.getElementById('install-elapsed');
     const footerNote = document.getElementById('install-footer-note');
     const progressBar = document.getElementById('install-progress-bar');
 
-    if (logsContainer) logsContainer.innerHTML = '';
+    if (logsContainer) {
+        logsContainer.innerHTML = '';
+        logsContainer.classList.add('wrap-mode');
+    }
     if (followBtn) followBtn.classList.add('active');
+    if (wrapBtn) {
+        wrapBtn.classList.add('active');
+        wrapBtn.textContent = '换行';
+    }
+    if (fullscreenBtn) {
+        fullscreenBtn.classList.toggle('active', installLogFullscreen);
+        fullscreenBtn.textContent = installLogFullscreen ? '退出全屏' : '全屏';
+    }
     if (elapsedEl) elapsedEl.textContent = '00:00';
     if (footerNote) footerNote.textContent = '初始化执行期间请保持页面打开；完成后可关闭窗口。';
-    if (closeBtn) {
-        closeBtn.disabled = true;
-        closeBtn.textContent = '运行中';
-        closeBtn.style.display = 'block';
+    if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = '开始初始化';
+        startBtn.style.display = installAvailable ? '' : 'none';
     }
     if (subtitle) subtitle.textContent = `执行 ${getAppDisplayName()} 的安装初始化任务`;
     if (composeLabel) {
@@ -2918,7 +3397,7 @@ function resetInstallUi() {
         composeLabel.textContent = `${appService}/docker-compose-install.yml`;
         composeLabel.title = composeLabel.textContent;
     }
-    if (progressBar) progressBar.classList.remove('error');
+    if (progressBar) progressBar.classList.remove('error', 'initialized');
     setInstallState('idle', '准备就绪');
     setInstallProgress(0, '等待开始', 'cleanup');
     updateInstallSteps('', '');
@@ -2966,15 +3445,18 @@ function finishInstallUi(state, badgeText, note) {
     installRunning = false;
     stopInstallTimer();
     setInstallState(state, badgeText);
-    updateInstallSteps('finish', state === 'error' ? 'error' : 'success');
+    updateInstallSteps('finish', state === 'error' || state === 'initialized' ? state : 'success');
 
-    const closeBtn = document.getElementById('btn-close-install');
     const footerNote = document.getElementById('install-footer-note');
-    if (closeBtn) {
-        closeBtn.disabled = false;
-        closeBtn.textContent = '关闭';
-    }
+    setInstallStartButton(false, state === 'success' ? '再次初始化' : '开始初始化');
     if (footerNote) footerNote.textContent = note;
+}
+
+function setInstallStartButton(disabled, label) {
+    const startBtn = document.getElementById('btn-install-start');
+    if (!startBtn) return;
+    startBtn.disabled = !!disabled;
+    startBtn.textContent = label || (disabled ? '初始化中' : '开始初始化');
 }
 
 function setInstallProgress(pct, message, stepId, state = 'running') {
@@ -2986,7 +3468,8 @@ function setInstallProgress(pct, message, stepId, state = 'running') {
 
     if (progressBar) {
         progressBar.style.width = `${nextPct}%`;
-        progressBar.classList.toggle('error', state === 'error');
+        progressBar.classList.toggle('error', state === 'error' || state === 'initialized');
+        progressBar.classList.toggle('initialized', state === 'initialized');
     }
     if (statusText) statusText.textContent = message;
     if (percentText) percentText.textContent = `${nextPct}%`;
@@ -3005,13 +3488,16 @@ function updateInstallSteps(activeStep, state = 'running') {
     document.querySelectorAll('.install-step').forEach(step => {
         const stepId = step.dataset.step;
         const idx = INSTALL_STEPS.indexOf(stepId);
-        step.classList.remove('active', 'done', 'error');
+        step.classList.remove('active', 'done', 'error', 'initialized');
         if (activeIndex === -1) return;
         if (state === 'success') {
             step.classList.add('done');
         } else if (state === 'error') {
             if (idx < activeIndex) step.classList.add('done');
             else if (idx === activeIndex) step.classList.add('error');
+        } else if (state === 'initialized') {
+            if (idx < activeIndex) step.classList.add('done');
+            else if (idx === activeIndex) step.classList.add('initialized');
         } else if (idx < activeIndex) {
             step.classList.add('done');
         } else if (idx === activeIndex) {
@@ -3050,9 +3536,7 @@ function appendInstallLine(line, forcedLevel = '') {
         }
     }
 
-    if (installFollowLogs) {
-        logsContainer.scrollTop = logsContainer.scrollHeight;
-    }
+    if (installFollowLogs) scrollInstallLogsToBottom();
 }
 
 function classifyInstallLogLine(line) {
@@ -3064,7 +3548,8 @@ function classifyInstallLogLine(line) {
         if (explicit === 'SUCCESS') return 'success';
         return 'info';
     }
-    if (/Installation finished successfully|安装完成|already present in database|sysadmin@thingsboard\.org/i.test(text)) return 'success';
+    if (/already present in database|sysadmin@thingsboard\.org|系统已初始化|无需重复安装/i.test(text)) return 'initialized';
+    if (/Installation finished successfully|安装完成/i.test(text)) return 'success';
     if (/\b[A-Z0-9_.]+Exception\b|Exception in thread|Caused by:|Traceback|\bERROR\b|\[错误\]/i.test(text)) return 'error';
     if (/\bWARN(?:ING)?\b|\[日志过多\]/i.test(text)) return 'warn';
     return 'info';
@@ -3082,10 +3567,49 @@ function toggleInstallFollow() {
     installFollowLogs = !installFollowLogs;
     const btn = document.getElementById('btn-install-follow');
     if (btn) btn.classList.toggle('active', installFollowLogs);
-    if (installFollowLogs) {
-        const logsContainer = document.getElementById('install-logs');
-        if (logsContainer) logsContainer.scrollTop = logsContainer.scrollHeight;
+    if (btn) btn.textContent = installFollowLogs ? '跟随' : '不跟随';
+    if (installFollowLogs) scrollInstallLogsToBottom();
+}
+
+function toggleInstallWrap() {
+    installWrapLogs = !installWrapLogs;
+    const logsContainer = document.getElementById('install-logs');
+    const btn = document.getElementById('btn-install-wrap');
+    if (logsContainer) logsContainer.classList.toggle('wrap-mode', installWrapLogs);
+    if (btn) {
+        btn.classList.toggle('active', installWrapLogs);
+        btn.textContent = installWrapLogs ? '换行' : '不换行';
     }
+}
+
+function toggleInstallLogFullscreen() {
+    installLogFullscreen = !installLogFullscreen;
+    applyInstallLogFullscreenState();
+}
+
+function exitInstallLogFullscreen() {
+    installLogFullscreen = false;
+    applyInstallLogFullscreenState();
+}
+
+function applyInstallLogFullscreenState() {
+    const route = document.getElementById('install-modal');
+    const btn = document.getElementById('btn-install-fullscreen');
+    if (route) route.classList.toggle('install-log-fullscreen', installLogFullscreen);
+    if (btn) {
+        btn.classList.toggle('active', installLogFullscreen);
+        btn.textContent = installLogFullscreen ? '退出全屏' : '全屏';
+    }
+    if (installFollowLogs) requestAnimationFrame(scrollInstallLogsToBottom);
+}
+
+function scrollInstallLogsToBottom() {
+    const logsContainer = document.getElementById('install-logs');
+    if (!logsContainer) return;
+    logsContainer.scrollTop = logsContainer.scrollHeight;
+    requestAnimationFrame(() => {
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    });
 }
 
 async function copyInstallLogs() {
@@ -3127,7 +3651,7 @@ function parseInstallProgress(text) {
     }
 
     if (text.includes('already present in database') || text.includes('sysadmin@thingsboard.org')) {
-        setInstallProgress(100, '系统已初始化，无需重复安装', 'finish', 'success');
+        setInstallProgress(100, '系统已初始化，无需重复安装', 'finish', 'initialized');
         return;
     }
 

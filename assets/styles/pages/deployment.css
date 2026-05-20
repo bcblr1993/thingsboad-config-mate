@@ -53,14 +53,23 @@
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    font-size: var(--cm-text-sm);
+    line-height: 1.45;
 }
 
 .cm-summary-label {
-    font-size: var(--cm-text-xs);
+    font-size: var(--cm-text-sm);
     font-weight: 700;
     color: var(--cm-cloud-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
+}
+
+.cm-summary-meta {
+    color: var(--cm-cloud-fg);
+    font-family: var(--cm-font-sans);
+    font-size: var(--cm-text-base);
+    font-weight: 600;
+    line-height: 1.45;
 }
 
 .cm-summary-chips {
@@ -78,9 +87,10 @@
     border: 1px solid var(--cm-cloud-border);
     background: var(--cm-cloud-surface-muted);
     color: var(--cm-cloud-muted);
-    font-family: var(--cm-font-mono);
-    font-size: 11px;
-    font-weight: 700;
+    font-family: var(--cm-font-sans);
+    font-size: var(--cm-text-xs);
+    font-weight: 600;
+    line-height: 16px;
     white-space: nowrap;
 }
 
@@ -228,8 +238,8 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 14px;
+    gap: 12px;
+    padding: 16px;
     border: 1px solid var(--cm-cloud-border);
     border-radius: var(--cm-radius-xl);
     background: var(--cm-cloud-surface);
@@ -237,9 +247,13 @@
     cursor: default;
     grid-template-columns: none;
     grid-template-areas: none;
-    min-height: 132px;
+    min-height: 148px;
     overflow: hidden;
     transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+#service-grid.cm-service-grid .service-card .cm-svc-stats {
+    display: none !important;
 }
 
 #service-grid.cm-service-grid .service-card:hover {
@@ -253,25 +267,30 @@
     box-shadow: var(--cm-cloud-ring), 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-#service-grid.cm-service-grid .service-card.required .cm-svc-name::before {
+#service-grid.cm-service-grid .service-card.required:not(.is-startup-dependency) .cm-svc-name::before {
+    content: none;
+}
+
+#service-grid.cm-service-grid .service-card.is-startup-dependency .cm-svc-name::before {
     content: "*";
-    color: var(--cm-cloud-danger);
+    display: inline-block;
     margin-right: 3px;
-    font-weight: 800;
+    color: var(--cm-cloud-danger);
+    font-weight: 950;
 }
 
 .cm-svc-head {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 14px;
     min-width: 0;
     width: 100%;
 }
 
 .cm-svc-head-left {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
     flex: 1 1 0;
     min-width: 0;
@@ -279,8 +298,8 @@
 }
 
 .cm-svc-icon {
-    width: 38px;
-    height: 38px;
+    width: 42px;
+    height: 42px;
     flex-shrink: 0;
     border-radius: var(--cm-radius-lg);
     display: inline-flex;
@@ -301,15 +320,47 @@
     padding-top: 1px;
 }
 
+.cm-svc-name-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+}
+
 .cm-svc-name {
-    font-family: var(--cm-font-mono);
-    font-size: 14px;
+    flex: 0 1 auto;
+    min-width: 0;
+    font-family: var(--cm-font-sans);
+    font-size: 16px;
     line-height: 1.2;
     font-weight: 800;
     color: var(--cm-cloud-fg);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.cm-svc-dependency-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    flex: 0 0 auto;
+    max-width: 86px;
+    padding: 2px 7px;
+    border: 1px solid var(--cm-cloud-danger-border);
+    border-radius: var(--cm-radius-full);
+    background: var(--cm-cloud-danger-soft);
+    color: var(--cm-cloud-danger);
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.cm-svc-dependency-star {
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 950;
 }
 
 .cm-svc-image {
@@ -329,8 +380,8 @@
     padding: 3px 9px;
     border-radius: var(--cm-radius-full);
     border: 1px solid transparent;
-    font-family: var(--cm-font-mono);
-    font-size: 10px;
+    font-family: var(--cm-font-sans);
+    font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
     flex-shrink: 0;
@@ -359,16 +410,57 @@
     padding: 7px 9px;
     line-height: 1.4;
     overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
+}
+
+.cm-svc-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+    padding: 12px 0 2px;
+    border-top: 1px dashed var(--cm-cloud-border-subtle);
+}
+
+.cm-svc-stat {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+}
+
+.cm-svc-stat-label {
+    color: var(--cm-cloud-muted);
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.cm-svc-stat strong {
+    min-width: 0;
+    color: var(--cm-cloud-fg);
+    font-family: var(--cm-font-mono);
+    font-size: 13px;
+    font-weight: 850;
+    line-height: 1.2;
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.cm-svc-stat.is-muted strong {
+    color: var(--cm-cloud-muted);
+    font-weight: 750;
 }
 
 body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .service-card .cm-svc-actions,
 #service-grid.cm-service-grid .service-card .cm-svc-actions,
 .cm-svc-card .cm-svc-actions {
     display: grid !important;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    gap: 6px !important;
+    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)) !important;
+    gap: 8px !important;
     margin-top: auto !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
@@ -388,17 +480,35 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 }
 
 .cm-svc-actions button {
-    padding: 8px 6px;
+    padding: 9px 10px;
     border: 1px solid var(--cm-cloud-border);
     background: var(--cm-cloud-surface);
     color: var(--cm-cloud-fg);
     border-radius: var(--cm-radius-md);
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 850;
     line-height: 1.1;
     white-space: nowrap;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.cm-svc-actions .cm-svc-action-primary {
+    border-color: var(--cm-cloud-primary);
+    background: var(--cm-cloud-primary);
+    color: #fff;
+}
+
+.cm-svc-actions .cm-svc-action-primary:hover:not(:disabled) {
+    border-color: var(--cm-cloud-primary-hover);
+    background: var(--cm-cloud-primary-hover);
+    color: #fff;
+}
+
+.cm-svc-actions .cm-svc-action-primary:disabled {
+    border-color: var(--cm-cloud-border);
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-subtle);
 }
 
 .cm-svc-actions button:hover:not(:disabled) {
@@ -459,12 +569,12 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 }
 
 .cm-service-card-menu button.is-danger {
-    color: var(--cm-cloud-danger);
+    color: var(--cm-cloud-fg);
 }
 
 .cm-service-card-menu button.is-danger:hover:not(:disabled) {
-    background: var(--cm-cloud-danger-soft);
-    color: var(--cm-cloud-danger);
+    background: var(--cm-cloud-primary-soft);
+    color: var(--cm-cloud-primary);
 }
 
 .cm-service-card-menu button:disabled {
@@ -598,25 +708,7 @@ body.cm-service-detail-open {
 }
 
 .cm-detail-close-btn {
-    width: 34px;
-    height: 34px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--cm-cloud-border);
-    border-radius: var(--cm-radius-md);
-    background: var(--cm-cloud-surface);
-    color: var(--cm-cloud-muted);
     font-size: 22px;
-    line-height: 1;
-    font-weight: 500;
-    cursor: pointer;
-}
-
-.cm-detail-close-btn:hover {
-    border-color: var(--cm-cloud-primary-border);
-    background: var(--cm-cloud-primary-soft);
-    color: var(--cm-cloud-primary);
 }
 
 .cm-detail-state-close {

@@ -4,25 +4,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Config Mate | ThingsBoard 部署控制台</title>
+    <title>Config Mate | ThingsBoard 服务管理</title>
     <link rel="icon" type="image/svg+xml"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232A7DEC'/%3E%3Cpath d='M18 18l14-7 14 7-14 7-14-7z' fill='white'/%3E%3Cpath d='M18 31l14 7 14-7' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M18 43l14 7 14-7' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="assets/styles/tokens.css">
     <link rel="stylesheet" href="assets/styles/base.css">
-    <link rel="stylesheet" href="assets/styles.css">
-    <link rel="stylesheet" href="assets/styles/components.css?v=20260517-confirm-system">
-    <link rel="stylesheet" href="assets/styles/layout.css">
-    <link rel="stylesheet" href="assets/styles/pages/install.css">
-    <link rel="stylesheet" href="assets/styles/pages/history.css">
-    <link rel="stylesheet" href="assets/styles/pages/logs.css?v=20260517-service-logs-mobile-2">
-    <link rel="stylesheet" href="assets/styles/pages/overview.css">
-    <link rel="stylesheet" href="assets/styles/pages/deployment.css?v=20260517-detail-layout-clean">
-    <link rel="stylesheet" href="assets/styles/pages/config.css?v=20260517-config-grid-refactor-2">
-    <link rel="stylesheet" href="assets/styles/pages/cloud-modals.css?v=20260517-config-entry-modals">
+    <link rel="stylesheet" href="assets/styles.css?v=20260520-unified-typography">
+    <link rel="stylesheet" href="assets/styles/components.css?v=20260520-site-acceptance">
+    <link rel="stylesheet" href="assets/styles/layout.css?v=20260520-no-global-search">
+    <link rel="stylesheet" href="assets/styles/pages/install.css?v=20260520-unified-typography">
+    <link rel="stylesheet" href="assets/styles/pages/history.css?v=20260520-history-layout">
+    <link rel="stylesheet" href="assets/styles/pages/logs.css?v=20260520-unified-typography">
+    <link rel="stylesheet" href="assets/styles/pages/overview.css?v=20260520-unified-typography">
+    <link rel="stylesheet" href="assets/styles/pages/deployment.css?v=20260520-deployment-summary-typography">
+    <link rel="stylesheet" href="assets/styles/pages/config.css?v=20260520-verify-config-action">
+    <link rel="stylesheet" href="assets/styles/pages/cloud-modals.css?v=20260520-site-acceptance">
     <link rel="stylesheet" href="assets/styles/pages/login.css">
 </head>
 
-<body data-workbench-page="deployment-panel">
+<body data-workbench-page="deployment-panel" data-route-booting="true">
 
     <div id="login-overlay" class="login-overlay cm-login-route">
         <aside class="cm-login-brand-panel" aria-hidden="true">
@@ -40,7 +40,7 @@
                 </span>
                 <div class="cm-login-brand-titles">
                     <div class="cm-login-brand-name">Config Mate</div>
-                    <div class="cm-login-brand-sub">ThingsBoard 现场部署控制台</div>
+                    <div class="cm-login-brand-sub">ThingsBoard 现场服务管理</div>
                 </div>
             </div>
 
@@ -68,10 +68,10 @@
             <form class="login-box cm-login-form" onsubmit="login(event)">
                 <div class="cm-login-form-kicker">登录</div>
                 <h2 class="login-title cm-login-form-title">欢迎回来</h2>
-                <p class="login-desc cm-login-form-desc">此控制台可直接操作宿主机 Docker，请输入操作员名称与安装时生成的管理口令。</p>
+                <p class="login-desc cm-login-form-desc">此控制台只开放 admin 管理员账号。默认密码为 123456，可在 docker-compose 环境变量 CONFIG_MATE_PASSWORD 中修改。</p>
 
                 <label class="cm-login-field" for="login-operator">
-                    <span class="cm-login-field-label">操作员名称</span>
+                    <span class="cm-login-field-label">管理员账号</span>
                     <span class="cm-login-field-shell">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -79,7 +79,7 @@
                             <circle cx="12" cy="7" r="4"></circle>
                         </svg>
                         <input id="login-operator" class="field-input login-field cm-login-input" type="text"
-                            placeholder="ops-admin" autocomplete="username" required>
+                            value="admin" autocomplete="username" readonly aria-readonly="true" required>
                     </span>
                 </label>
 
@@ -97,10 +97,7 @@
                 </label>
 
                 <div class="cm-login-form-row">
-                    <label class="cm-login-remember" for="login-remember">
-                        <input id="login-remember" type="checkbox" checked>
-                        <span>本机记住操作员</span>
-                    </label>
+                    <span class="cm-login-admin-note">仅 admin 可登录；生产环境建议立即修改默认密码。</span>
                 </div>
 
                 <button id="btn-login" class="btn btn-primary w-full cm-login-submit" type="submit">
@@ -153,23 +150,13 @@
                     <button type="button" class="mega-nav-item" data-mega-nav="overview"
                         onclick="navigateRoute('overview')">总览</button>
                     <button type="button" class="mega-nav-item active" data-mega-nav="deployment"
-                        aria-current="page" onclick="navigateRoute('deployment')">部署控制台</button>
+                        aria-current="page" onclick="navigateRoute('deployment')">服务管理</button>
                     <button type="button" class="mega-nav-item" data-mega-nav="config"
-                        onclick="navigateRoute('config')">业务配置</button>
+                        onclick="navigateRoute('config')">平台配置管理</button>
                     <button type="button" class="mega-nav-item" data-mega-nav="install"
-                        onclick="navigateRoute('install')">初始化向导</button>
+                        onclick="navigateRoute('install')">初始化安装</button>
                 </nav>
                 <div class="header-actions">
-                    <label class="header-search" for="header-search-input" title="全局搜索 (敬请期待)">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                        <input id="header-search-input" type="search" placeholder="搜索服务、配置项、日志..." disabled
-                            aria-label="全局搜索（暂未启用）">
-                        <kbd class="header-search-kbd" aria-hidden="true">/</kbd>
-                    </label>
                     <button class="header-notif" type="button" onclick="showHeaderNotifs()" aria-label="告警通知">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -180,12 +167,21 @@
                     </button>
                 </div>
                 <div id="user-menu" class="user-menu">
-                    <button type="button" class="user-chip" title="点击退出登录" onclick="logout()">
+                    <div class="user-chip" title="当前操作员">
                         <span id="user-avatar" class="user-avatar">--</span>
                         <span class="user-meta">
                             <span id="current-operator" class="user-name">未登录</span>
                             <span id="user-project" class="user-project">--</span>
                         </span>
+                    </div>
+                    <button type="button" class="user-logout-action" title="退出登录" aria-label="退出登录" onclick="logout()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        <span>退出</span>
                     </button>
                 </div>
             </div>
@@ -206,22 +202,16 @@
                         <p id="overview-subtitle" class="cm-page-subtitle">正在读取部署环境...</p>
                     </div>
                     <div class="cm-page-header-actions">
-                        <button class="btn btn-ghost" type="button" onclick="refreshOverview(true)">
+                        <button id="btn-overview-refresh" class="btn btn-ghost" type="button" onclick="refreshOverview(true)">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <polyline points="23 4 23 10 17 10"></polyline>
                                 <polyline points="1 20 1 14 7 14"></polyline>
                                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                             </svg>
-                            <span>刷新</span>
+                            <span id="overview-refresh-label">刷新</span>
                         </button>
-                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('config')">业务配置</button>
-                        <button class="btn btn-primary" type="button" onclick="startAllServices()">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                            </svg>
-                            <span>启动全部服务</span>
-                        </button>
+                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('config')">平台配置管理</button>
                     </div>
                 </div>
 
@@ -244,50 +234,19 @@
                             </div>
                             <div id="overview-alerts" class="cm-overview-alerts"></div>
                         </section>
-
-                        <section class="cm-overview-card">
-                            <header class="cm-overview-card-header">
-                                <div>
-                                    <div class="cm-overview-card-title">按层级分布</div>
-                                    <div class="cm-overview-card-subtitle">按服务用途归类</div>
-                                </div>
-                            </header>
-                            <div id="overview-tier-legend" class="cm-tier-legend-grid">
-                                <!-- 5 个 tier 子卡由 ConfigMateOverviewUi.renderTierLegend 渲染 -->
-                            </div>
-                        </section>
                     </div>
 
                     <aside class="cm-overview-side">
                         <section class="cm-overview-card cm-overview-card-tight">
                             <header class="cm-overview-card-header">
                                 <div class="cm-overview-card-title">最近活动</div>
-                                <button class="cm-overview-card-action" type="button" onclick="navigateRoute('config')">去业务配置 →</button>
+                                <button class="cm-overview-card-action" type="button" onclick="navigateRoute('config')">去平台配置管理 →</button>
                             </header>
                             <ol id="overview-activity" class="cm-overview-activity">
                                 <li class="cm-overview-empty">正在读取历史记录...</li>
                             </ol>
                         </section>
 
-                        <section class="cm-overview-card cm-overview-card-tight">
-                            <header class="cm-overview-card-header">
-                                <div class="cm-overview-card-title">快速操作</div>
-                            </header>
-                            <div class="cm-overview-quick-actions">
-                                <button class="cm-quick-action" type="button" onclick="navigateRoute('config')">
-                                    <span class="cm-quick-action-title">编辑业务配置</span>
-                                    <span class="cm-quick-action-desc">表单 / 源码 .env</span>
-                                </button>
-                                <button class="cm-quick-action" type="button" onclick="navigateRoute('config')">
-                                    <span class="cm-quick-action-title">运行配置检查</span>
-                                    <span class="cm-quick-action-desc">在业务配置中打开</span>
-                                </button>
-                                <button class="cm-quick-action" type="button" onclick="navigateRoute('install')">
-                                    <span class="cm-quick-action-title">初始化向导</span>
-                                    <span class="cm-quick-action-desc">首次部署任务</span>
-                                </button>
-                            </div>
-                        </section>
                     </aside>
                 </div>
             </section>
@@ -299,7 +258,7 @@
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="9 18 15 12 9 6"></polyline>
                     </svg>
-                    <span>部署控制台</span>
+                    <span>服务管理</span>
                     <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="9 18 15 12 9 6"></polyline>
@@ -308,27 +267,27 @@
                 </div>
                 <div class="cm-page-header">
                     <div class="cm-page-header-titles">
-                        <h2 class="cm-page-title">部署控制台</h2>
+                        <h2 class="cm-page-title">服务管理</h2>
                         <p id="deployment-subtitle" class="cm-page-subtitle">服务启停与运行配置</p>
                     </div>
                     <div class="cm-page-header-actions">
-                        <button class="btn btn-ghost" type="button" onclick="refreshDeployment()">
+                        <button id="btn-deployment-refresh" class="btn btn-ghost" type="button" onclick="refreshDeployment({ interactive: true })">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <polyline points="23 4 23 10 17 10"></polyline>
                                 <polyline points="1 20 1 14 7 14"></polyline>
                                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                             </svg>
-                            <span>刷新</span>
+                            <span id="deployment-refresh-label">刷新</span>
                         </button>
-                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('config')">业务配置</button>
+                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('config')">平台配置管理</button>
                     </div>
                 </div>
 
                 <div class="deployment-header is-legacy-hidden" aria-hidden="true">
                     <div class="deployment-title-block">
                         <div class="section-kicker">Deployment</div>
-                        <div class="deployment-title">部署控制台</div>
+                        <div class="deployment-title">服务管理</div>
                         <div id="deployment-meta" class="section-subtitle deployment-meta">正在识别部署环境...</div>
                         <div id="deployment-diagnostics" class="deployment-diagnostics">正在检查运行环境...</div>
                         <div class="deployment-overview">
@@ -342,7 +301,7 @@
                         </div>
                         <div id="header-app-type" class="deployment-mode"></div>
                         <div class="status-badge"><span class="status-dot"></span>Running</div>
-                        <button class="btn-header" onclick="refreshDeployment()">刷新状态</button>
+                        <button class="btn-header" onclick="refreshDeployment({ interactive: true })">刷新状态</button>
                     </div>
                 </div>
 
@@ -380,35 +339,54 @@
 
                 <section id="service-config-panel" class="service-config-panel cm-service-detail" style="display:none;"></section>
             </div>
-            <section id="config-workspace" class="config-workspace cm-config">
+            <section id="config-workspace" class="config-workspace cm-config" hidden>
                 <div class="cm-breadcrumb">
                     <span>Config Mate</span>
                     <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="9 18 15 12 9 6"></polyline>
                     </svg>
-                    <span class="cm-breadcrumb-current">业务配置</span>
+                    <span class="cm-breadcrumb-current">平台配置管理</span>
                 </div>
                 <div class="cm-page-header">
                     <div class="cm-page-header-titles">
-                        <h2 class="cm-page-title" id="config-workspace-title">业务配置</h2>
+                        <h2 class="cm-page-title" id="config-workspace-title">平台配置管理</h2>
                         <p class="cm-page-subtitle" id="config-workspace-meta">读取当前业务服务配置中...</p>
                     </div>
-                    <div class="cm-page-header-actions">
-                        <div class="cm-segmented cm-config-view-toggle" id="cm-config-view-toggle" role="tablist" aria-label="视图切换">
-                            <button type="button" class="cm-segmented-item" data-config-view="overview"
-                                onclick="setConfigView('overview')">总览</button>
-                            <button type="button" class="cm-segmented-item active" data-config-view="form"
-                                onclick="setConfigView('form')" aria-current="page">表单</button>
-                            <button type="button" class="cm-segmented-item" data-config-view="source"
-                                onclick="setConfigView('source')">源码</button>
+                    <div class="cm-page-header-actions cm-config-header-actions">
+                        <div class="cm-config-tool-actions" aria-label="平台配置工具">
+                            <div class="cm-segmented cm-config-view-toggle" id="cm-config-view-toggle" role="tablist" aria-label="视图切换">
+                                <button type="button" class="cm-segmented-item" data-config-view="overview"
+                                    onclick="setConfigView('overview')">总览</button>
+                                <button type="button" class="cm-segmented-item cm-config-collapse-toggle" id="btn-toggle-all"
+                                    onclick="toggleAllGroups()" title="折叠或展开全部表单分组">折叠全部</button>
+                                <button type="button" class="cm-segmented-item active" data-config-view="form"
+                                    onclick="setConfigView('form')" aria-current="page">表单</button>
+                                <button type="button" class="cm-segmented-item" data-config-view="source"
+                                    onclick="setConfigView('source')">源码</button>
+                            </div>
+                            <button class="btn btn-ghost cm-config-verify-btn" type="button" id="btn-config-runtime-check"
+                                onclick="openConfigRuntimeDiffModal()"
+                                title="校验当前配置是否与正在运行容器中的配置一致">
+                                <span>校验配置</span>
+                                <span class="cm-config-verify-hint" aria-hidden="true"
+                                    title="校验当前配置是否与正在运行容器中的配置一致">!</span>
+                            </button>
+                            <button class="btn btn-ghost" type="button" onclick="openConfigHistoryModal()">历史版本</button>
                         </div>
-                        <button class="btn btn-ghost" type="button" onclick="openConfigRuntimeDiffModal()">运行检查</button>
-                        <button class="btn btn-ghost" type="button" onclick="openConfigHistoryModal()">历史版本</button>
-                        <button class="btn btn-ghost is-hidden" type="button" id="btn-cfg-save-only" onclick="saveConfig()">仅保存</button>
-                        <button class="btn btn-primary is-hidden" type="button" id="btn-cfg-save-apply" onclick="saveAndApplyPlan()">保存并重启</button>
-                        <button class="btn btn-ghost" type="button" id="btn-source-mode" onclick="toggleSourceMode()" hidden>源码模式</button>
-                        <button class="btn btn-ghost" type="button" id="btn-toggle-all" onclick="toggleAllGroups()">折叠全部</button>
+                        <div id="cm-config-change-actions" class="cm-config-change-actions is-idle" aria-live="polite" aria-label="平台配置编辑操作">
+                            <button class="btn btn-primary" type="button" id="btn-cfg-edit" onclick="setEditMode(true)">开启编辑</button>
+                            <button class="cm-config-dirty-trigger is-hidden" type="button" id="btn-config-pending-trigger"
+                                onclick="openConfigPendingModal()" aria-label="查看未保存配置变更">
+                                <span class="cm-config-dirty-icon" aria-hidden="true">!</span>
+                                <span>未保存</span>
+                                <span id="cm-config-pending-count-inline" class="cm-config-pending-count">0</span>
+                            </button>
+                            <span id="cm-config-change-summary" class="cm-config-change-summary is-hidden">编辑中</span>
+                            <button class="btn btn-ghost is-hidden" type="button" id="btn-cfg-cancel-edit" onclick="cancelEdit()">退出编辑</button>
+                            <button class="btn btn-ghost is-hidden" type="button" id="btn-cfg-save-only" onclick="saveConfig()">保存配置</button>
+                            <button class="btn btn-primary is-hidden" type="button" id="btn-cfg-save-apply" onclick="saveAndApplyPlan()">保存并应用到服务</button>
+                        </div>
                     </div>
                 </div>
 
@@ -422,7 +400,7 @@
                             <circle cx="11" cy="11" r="8"></circle>
                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                         </svg>
-                        <input id="config-search-input" type="search" placeholder="搜索业务配置项..."
+                        <input id="config-search-input" type="search" placeholder="搜索平台配置项..."
                             onkeyup="filterConfig(this.value)">
                     </label>
                 </div>
@@ -442,7 +420,7 @@
                                 <circle cx="11" cy="11" r="8"></circle>
                                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                             </svg>
-                            <input type="text" class="search-input" placeholder="搜索业务配置项..."
+                            <input type="text" class="search-input" placeholder="搜索平台配置项..."
                                 onkeyup="filterConfig(this.value)">
                         </div>
                     </div>
@@ -470,30 +448,18 @@
                                 <div class="source-panel-actions">
                                     <button class="btn-header" id="btn-source-fullscreen" type="button"
                                         onclick="toggleSourceFullscreen()">全屏</button>
-                                    <button class="btn-header" type="button" onclick="toggleSourceMode()">退出源码</button>
                                 </div>
                             </div>
                             <textarea id="source-editor" class="source-editor" spellcheck="false"></textarea>
                         </div>
                     </section>
-                    <aside id="cm-config-pending-panel" class="cm-config-pending-panel" hidden aria-label="未保存变更">
-                        <header class="cm-config-pending-head">
-                            <div>
-                                <div class="cm-config-pending-title">未保存变更 <span id="cm-config-pending-count" class="cm-config-pending-count">0</span></div>
-                                <div class="cm-config-pending-sub">保存后需重启业务服务才能生效</div>
-                            </div>
-                        </header>
-                        <ol id="cm-config-pending-list" class="cm-config-pending-list">
-                            <!-- by renderConfigPendingPanel() -->
-                        </ol>
-                    </aside>
                 </div>
             </section>
         </div>
         <div class="action-bar">
             <div class="action-context">
-                <div id="action-title" class="action-title">业务配置动作</div>
-                <div id="action-subtitle" class="action-subtitle">服务启停请在上方服务卡片中操作；这里仅保存业务配置并重启当前业务服务。</div>
+                <div id="action-title" class="action-title">平台配置动作</div>
+                <div id="action-subtitle" class="action-subtitle">服务启停请在上方服务卡片中操作；保存并应用只处理当前业务服务。</div>
             </div>
             <div class="action-buttons">
                 <button id="btn-install-init" class="btn-install-init" onclick="checkInstallAndConfirm()">初始化安装</button>
@@ -502,8 +468,8 @@
 
 
 
-                <button id="btn-save-only" class="btn btn-primary is-hidden" onclick="saveConfig()">仅保存配置</button>
-                <button id="btn-save-apply" class="btn btn-success is-hidden" onclick="saveAndApplyPlan()">保存并重启</button>
+                <button id="btn-save-only" class="btn btn-primary is-hidden" onclick="saveConfig()">保存配置</button>
+                <button id="btn-save-apply" class="btn btn-success is-hidden" onclick="saveAndApplyPlan()">保存并应用到服务</button>
             </div>
         </div>
 
@@ -541,7 +507,7 @@
                 </div>
                 <div class="cm-page-header-actions">
                     <button class="btn btn-ghost" type="button" onclick="openHistoryModal()">刷新</button>
-                    <button class="btn btn-primary" type="button" onclick="closeHistoryModal()">关闭</button>
+                    <button class="btn btn-close" type="button" onclick="closeHistoryModal()">关闭</button>
                 </div>
             </div>
 
@@ -570,8 +536,8 @@
                 <section id="cm-history-diff" class="cm-history-diff" aria-label="变更对比">
                     <header class="cm-history-card-head">
                         <div>
-                            <div class="cm-history-card-title">如何使用历史版本</div>
-                            <div class="cm-history-card-sub">点击左侧版本卡上的操作按钮</div>
+                            <div class="cm-history-card-title">版本操作</div>
+                            <div class="cm-history-card-sub">选择左侧记录后执行对应动作</div>
                         </div>
                     </header>
                     <div class="cm-history-diff-body">
@@ -582,15 +548,29 @@
                             </li>
                             <li>
                                 <span class="cm-history-action-tag tag-compare">对比</span>
-                                <span>与当前业务配置对比差异（弹窗显示）</span>
+                                <span>与当前平台配置对比差异（弹窗显示）</span>
                             </li>
                             <li>
                                 <span class="cm-history-action-tag tag-restore">回滚</span>
                                 <span>替换当前 .env 并重启业务服务 · 高风险</span>
                             </li>
                         </ul>
+                        <div class="cm-history-policy">
+                            <div class="cm-history-policy-row">
+                                <span>保存策略</span>
+                                <strong>仅配置值变化时归档</strong>
+                            </div>
+                            <div class="cm-history-policy-row">
+                                <span>保留上限</span>
+                                <strong>最近 5 个版本</strong>
+                            </div>
+                            <div class="cm-history-policy-row">
+                                <span>归档目录</span>
+                                <code>.env_history/</code>
+                            </div>
+                        </div>
                         <div class="cm-history-tip">
-                            <strong>提示：</strong>每次保存配置会自动归档当前 .env 到 <code>.env_history/</code> 目录，最多保留最近 5 个版本，先入先出。
+                            <strong>回滚前请确认：</strong>回滚会替换当前 .env，并影响下一次保存或重启后的平台配置。
                         </div>
                     </div>
                 </section>
@@ -603,7 +583,7 @@
         <div class="modal-content modal-wide modal-tall">
             <div class="modal-header">
                 <div class="modal-title" id="diff-title">内容对比</div>
-                <div class="close-btn" onclick="closeDiffModal()">&times;</div>
+                <button class="cm-icon-close close-btn" type="button" onclick="closeDiffModal()" aria-label="关闭内容对比">&times;</button>
             </div>
             <div class="modal-body modal-body-flush">
                 <div id="diff-content" class="diff-container flex-fill">
@@ -611,7 +591,40 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-ghost" onclick="closeDiffModal()">关闭</button>
+                <button class="btn btn-close" type="button" onclick="closeDiffModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="config-pending-modal" class="modal-overlay cm-config-pending-modal"
+        onclick="if (event.target === this) closeConfigPendingModal()" aria-modal="true" role="dialog"
+        aria-labelledby="config-pending-modal-title">
+        <div class="modal-content cm-config-pending-dialog">
+            <div class="modal-header">
+                <div>
+                    <div class="modal-title" id="config-pending-modal-title">配置变更</div>
+                    <div class="cm-config-pending-sub">保存后需重启业务服务才能生效</div>
+                </div>
+                <button class="cm-icon-close close-btn" type="button" onclick="closeConfigPendingModal()"
+                    aria-label="关闭配置变更">&times;</button>
+            </div>
+            <div class="modal-body cm-config-pending-modal-body">
+                <div class="cm-config-pending-overview">
+                    <span class="cm-config-pending-overview-icon" aria-hidden="true">!</span>
+                    <div>
+                        <div class="cm-config-pending-title">
+                            未保存变更
+                            <span id="cm-config-pending-count" class="cm-config-pending-count">0</span>
+                        </div>
+                        <div class="cm-config-pending-sub">以下配置仍停留在当前页面，尚未写入 .env。</div>
+                    </div>
+                </div>
+                <ol id="cm-config-pending-list" class="cm-config-pending-list">
+                    <!-- by renderConfigPendingPanel() -->
+                </ol>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-close" type="button" onclick="closeConfigPendingModal()">关闭</button>
             </div>
         </div>
     </div>
@@ -626,7 +639,7 @@
                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
-                <span>部署控制台</span>
+                <span>服务管理</span>
                 <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"></polyline>
@@ -637,12 +650,18 @@
                 <div class="cm-page-header-titles">
                     <h2 class="cm-page-title">服务日志</h2>
                     <p class="cm-page-subtitle" id="logs-page-subtitle">
-                        <span id="logs-page-subtitle-text">从部署控制台选择服务后查看容器 stdout</span>
+                        <span id="logs-page-subtitle-text">从服务管理选择服务后查看容器 stdout</span>
                         <span id="logs-status" class="cm-logs-live">
                             <span class="logs-status-dot"></span>
                             <span>实时监听中</span>
                         </span>
                     </p>
+                    <ul id="cm-logs-level-list" class="cm-logs-level-list cm-logs-level-strip" aria-label="当前可见日志级别分布">
+                        <li data-lvl="error"><span class="cm-logs-level-dot"></span><span class="cm-logs-level-label">ERROR</span><span class="cm-logs-level-count" id="cm-logs-level-count-error">0</span></li>
+                        <li data-lvl="warn"><span class="cm-logs-level-dot"></span><span class="cm-logs-level-label">WARN</span><span class="cm-logs-level-count" id="cm-logs-level-count-warn">0</span></li>
+                        <li data-lvl="success"><span class="cm-logs-level-dot"></span><span class="cm-logs-level-label">SUCCESS</span><span class="cm-logs-level-count" id="cm-logs-level-count-success">0</span></li>
+                        <li data-lvl="info"><span class="cm-logs-level-dot"></span><span class="cm-logs-level-label">INFO</span><span class="cm-logs-level-count" id="cm-logs-level-count-info">0</span></li>
+                    </ul>
                 </div>
                 <div class="cm-page-header-actions">
                     <select id="logs-level-filter" class="cm-logs-level-select" onchange="setLogLevelFilter(this.value)" title="日志级别">
@@ -654,21 +673,11 @@
                     </select>
                     <button class="btn btn-ghost" onclick="copyVisibleLogs()">复制</button>
                     <button class="btn btn-ghost" id="btn-log-pause" onclick="toggleLogPause()">暂停</button>
-                    <button class="btn btn-primary" onclick="closeLogs()">关闭</button>
+                    <button class="btn btn-close" type="button" onclick="closeLogs()">关闭</button>
                 </div>
             </div>
 
             <div class="cm-logs-grid">
-                <aside id="cm-logs-sources" class="cm-logs-sources" aria-label="日志源">
-                    <div class="cm-logs-card-head">
-                        <div class="cm-logs-card-title">日志源</div>
-                        <div class="cm-logs-card-sub" id="cm-logs-sources-sub">0 个容器</div>
-                    </div>
-                    <div id="cm-logs-sources-list" class="cm-logs-sources-list">
-                        <div class="cm-logs-empty">读取服务列表中...</div>
-                    </div>
-                </aside>
-
                 <section class="cm-logs-terminal" aria-label="日志流">
                     <div class="cm-logs-terminal-toolbar">
                         <label class="cm-logs-search" for="logs-search-input">
@@ -692,33 +701,6 @@
                         <button class="cm-logs-tool-btn" onclick="clearLogs()">清空</button>
                     </div>
                 </section>
-
-                <aside class="cm-logs-inspector" aria-label="日志检查器">
-                    <section class="cm-logs-card">
-                        <div class="cm-logs-card-head">
-                            <div class="cm-logs-card-title">级别分布</div>
-                            <div class="cm-logs-card-sub">当前可见日志</div>
-                        </div>
-                        <ul id="cm-logs-level-list" class="cm-logs-level-list">
-                            <li data-lvl="error"><span class="cm-logs-level-dot" style="background:#F48771"></span><span class="cm-logs-level-label">ERROR</span><span class="cm-logs-level-count" id="cm-logs-level-count-error">0</span></li>
-                            <li data-lvl="warn"><span class="cm-logs-level-dot" style="background:#FDCB6E"></span><span class="cm-logs-level-label">WARN</span><span class="cm-logs-level-count" id="cm-logs-level-count-warn">0</span></li>
-                            <li data-lvl="success"><span class="cm-logs-level-dot" style="background:#4EC9B0"></span><span class="cm-logs-level-label">SUCCESS</span><span class="cm-logs-level-count" id="cm-logs-level-count-success">0</span></li>
-                            <li data-lvl="info"><span class="cm-logs-level-dot" style="background:#8B949E"></span><span class="cm-logs-level-label">INFO</span><span class="cm-logs-level-count" id="cm-logs-level-count-info">0</span></li>
-                        </ul>
-                    </section>
-
-                    <section class="cm-logs-card">
-                        <div class="cm-logs-card-head">
-                            <div class="cm-logs-card-title">提示</div>
-                        </div>
-                        <ul class="cm-logs-tips-list">
-                            <li>搜索框支持正则表达式</li>
-                            <li>点击左侧服务源切换实时流</li>
-                            <li>导出可用「复制」按钮</li>
-                            <li>暂停后仍可滚动查看历史</li>
-                        </ul>
-                    </section>
-                </aside>
             </div>
         </div>
     </div>
@@ -752,7 +734,7 @@
     </div>
 
     <!-- Install Progress Modal -->
-    <div id="install-modal" class="modal-overlay cm-install-route" data-route-breadcrumb="Config Mate › 初始化向导">
+    <div id="install-modal" class="route-page cm-install-route" data-route-breadcrumb="Config Mate › 初始化安装" hidden>
         <div class="install-modal-content cm-install-container">
             <div class="cm-breadcrumb cm-install-breadcrumb">
                 <span>Config Mate</span>
@@ -760,7 +742,7 @@
                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
-                <span class="cm-breadcrumb-current">初始化向导</span>
+                <span class="cm-breadcrumb-current">初始化安装</span>
             </div>
             <div class="cm-page-header cm-install-page-header">
                 <div class="cm-page-header-titles">
@@ -769,7 +751,7 @@
                 </div>
                 <div class="cm-page-header-actions">
                     <button class="btn btn-ghost" type="button" onclick="copyInstallLogs()">复制日志</button>
-                    <button class="btn btn-primary" id="btn-close-install" onclick="navigateRoute('deployment')" disabled>运行中</button>
+                    <button class="btn btn-primary" id="btn-install-start" type="button" onclick="checkInstallAndConfirm()">开始初始化</button>
                 </div>
             </div>
 
@@ -777,7 +759,7 @@
                 <div class="cm-install-kpi">
                     <div class="cm-install-kpi-label">任务文件</div>
                     <div id="install-compose-label" class="cm-install-kpi-value">install.yml</div>
-                    <div class="cm-install-kpi-sub">docker-compose-</div>
+                    <div class="cm-install-kpi-sub">安装任务定义文件</div>
                 </div>
                 <div class="cm-install-kpi" data-tone="primary">
                     <div class="cm-install-kpi-label">当前阶段</div>
@@ -796,22 +778,6 @@
                 </div>
             </div>
 
-            <div class="cm-install-progress-card">
-                <div class="progress-container">
-                    <div class="progress-bar-wrapper">
-                        <div id="install-progress-bar" class="progress-bar-fill"></div>
-                    </div>
-                </div>
-                <ol id="install-steps" class="install-steps cm-install-steps-grid">
-                    <li class="install-step" data-step="cleanup"><span class="install-step-dot">1</span><span class="install-step-label">清理旧任务</span></li>
-                    <li class="install-step" data-step="compose"><span class="install-step-dot">2</span><span class="install-step-label">启动安装容器</span></li>
-                    <li class="install-step" data-step="schema"><span class="install-step-dot">3</span><span class="install-step-label">数据库结构</span></li>
-                    <li class="install-step" data-step="data"><span class="install-step-dot">4</span><span class="install-step-label">系统数据</span></li>
-                    <li class="install-step" data-step="assets"><span class="install-step-dot">5</span><span class="install-step-label">资源加载</span></li>
-                    <li class="install-step" data-step="finish"><span class="install-step-dot">6</span><span class="install-step-label">完成校验</span></li>
-                </ol>
-            </div>
-
             <div class="cm-install-log-card">
                 <div class="cm-install-log-toolbar">
                     <div class="cm-install-log-title">
@@ -825,11 +791,13 @@
                     </div>
                     <div class="cm-install-log-actions">
                         <button id="btn-install-follow" class="cm-install-log-btn active" type="button" onclick="toggleInstallFollow()">跟随</button>
+                        <button id="btn-install-wrap" class="cm-install-log-btn active" type="button" onclick="toggleInstallWrap()">换行</button>
+                        <button id="btn-install-fullscreen" class="cm-install-log-btn" type="button" onclick="toggleInstallLogFullscreen()">全屏</button>
                         <button class="cm-install-log-btn" type="button" onclick="copyInstallLogs()">复制</button>
                         <button class="cm-install-log-btn" type="button" onclick="clearInstallLogs()">清空</button>
                     </div>
                 </div>
-                <div id="install-logs" class="install-terminal"></div>
+                <div id="install-logs" class="install-terminal wrap-mode"></div>
             </div>
         </div>
     </div>
@@ -908,12 +876,12 @@
         当前目录未检测到 <code>docker-compose.yml</code> 文件，无法执行启动、停止或日志等操作。
     </div>
     <script src="assets/api.js"></script>
-    <script src="assets/modules/ui-core.js?v=20260517-confirm-system"></script>
-    <script src="assets/modules/services-ui.js?v=20260517-detail-layout-clean"></script>
-    <script src="assets/modules/overview-ui.js?v=20260517-config-entry-modals"></script>
-    <script src="assets/modules/router.js?v=20260517-config-entry-modals"></script>
-    <script src="assets/app.js?v=20260517-config-entry-modals"></script>
-    <script type="module" src="assets/src/main.js?v=20260517-service-logs-mobile-2"></script>
+    <script src="assets/modules/ui-core.js?v=20260520-dependency-check-dialog-2"></script>
+    <script src="assets/modules/services-ui.js?v=20260520-close-actions"></script>
+    <script src="assets/modules/overview-ui.js?v=20260520-platform-config-label"></script>
+    <script src="assets/modules/router.js?v=20260518-route-config-layout"></script>
+    <script src="assets/app.js?v=20260520-verify-config-action"></script>
+    <script type="module" src="assets/src/main.js?v=20260520-history-layout"></script>
 
     <!-- Validation Warning Modal -->
     <!-- Validation Warning Modal -->
@@ -952,7 +920,7 @@
         </div>
     </div>
 
-    <div id="runtime-diff-modal" class="modal-overlay cm-diff-route" data-route-breadcrumb="Config Mate › 运行检查">
+    <div id="runtime-diff-modal" class="modal-overlay cm-diff-route" data-route-breadcrumb="Config Mate › 校验配置">
         <div class="modal-content modal-wide cm-diff-container">
             <div class="cm-breadcrumb cm-diff-breadcrumb">
                 <span>Config Mate</span>
@@ -960,17 +928,17 @@
                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
-                <span class="cm-breadcrumb-current">运行检查</span>
+                <span class="cm-breadcrumb-current">校验配置</span>
             </div>
             <div class="cm-page-header cm-diff-page-header">
                 <div class="cm-page-header-titles">
-                    <h2 class="cm-page-title">运行配置检查</h2>
+                    <h2 class="cm-page-title">配置校验</h2>
                     <p class="cm-page-subtitle">通过 <code>docker inspect</code> 读取容器真实环境变量，与本地 <code>.env</code> 比对</p>
                 </div>
                 <div class="cm-page-header-actions">
-                    <button class="btn btn-ghost" type="button" onclick="checkRuntimeSync()">重新检查</button>
+                    <button class="btn btn-ghost" id="btn-runtime-recheck" type="button" onclick="checkRuntimeSync()">重新校验</button>
                     <button class="btn btn-primary" type="button" id="btn-restart-from-diff" onclick="restartService()">立即重启服务</button>
-                    <button class="btn btn-ghost" type="button" onclick="closeRuntimeDiffModal()">关闭</button>
+                    <button class="btn btn-close" type="button" onclick="closeRuntimeDiffModal()">关闭</button>
                 </div>
             </div>
 

@@ -5,17 +5,36 @@
 
 .overview-page {
     padding: 22px 32px 32px;
-    background:
-        linear-gradient(180deg, rgba(239, 246, 255, 0.58), rgba(245, 247, 251, 0) 260px),
-        var(--cm-cloud-bg);
+    background: var(--cm-card);
     color: var(--cm-cloud-fg);
     font-family: var(--cm-font-sans);
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     min-height: calc(100vh - 60px);
     box-sizing: border-box;
+    overflow: auto;
 }
 
 .overview-page[hidden] {
     display: none !important;
+}
+
+body[data-workbench-page="overview-page"] .content {
+    align-items: center;
+    height: calc(100vh - 60px);
+    padding: 12px 22px !important;
+    overflow: hidden;
+    background:
+        linear-gradient(180deg, var(--cm-accent-soft), rgba(248, 250, 252, 0) 260px),
+        var(--cm-background);
+    box-sizing: border-box;
+}
+
+body[data-workbench-page="overview-page"] #overview-page.overview-page {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
 }
 
 /* ---- breadcrumb ------------------------------------------------------- */
@@ -26,7 +45,7 @@
     gap: 8px;
     margin-bottom: 14px;
     color: var(--cm-cloud-muted);
-    font-family: var(--cm-font-mono);
+    font-family: var(--cm-font-sans);
     font-size: var(--cm-text-xs);
 }
 
@@ -85,6 +104,20 @@
     font-size: var(--cm-text-sm);
     font-weight: 600;
     white-space: nowrap;
+}
+
+.cm-page-header-actions .btn.is-refreshing svg {
+    animation: cm-overview-refresh-spin 0.8s linear infinite;
+}
+
+.cm-page-header-actions .btn.is-cooling {
+    opacity: 0.72;
+}
+
+@keyframes cm-overview-refresh-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* ---- KPI row ---------------------------------------------------------- */
@@ -292,8 +325,9 @@
 }
 
 .cm-tile-name {
-    font-family: var(--cm-font-mono);
-    font-size: var(--cm-text-sm);
+    font-family: var(--cm-font-sans);
+    font-size: 16px;
+    line-height: 1.2;
     font-weight: 800;
     color: var(--cm-cloud-fg);
     overflow: hidden;
@@ -303,7 +337,7 @@
 
 .cm-tile-desc {
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--cm-cloud-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -314,7 +348,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 6px;
-    font-family: var(--cm-font-mono);
     font-size: 11px;
 }
 
@@ -333,6 +366,7 @@
 }
 
 .cm-tile-metric-val {
+    font-family: var(--cm-font-mono);
     color: var(--cm-cloud-fg);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -342,8 +376,8 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-family: var(--cm-font-mono);
-    font-size: 10px;
+    font-family: var(--cm-font-sans);
+    font-size: 11px;
     font-weight: 700;
     padding: 3px 8px;
     border-radius: var(--cm-radius-full);
@@ -551,136 +585,10 @@
     align-self: center;
 }
 
-/* ---- tier legend (5 子卡) -------------------------------------------- */
-
-.cm-tier-legend-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 10px;
-    padding: 14px;
-}
-
-.cm-tier-legend-card {
-    padding: 12px;
-    border: 1px solid var(--cm-cloud-border);
-    border-radius: 10px;
-    background: var(--cm-cloud-surface-muted);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.cm-tier-legend-head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.cm-tier-legend-icon {
-    display: inline-flex;
-    align-items: center;
-    color: inherit;
-}
-
-.cm-tier-legend-icon svg {
-    width: 14px;
-    height: 14px;
-}
-
-.cm-tier-legend-label {
-    font-size: 11px;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.cm-tier-legend-count {
-    font-family: var(--cm-font-mono);
-    font-size: 22px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-}
-
-.cm-tier-legend-sub {
-    font-size: 11px;
-    line-height: 1.2;
-}
-
-.cm-tier-legend-sub.warn { color: var(--cm-cloud-warning); }
-.cm-tier-legend-sub.ok   { color: var(--cm-cloud-success); }
-.cm-tier-legend-sub.muted { color: var(--cm-cloud-muted); }
-
-.cm-tier-legend-grid .cm-tier-business {
-    background: var(--cm-tier-business-bg);
-    border-color: var(--cm-tier-business-border);
-    color: var(--cm-tier-business-fg);
-}
-.cm-tier-legend-grid .cm-tier-storage {
-    background: var(--cm-tier-storage-bg);
-    border-color: var(--cm-tier-storage-border);
-    color: var(--cm-tier-storage-fg);
-}
-.cm-tier-legend-grid .cm-tier-cache {
-    background: var(--cm-tier-cache-bg);
-    border-color: var(--cm-tier-cache-border);
-    color: var(--cm-tier-cache-fg);
-}
-.cm-tier-legend-grid .cm-tier-queue {
-    background: var(--cm-tier-queue-bg);
-    border-color: var(--cm-tier-queue-border);
-    color: var(--cm-tier-queue-fg);
-}
-.cm-tier-legend-grid .cm-tier-monitor {
-    background: var(--cm-tier-monitor-bg);
-    border-color: var(--cm-tier-monitor-border);
-    color: var(--cm-tier-monitor-fg);
-}
-
-/* ---- quick actions ---------------------------------------------------- */
-
-.cm-overview-quick-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    padding: 12px 16px 16px;
-}
-
-.cm-quick-action {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    align-items: flex-start;
-    padding: 10px 12px;
-    border: 1px solid var(--cm-cloud-border);
-    border-radius: 10px;
-    background: var(--cm-cloud-surface);
-    cursor: pointer;
-    text-align: left;
-    transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.cm-quick-action:hover {
-    border-color: var(--cm-cloud-primary-border);
-    background: var(--cm-cloud-primary-soft);
-}
-
-.cm-quick-action-title {
-    font-size: var(--cm-text-sm);
-    font-weight: 700;
-    color: var(--cm-cloud-fg);
-}
-
-.cm-quick-action-desc {
-    font-size: 11px;
-    color: var(--cm-cloud-muted);
-}
-
 /* ---- responsive ------------------------------------------------------ */
 
 @media (max-width: 1280px) {
     .cm-kpi-row { grid-template-columns: repeat(3, 1fr); }
-    .cm-tier-legend-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 960px) {
@@ -688,8 +596,6 @@
     .cm-overview-grid { grid-template-columns: 1fr; }
     .cm-kpi-row { grid-template-columns: repeat(2, 1fr); }
     .cm-overview-services { grid-template-columns: 1fr; }
-    .cm-tier-legend-grid { grid-template-columns: repeat(2, 1fr); }
-    .cm-overview-quick-actions { grid-template-columns: 1fr; }
     .cm-page-header { flex-direction: column; }
     .cm-page-header-actions { flex-wrap: wrap; }
 }

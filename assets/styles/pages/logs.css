@@ -232,7 +232,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 14px;
-    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-family: var(--cm-font-mono);
     font-size: 12px;
     line-height: 1.55;
     background: #0D1117;
@@ -328,7 +328,7 @@
 
 /* ========================================================================
    Cloud Console · service log modal layout.
-   Desktop uses a 3-column console; mobile prioritizes the terminal.
+   Single-focus console: compact header stats + full-width terminal.
    ====================================================================== */
 
 .cm-logs-route.logs-modal {
@@ -350,31 +350,49 @@
 }
 
 .cm-logs-route .cm-logs-container {
-    width: min(1180px, calc(100vw - 48px));
-    height: min(82vh, calc(100vh - 48px));
+    width: min(1360px, calc(100vw - 40px));
+    height: min(88vh, calc(100vh - 40px));
     max-width: none;
     max-height: none;
     margin: 0;
-    padding: 18px;
-    background: var(--cm-cloud-bg);
+    padding: 0;
+    background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 16px;
+    border-radius: 18px;
     box-shadow: var(--cm-shadow-lg);
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 0;
     overflow: hidden;
     color: var(--cm-cloud-fg);
     font-family: var(--cm-font-sans);
 }
 
-.cm-logs-breadcrumb {
+.cm-logs-route .cm-logs-breadcrumb {
+    display: none;
+}
+
+.cm-logs-route .cm-logs-page-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 14px 20px;
+    margin: 0;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--cm-cloud-border-subtle);
     flex-shrink: 0;
 }
 
-.cm-logs-page-header {
-    margin-bottom: 4px;
-    flex-shrink: 0;
+.cm-logs-route .cm-logs-page-header .cm-page-header-titles {
+    min-width: 0;
+}
+
+.cm-logs-route .cm-logs-page-header .cm-page-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .cm-logs-live {
@@ -424,25 +442,30 @@
     font-family: var(--cm-font-sans);
 }
 
-/* ---- 3-column grid ---- */
+/* ---- Full-width terminal grid ---- */
 
 .cm-logs-grid {
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: 240px minmax(0, 1fr) 260px;
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
 }
 
-/* Left: source list */
+/* Source and inspector panes were removed from the service-card log flow. */
+
+.cm-logs-sources,
+.cm-logs-inspector {
+    display: none !important;
+}
 
 .cm-logs-sources,
 .cm-logs-inspector .cm-logs-card,
 .cm-logs-inspector > section {
     background: var(--cm-cloud-surface);
-    border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
-    box-shadow: var(--cm-cloud-shadow-sm);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -450,7 +473,7 @@
 }
 
 .cm-logs-card-head {
-    padding: 12px 16px;
+    padding: 14px 16px;
     border-bottom: 1px solid var(--cm-cloud-border-subtle);
     flex-shrink: 0;
 }
@@ -477,6 +500,7 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    min-height: 56px;
     padding: 10px 16px;
     border: none;
     background: transparent;
@@ -542,10 +566,11 @@
 /* Center: terminal */
 
 .cm-logs-terminal {
-    background: var(--cm-cloud-surface);
-    border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
-    box-shadow: var(--cm-cloud-shadow-sm);
+    background: var(--cm-term-bg);
+    border: 0;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -556,9 +581,9 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--cm-cloud-border-subtle);
-    background: var(--cm-cloud-surface);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--cm-term-border);
+    background: color-mix(in srgb, var(--cm-term-bg) 88%, var(--cm-cloud-surface) 12%);
     flex-shrink: 0;
 }
 
@@ -568,12 +593,12 @@
     align-items: center;
     gap: 6px;
     padding: 5px 10px;
-    border: 1px solid var(--cm-cloud-border);
+    border: 1px solid var(--cm-term-border);
     border-radius: var(--cm-radius-md);
-    background: var(--cm-cloud-surface-muted);
+    background: var(--cm-term-bg);
 }
 
-.cm-logs-search svg { color: var(--cm-cloud-muted); flex-shrink: 0; }
+.cm-logs-search svg { color: var(--cm-term-fg-muted); flex-shrink: 0; }
 
 .cm-logs-search input {
     flex: 1;
@@ -582,13 +607,13 @@
     background: transparent;
     font-family: var(--cm-font-mono);
     font-size: 12px;
-    color: var(--cm-cloud-fg);
+    color: var(--cm-term-fg);
 }
 
 .cm-logs-search .logs-search-clear {
     border: none;
     background: transparent;
-    color: var(--cm-cloud-muted);
+    color: var(--cm-term-fg-muted);
     cursor: pointer;
     font-size: 14px;
     line-height: 1;
@@ -606,10 +631,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--cm-cloud-border);
+    border: 1px solid var(--cm-term-border);
     border-radius: 6px;
-    background: var(--cm-cloud-surface);
-    color: var(--cm-cloud-fg);
+    background: color-mix(in srgb, var(--cm-term-bg) 88%, var(--cm-cloud-surface) 12%);
+    color: var(--cm-term-fg);
     font-size: 11px;
     font-weight: 700;
     cursor: pointer;
@@ -618,14 +643,14 @@
 
 .cm-logs-tool-btn:hover {
     border-color: var(--cm-cloud-primary-border);
-    background: var(--cm-cloud-primary-soft);
-    color: var(--cm-cloud-primary);
+    background: color-mix(in srgb, var(--cm-term-bg) 82%, var(--cm-cloud-primary) 18%);
+    color: var(--cm-cloud-surface);
 }
 
 .cm-logs-tool-btn.active {
-    border-color: var(--cm-cloud-primary);
-    background: var(--cm-cloud-primary-soft);
-    color: var(--cm-cloud-primary);
+    border-color: var(--cm-cloud-success-border);
+    background: color-mix(in srgb, var(--cm-term-bg) 82%, var(--cm-cloud-success) 18%);
+    color: var(--cm-cloud-success-border);
 }
 
 .cm-logs-route #logs-content {
@@ -634,23 +659,23 @@
     overflow: auto;
     background: var(--cm-term-bg);
     color: var(--cm-term-fg);
-    padding: 8px 0;
+    padding: 14px 16px;
     font-family: var(--cm-font-mono);
-    font-size: 12px;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.65;
 }
 
 .cm-logs-footer {
-    padding: 8px 14px;
-    border-top: 1px solid var(--cm-cloud-border-subtle);
-    background: var(--cm-cloud-surface);
+    padding: 11px 16px;
+    border-top: 1px solid var(--cm-term-border);
+    background: color-mix(in srgb, var(--cm-term-bg) 88%, var(--cm-cloud-surface) 12%);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
     font-family: var(--cm-font-mono);
     font-size: 11px;
-    color: var(--cm-cloud-muted);
+    color: var(--cm-term-fg-muted);
     flex-shrink: 0;
 }
 
@@ -661,40 +686,68 @@
     white-space: nowrap;
 }
 
-/* Right: inspector */
+/* Header level distribution */
 
 .cm-logs-level-list {
     list-style: none;
     margin: 0;
-    padding: 12px 14px;
+    padding: 0;
+}
+
+.cm-logs-level-strip {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
 }
 
 .cm-logs-level-list li {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 5px 0;
+    min-height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-full);
+    background: var(--cm-cloud-surface-muted);
 }
 
 .cm-logs-level-dot {
     width: 8px;
     height: 8px;
-    border-radius: 2px;
+    border-radius: 50%;
     flex-shrink: 0;
 }
 
+.cm-logs-level-list li[data-lvl="error"] .cm-logs-level-dot {
+    background: var(--cm-cloud-danger);
+}
+
+.cm-logs-level-list li[data-lvl="warn"] .cm-logs-level-dot {
+    background: var(--cm-cloud-warning);
+}
+
+.cm-logs-level-list li[data-lvl="success"] .cm-logs-level-dot {
+    background: var(--cm-cloud-success);
+}
+
+.cm-logs-level-list li[data-lvl="info"] .cm-logs-level-dot {
+    background: var(--cm-cloud-subtle);
+}
+
 .cm-logs-level-label {
-    flex: 1;
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: 11px;
     color: var(--cm-cloud-fg);
+    font-weight: 800;
 }
 
 .cm-logs-level-count {
     font-family: var(--cm-font-mono);
     font-size: 11px;
     color: var(--cm-cloud-muted);
-    font-weight: 600;
+    font-weight: 800;
 }
 
 .cm-logs-tips-list {
@@ -721,15 +774,22 @@
 }
 
 @media (max-width: 1280px) {
-    .cm-logs-grid { grid-template-columns: 200px minmax(0, 1fr) 220px; }
+    .cm-logs-route .cm-logs-container {
+        width: calc(100vw - 32px);
+        height: calc(100vh - 32px);
+    }
 }
 
 @media (max-width: 960px) {
     .cm-logs-route.logs-modal { padding: 14px; }
-    .cm-logs-route .cm-logs-container { width: calc(100vw - 28px); height: calc(100vh - 28px); padding: 16px; }
-    .cm-logs-grid { grid-template-columns: 1fr; grid-template-rows: auto minmax(300px, 1fr) auto; }
-    .cm-logs-sources { max-height: 200px; }
-    .cm-logs-inspector { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .cm-logs-route .cm-logs-container { width: calc(100vw - 28px); height: calc(100vh - 28px); }
+    .cm-logs-grid { grid-template-columns: 1fr; }
+    .cm-logs-route .cm-logs-page-header {
+        grid-template-columns: 1fr;
+    }
+    .cm-logs-route .cm-logs-page-header .cm-page-header-actions {
+        justify-content: flex-start;
+    }
 }
 
 @media (max-width: 640px) {
@@ -749,31 +809,31 @@
         border-radius: 0;
         box-shadow: none;
         gap: 10px;
-        overflow-y: auto;
+        overflow: hidden;
     }
 
-    .cm-logs-breadcrumb {
+    .cm-logs-route .cm-logs-breadcrumb {
         display: none;
     }
 
-    .cm-logs-page-header {
+    .cm-logs-route .cm-logs-page-header {
         display: flex;
         flex-direction: column;
         gap: 10px;
         margin: 0;
     }
 
-    .cm-logs-page-header .cm-page-header-titles {
+    .cm-logs-route .cm-logs-page-header .cm-page-header-titles {
         width: 100%;
         min-width: 0;
     }
 
-    .cm-logs-page-header .cm-page-title {
+    .cm-logs-route .cm-logs-page-header .cm-page-title {
         font-size: 24px;
         line-height: 1.18;
     }
 
-    .cm-logs-page-header .cm-page-subtitle {
+    .cm-logs-route .cm-logs-page-header .cm-page-subtitle {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
@@ -807,7 +867,7 @@
         background: var(--cm-cloud-danger-soft);
     }
 
-    .cm-logs-page-header .cm-page-header-actions {
+    .cm-logs-route .cm-logs-page-header .cm-page-header-actions {
         width: 100%;
         display: grid;
         grid-template-columns: minmax(0, 1fr) repeat(3, minmax(58px, auto));
@@ -815,7 +875,7 @@
     }
 
     .cm-logs-level-select,
-    .cm-logs-page-header .btn {
+    .cm-logs-route .cm-logs-page-header .btn {
         width: 100%;
         min-height: 38px;
         justify-content: center;
@@ -828,43 +888,18 @@
         display: flex;
         flex-direction: column;
         gap: 10px;
+        flex: 1;
         min-height: 0;
-        overflow: visible;
-    }
-
-    .cm-logs-sources {
-        flex: 0 0 auto;
-        max-height: none;
+        overflow: hidden;
     }
 
     .cm-logs-card-head {
         padding: 10px 12px;
     }
 
-    .cm-logs-sources-list {
-        display: flex;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        overscroll-behavior-x: contain;
-    }
-
-    .cm-logs-source-item {
-        min-width: 148px;
-        max-width: 176px;
-        padding: 10px 12px;
-        border-right: 1px solid var(--cm-cloud-border-subtle);
-        border-bottom: 0;
-    }
-
-    .cm-logs-source-name,
-    .cm-logs-source-desc {
-        white-space: nowrap;
-    }
-
     .cm-logs-terminal {
-        flex: 0 0 min(46vh, 430px);
-        min-height: 340px;
+        flex: 1;
+        min-height: 0;
     }
 
     .cm-logs-terminal-toolbar {
@@ -901,17 +936,6 @@
     .cm-logs-footer {
         padding: 8px 10px;
     }
-
-    .cm-logs-inspector {
-        flex: 0 0 auto;
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-
-    .cm-logs-inspector .cm-logs-card:last-child {
-        display: none;
-    }
 }
 
 @media (max-width: 380px) {
@@ -919,7 +943,7 @@
         padding: 12px;
     }
 
-    .cm-logs-page-header .cm-page-header-actions {
+    .cm-logs-route .cm-logs-page-header .cm-page-header-actions {
         grid-template-columns: 1fr 1fr;
     }
 

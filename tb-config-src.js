@@ -16,7 +16,7 @@ const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
 const { createAppRoutes } = require('./src/server/routes/app');
-const { createConfigRoutes } = require('./src/server/routes/config');
+const { createConfigRoutes, validateConfigValues } = require('./src/server/routes/config');
 const { createInstallRoutes } = require('./src/server/routes/install');
 const { createServiceRoutes } = require('./src/server/routes/services');
 const { createSystemRoutes } = require('./src/server/routes/system');
@@ -48,7 +48,8 @@ const PID_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.pid`);
 const LOG_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.log`);
 const CLEANUP_BACKUP_ROOT = path.join(RUNTIME_DIR, 'backups');
 const AUDIT_LOG_FILE = path.join(RUNTIME_DIR, 'audit.log');
-const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || '';
+const DEFAULT_CONFIG_MATE_PASSWORD = '123456';
+const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || DEFAULT_CONFIG_MATE_PASSWORD;
 const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
 const AUTH_REQUIRED = authService.authRequired;
 const {
@@ -152,7 +153,7 @@ function buildDeploymentDiagnostics() {
         ),
         buildDiagnosticItem(
             'app-env',
-            '业务配置 .env',
+            '平台配置 .env',
             shortDiagnosticPath(ENV_FILE_PATH),
             fs.existsSync(ENV_FILE_PATH),
             fs.existsSync(ENV_FILE_PATH) ? ENV_FILE_PATH : `未找到 .env：${ENV_FILE_PATH}`
@@ -196,10 +197,10 @@ function buildDeploymentDiagnostics() {
         ),
         buildDiagnosticItem(
             'auth',
-            '登录保护',
-            'CONFIG_MATE_PASSWORD',
+            '管理员登录',
+            'admin',
             AUTH_REQUIRED,
-            AUTH_REQUIRED ? '已启用管理口令' : '未配置 CONFIG_MATE_PASSWORD，高权限控制台未受保护。',
+            '已启用 admin 单账号登录，默认密码可通过 CONFIG_MATE_PASSWORD 覆盖。',
             'warning'
         )
     ];
@@ -650,7 +651,8 @@ const appRoutes = createAppRoutes({
     getPackageServiceId,
     getServiceDefinition,
     getServiceStatus,
-    logStreamService
+    logStreamService,
+    validateConfig: config => validateConfigValues(CONFIG_META, config)
 });
 
 // --- HTTP Server ---

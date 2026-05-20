@@ -3,6 +3,7 @@ const test = require('node:test');
 
 const {
     composeContainerMatchesDefinition,
+    parseDockerStatsPayload,
     createServiceRuntime
 } = require('../src/server/services/runtime');
 
@@ -98,6 +99,13 @@ test('getServiceStatus inspects running container', async () => {
         async exec(cmd, args) {
             this.calls.push({ cmd, args });
             if (args.includes('ps')) return { stdout: 'container-1\n', stderr: '', error: null };
+            if (args.includes('stats')) {
+                return {
+                    stdout: '{"CPUPerc":"0.42%","MemUsage":"128MiB / 2GiB","MemPerc":"6.25%"}\n',
+                    stderr: '',
+                    error: null
+                };
+            }
             if (args.includes('inspect')) {
                 return {
                     stdout: JSON.stringify([{
@@ -124,6 +132,21 @@ test('getServiceStatus inspects running container', async () => {
     assert.equal(status.status, 'running');
     assert.equal(status.running, true);
     assert.equal(status.containerId, 'container-1');
+    assert.equal(status.cpu, '0.42%');
+    assert.equal(status.cpuPercent, 0.42);
+    assert.equal(status.memoryUsage, '128 MB');
+    assert.equal(status.memoryBytes, 134217728);
+});
+
+test('parseDockerStatsPayload extracts CPU and memory metrics', () => {
+    const stats = parseDockerStatsPayload('{"CPUPerc":"12.31%","MemUsage":"1.5GiB / 8GiB","MemPerc":"18.75%"}\n');
+
+    assert.equal(stats.cpu, '12.3%');
+    assert.equal(stats.cpuPercent, 12.31);
+    assert.equal(stats.memoryUsage, '1.5 GB');
+    assert.equal(stats.memoryBytes, 1610612736);
+    assert.equal(stats.memoryLimitBytes, 8589934592);
+    assert.equal(stats.memoryPercent, 18.75);
 });
 
 test('getServiceStatus ignores a same-name container from another compose project', async () => {

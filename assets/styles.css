@@ -2,7 +2,7 @@
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: -apple-system, system-ui, sans-serif;
+    font-family: inherit;
 }
 
 body {
@@ -127,7 +127,7 @@ body[data-workbench-page="config-workspace"] .content {
     border-top: 1px solid #1E293B;
     outline: none;
     resize: none;
-    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-family: var(--cm-font-mono);
     font-size: 13px;
     line-height: 1.6;
     background: var(--cm-foreground);
@@ -963,7 +963,7 @@ body[data-workbench-page="config-workspace"] .content {
     color: var(--cm-foreground);
     word-break: normal;
     overflow-wrap: break-word;
-    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-family: var(--cm-font-mono);
 }
 
 .service-config-value-wrap {
@@ -981,7 +981,7 @@ body[data-workbench-page="config-workspace"] .content {
 
 .service-config-list-value {
     color: var(--cm-foreground);
-    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-family: var(--cm-font-mono);
     word-break: normal;
     overflow-wrap: break-word;
 }
@@ -2696,7 +2696,7 @@ body {
 .cleanup-detail-value {
     min-width: 0;
     color: var(--cm-foreground);
-    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+    font-family: var(--cm-font-mono);
     overflow-wrap: anywhere;
     word-break: break-word;
     padding: 0 12px 10px;

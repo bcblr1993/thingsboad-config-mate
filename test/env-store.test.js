@@ -80,6 +80,28 @@ test('saveEnvFile writes scoped grouped config and keeps custom keys', () => {
     assert.match(content, /CUSTOM_KEY=custom/);
 });
 
+test('saveEnvFile skips history when values are unchanged', () => {
+    const root = tempDir();
+    const envPath = path.join(root, '.env');
+    const historyDir = path.join(root, '.env_history');
+    write(envPath, 'A=1\n');
+
+    const store = createEnvStore({
+        envFilePath: envPath,
+        historyDir,
+        logger: {},
+        configMeta: {
+            A: { group: '基础', label: 'A' }
+        }
+    });
+
+    const result = store.saveEnvFile({ A: '1' });
+
+    assert.deepEqual(result, { changed: false, backupPath: null });
+    assert.equal(store.listHistory().length, 0);
+    assert.equal(fs.readFileSync(envPath, 'utf-8'), 'A=1\n');
+});
+
 test('history backup, content read, and restore stay inside history directory', () => {
     const root = tempDir();
     const envPath = path.join(root, '.env');

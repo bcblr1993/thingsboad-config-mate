@@ -1,4 +1,5 @@
 const { readRequestBody, writeJson } = require('../http');
+const { checkDependsOn } = require('../config/env-store');
 
 const DEFAULT_IGNORED_RUNTIME_PREFIXES = [
     'PATH',
@@ -16,6 +17,54 @@ const DEFAULT_IGNORED_RUNTIME_PREFIXES = [
     'PWD',
     'GPG_KEY'
 ];
+
+function validateConfigValues(configMeta, values) {
+    const errors = [];
+    const metaSource = configMeta || {};
+    const config = values || {};
+    const currentAppType = (config.APPTYPE || config.APP_TYPE || 'CLOUD').toUpperCase();
+
+    Object.keys(metaSource).forEach(key => {
+        const meta = metaSource[key] || {};
+        const scope = meta.scope || 'common';
+        if (scope === 'cloud' && currentAppType !== 'CLOUD') return;
+        if (scope === 'edge' && currentAppType !== 'EDGE') return;
+        if (!checkDependsOn(meta.dependsOn, config)) return;
+
+        const rawValue = config[key];
+        const textValue = rawValue === undefined || rawValue === null ? '' : String(rawValue).trim();
+        const label = meta.label || key;
+
+        if (meta.required && textValue === '') {
+            errors.push({ key, label, message: `${label}不能为空` });
+            return;
+        }
+        if (textValue === '') return;
+
+        if (meta.type === 'number') {
+            const numberValue = Number(textValue);
+            if (!Number.isFinite(numberValue)) {
+                errors.push({ key, label, message: `${label}必须是数字` });
+                return;
+            }
+            if (meta.min !== undefined && numberValue < Number(meta.min)) {
+                errors.push({ key, label, message: `${label}不能小于 ${meta.min}` });
+            }
+            if (meta.max !== undefined && numberValue > Number(meta.max)) {
+                errors.push({ key, label, message: `${label}不能大于 ${meta.max}` });
+            }
+        }
+
+        if (meta.type === 'select' && Array.isArray(meta.options) && meta.options.length > 0) {
+            const allowed = meta.options.map(String);
+            if (!allowed.includes(String(rawValue))) {
+                errors.push({ key, label, message: `${label}只能是：${allowed.join(' / ')}` });
+            }
+        }
+    });
+
+    return errors;
+}
 
 function buildRuntimeEnvDiff(localEnvMap, runtimeEnvMap, ignoredPrefixes = DEFAULT_IGNORED_RUNTIME_PREFIXES) {
     const diffs = [];
@@ -80,6 +129,16 @@ function createConfigRoutes({
         if (pathname === '/api/save' && method === 'POST') {
             readRequestBody(req).then(body => {
                 const newConfig = JSON.parse(body || '{}');
+                const validationErrors = validateConfigValues(configMeta, { ...parseEnvFile(), ...newConfig });
+                if (validationErrors.length > 0) {
+                    writeJson(res, 400, {
+                        status: 'error',
+                        code: 'CONFIG_VALIDATION_FAILED',
+                        message: '配置校验未通过',
+                        errors: validationErrors
+                    }, headers);
+                    return;
+                }
                 saveEnvFile(newConfig);
                 writeJson(res, 200, { status: 'ok' }, headers);
             }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
@@ -196,5 +255,6 @@ function createConfigRoutes({
 module.exports = {
     buildRuntimeEnvDiff,
     createConfigRoutes,
-    parseRuntimeEnvFromInspect
+    parseRuntimeEnvFromInspect,
+    validateConfigValues
 };

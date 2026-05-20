@@ -2,6 +2,7 @@ const { readRequestBody, writeJson } = require('../http');
 
 function appActionStatusCode(result) {
     if (result.status === 'success') return 200;
+    if (result.code === 'CONFIG_VALIDATION_FAILED') return 400;
     if (['DEPENDENCIES_NOT_RUNNING', 'APP_SERVICE_NOT_RUNNING'].includes(result.code)) return 409;
     return 500;
 }
@@ -16,7 +17,8 @@ function createAppRoutes({
     getPackageServiceId,
     getServiceDefinition,
     getServiceStatus,
-    logStreamService
+    logStreamService,
+    validateConfig = () => []
 }) {
     function handle(req, res, { method, pathname, requestUrl, headers }) {
         if (pathname === '/api/plan' && method === 'POST') {
@@ -33,7 +35,16 @@ function createAppRoutes({
             readRequestBody(req).then(async body => {
                 const payload = body ? JSON.parse(body) : {};
                 const config = payload.config || parseEnvFile();
-                const dependencyBlock = await guardAppServiceRunning('保存并重启当前业务服务', config);
+                const validationErrors = payload.config ? validateConfig(config) : [];
+                if (validationErrors.length > 0) {
+                    return {
+                        status: 'error',
+                        code: 'CONFIG_VALIDATION_FAILED',
+                        message: '配置校验未通过',
+                        errors: validationErrors
+                    };
+                }
+                const dependencyBlock = await guardAppServiceRunning('保存并应用到当前业务服务', config);
                 if (dependencyBlock) return dependencyBlock;
                 if (payload.save !== false && payload.config) saveEnvFile(config);
                 return applyAppConfigChange(config);
