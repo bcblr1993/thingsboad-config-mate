@@ -399,7 +399,7 @@
 .cm-svc-status.missing,
 .cm-svc-status.unknown,
 .cm-svc-status.unsupported,
-.cm-svc-status['missing-image'] { color: var(--cm-cloud-warning); background: var(--cm-cloud-warning-soft); border-color: var(--cm-cloud-warning-border); }
+.cm-svc-status.missing-image { color: var(--cm-cloud-warning); background: var(--cm-cloud-warning-soft); border-color: var(--cm-cloud-warning-border); }
 
 .cm-svc-message {
     font-size: 12px;

@@ -30,6 +30,12 @@ logs/
 
 # Testing
 coverage/
+test-results/
+playwright-report/
+tests/ui/report/
+tests/backstop/test/
+tests/backstop/report/
+tests/backstop/ci-report/
 
 # Misc
 .npm/

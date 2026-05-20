@@ -1,0 +1,79 @@
+{
+    "id": "config-mate-ui",
+    "viewports": [
+        {
+            "label": "desktop",
+            "width": 1440,
+            "height": 1000
+        },
+        {
+            "label": "mobile",
+            "width": 390,
+            "height": 844
+        }
+    ],
+    "onBeforeScript": "mock-api.js",
+    "onReadyScript": "ready.js",
+    "scenarios": [
+        {
+            "label": "login-page",
+            "url": "http://127.0.0.1:3311/",
+            "authenticated": false,
+            "readySelector": "#login-overlay",
+            "selectors": ["document"],
+            "misMatchThreshold": 0.1
+        },
+        {
+            "label": "deployment-page",
+            "url": "http://127.0.0.1:3311/#/deployment",
+            "readySelector": "#service-grid .service-card",
+            "selectors": ["document"],
+            "misMatchThreshold": 0.1
+        },
+        {
+            "label": "overview-page",
+            "url": "http://127.0.0.1:3311/#/overview",
+            "readySelector": "#overview-kpi-row .cm-kpi",
+            "selectors": ["document"],
+            "misMatchThreshold": 0.1
+        },
+        {
+            "label": "config-page",
+            "url": "http://127.0.0.1:3311/#/config",
+            "readySelector": "#form-container .cm-cfg-field",
+            "selectors": ["document"],
+            "misMatchThreshold": 0.1
+        },
+        {
+            "label": "install-route",
+            "url": "http://127.0.0.1:3311/#/install",
+            "readySelector": "#install-logs .install-log-line",
+            "selectors": ["document"],
+            "misMatchThreshold": 0.1
+        },
+        {
+            "label": "history-modal",
+            "url": "http://127.0.0.1:3311/#/config",
+            "openHistoryModal": true,
+            "readySelector": "#form-container .cm-cfg-field",
+            "selectors": ["document"],
+            "misMatchThreshold": 0.1
+        }
+    ],
+    "paths": {
+        "bitmaps_reference": "tests/backstop/reference",
+        "bitmaps_test": "tests/backstop/test",
+        "engine_scripts": "tests/backstop/scripts",
+        "html_report": "tests/backstop/report",
+        "ci_report": "tests/backstop/ci-report"
+    },
+    "report": ["browser"],
+    "engine": "puppeteer",
+    "engineOptions": {
+        "args": ["--no-sandbox", "--disable-dev-shm-usage"]
+    },
+    "asyncCaptureLimit": 4,
+    "asyncCompareLimit": 10,
+    "debug": false,
+    "debugWindow": false
+}
