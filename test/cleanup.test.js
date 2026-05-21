@@ -25,8 +25,8 @@ function readAuditEntries(auditLogFile) {
 
 function createService(root, overrides = {}) {
     const runtimeDir = path.join(root, '.config-mate');
-    const backupRoot = path.join(runtimeDir, 'backups');
-    const auditLogFile = path.join(runtimeDir, 'audit.log');
+    const backupRoot = overrides.backupRoot || path.join(root, 'services/config-mate/backups');
+    const auditLogFile = overrides.auditLogFile || path.join(backupRoot, 'audit.log');
     const dockerCalls = [];
 
     const getServiceDefinition = id => {
@@ -100,7 +100,7 @@ test('sanitizePathSegment makes operator safe for backup paths', () => {
     assert.equal(sanitizePathSegment(' chen yn/测试 '), 'chen_yn');
 });
 
-test('buildCleanupPlan returns fixed paths under app root', () => {
+test('buildCleanupPlan returns fixed paths under config-mate service dir', () => {
     const root = createTempRoot();
     touch(path.join(root, 'services/postgres/docker-compose.yml'));
     const { backupRoot, service } = createService(root);
@@ -109,7 +109,8 @@ test('buildCleanupPlan returns fixed paths under app root', () => {
 
     assert.equal(plan.status, 'success');
     assert.equal(plan.dataPath, path.join(root, 'services/postgres/data'));
-    assert.equal(plan.backupRoot, backupRoot);
+    assert.equal(plan.backupRoot, path.resolve(backupRoot));
+    assert.equal(plan.backupRoot, path.join(root, 'services/config-mate/backups'));
     assert.match(plan.backupDir, /postgres-chen_yn/);
 });
 
@@ -155,14 +156,37 @@ test('runCleanupService blocks while app service is running', async () => {
     assert.equal(audit[0].reason, 'APP_SERVICE_RUNNING');
 });
 
-test('runCleanupService archives data directory and writes manifest', async () => {
+test('runCleanupService blocks while target service is running', async () => {
+    const root = createTempRoot();
+    touch(path.join(root, 'services/postgres/docker-compose.yml'));
+    touch(path.join(root, 'services/postgres/data/current.txt'), 'current-data');
+    const { auditLogFile, dockerCalls, service } = createService(root, {
+        getServiceStatus: async def => ({
+            status: def.id === 'postgres' ? 'running' : 'stopped',
+            running: def.id === 'postgres',
+            containerId: def.id
+        })
+    });
+
+    const result = await service.runCleanupService('postgres', 'postgres', actor);
+    const audit = readAuditEntries(auditLogFile);
+
+    assert.equal(result.code, 'TARGET_SERVICE_RUNNING');
+    assert.equal(audit[0].status, 'blocked');
+    assert.equal(audit[0].reason, 'TARGET_SERVICE_RUNNING');
+    assert.equal(fs.existsSync(path.join(root, 'services/postgres/data/current.txt')), true);
+    assert.equal(dockerCalls.length, 0);
+});
+
+test('runCleanupService archives stopped service data directory and writes manifest', async () => {
     const root = createTempRoot();
     touch(path.join(root, 'services/postgres/docker-compose.yml'));
     touch(path.join(root, 'services/postgres/data/current.txt'), 'current-data');
     const { auditLogFile, backupRoot, dockerCalls, service } = createService(root);
 
     const result = await service.runCleanupService('postgres', 'postgres', actor);
-    const backupDirs = fs.readdirSync(backupRoot);
+    const backupDirs = fs.readdirSync(backupRoot)
+        .filter(name => fs.statSync(path.join(backupRoot, name)).isDirectory());
     const manifest = JSON.parse(fs.readFileSync(result.manifestPath, 'utf8'));
     const audit = readAuditEntries(auditLogFile);
 
@@ -170,13 +194,11 @@ test('runCleanupService archives data directory and writes manifest', async () =
     assert.equal(result.archived, true);
     assert.equal(backupDirs.length, 1);
     assert.equal(fs.readFileSync(path.join(result.backupDir, 'data/current.txt'), 'utf8'), 'current-data');
+    assert.equal(result.backupDir.startsWith(path.join(root, 'services/config-mate/backups')), true);
     assert.equal(fs.existsSync(path.join(root, 'services/postgres/data')), true);
     assert.equal(manifest.result, 'success');
     assert.deepEqual(audit.map(entry => entry.status), ['pending', 'success']);
-    assert.deepEqual(dockerCalls.map(call => call.args), [
-        ['compose', '-f', path.join(root, 'services/postgres/docker-compose.yml'), 'down'],
-        ['compose', '-f', path.join(root, 'services/postgres/docker-compose.yml'), 'up', '-d']
-    ]);
+    assert.equal(dockerCalls.length, 0);
 });
 
 test('runCleanupService recreates kafka data directory with required mode', async () => {

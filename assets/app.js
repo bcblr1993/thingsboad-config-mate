@@ -1527,7 +1527,9 @@ function syncCleanupConfirmButton() {
     const btn = document.getElementById('btn-cleanup-confirm');
     const serviceId = cleanupConfirmPlan?.service?.id || '';
     if (!input || !btn) return;
-    btn.disabled = input.value.trim() !== serviceId || !!cleanupConfirmPlan?.appServiceRunning;
+    btn.disabled = input.value.trim() !== serviceId
+        || !!cleanupConfirmPlan?.appServiceRunning
+        || !!cleanupConfirmPlan?.targetServiceRunning;
 }
 
 function confirmCleanup(plan) {
@@ -1547,9 +1549,16 @@ function confirmCleanup(plan) {
 
     const note = document.getElementById('cleanup-block-note');
     if (note) {
+        const blockMessages = [];
         if (plan.appServiceRunning) {
+            blockMessages.push(`当前业务服务 ${plan.appService || 'iotcloud/iotedge'} 正在运行。请先停止业务服务。`);
+        }
+        if (plan.targetServiceRunning) {
+            blockMessages.push(`当前目标服务 ${plan.service?.label || plan.service?.id || '目标服务'} 正在运行。请先停止目标服务。`);
+        }
+        if (blockMessages.length > 0) {
             note.style.display = 'block';
-            note.textContent = `当前业务服务 ${plan.appService || 'iotcloud/iotedge'} 正在运行。请先停止业务服务，再执行数据清理。`;
+            note.textContent = `${blockMessages.join(' ')}停止后再执行数据清理。`;
         } else {
             note.style.display = 'none';
             note.textContent = '';
@@ -1600,8 +1609,8 @@ async function cleanupService(serviceId) {
             showToast(`清理 ${getServiceDisplayNameById(serviceId)} 成功，备份目录：${data.backupDir}${extra}`, 'success');
             await refreshDeployment();
             if (selectedServiceId === serviceId) loadServiceConfig(serviceId);
-        } else if (data.code === 'APP_SERVICE_RUNNING') {
-            showToast(data.message || '请先停止业务服务再清理', 'warning');
+        } else if (data.code === 'APP_SERVICE_RUNNING' || data.code === 'TARGET_SERVICE_RUNNING') {
+            showToast(data.message || '请先停止相关服务再清理', 'warning');
         } else {
             showToast(`清理失败：\n${data.message || data.output || '未知错误'}`, 'error');
         }

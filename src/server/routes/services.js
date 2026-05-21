@@ -8,7 +8,7 @@ function serviceActionStatusCode(result) {
 
 function cleanupStatusCode(result) {
     if (result.status === 'success') return 200;
-    if (result.code === 'APP_SERVICE_RUNNING' || result.code === 'CLEANUP_RUNNING') return 409;
+    if (['APP_SERVICE_RUNNING', 'TARGET_SERVICE_RUNNING', 'CLEANUP_RUNNING'].includes(result.code)) return 409;
     return 400;
 }
 
@@ -45,10 +45,15 @@ function createServiceRoutes({
             const actor = getRequestActor(req);
             const result = buildCleanupPlan(serviceCleanupPlanMatch[1], actor);
             if (result.status === 'success') {
-                getServiceStatus(getServiceDefinition(getPackageServiceId()))
-                    .then(appStatus => {
+                Promise.all([
+                    getServiceStatus(getServiceDefinition(getPackageServiceId())),
+                    getServiceStatus(getServiceDefinition(serviceCleanupPlanMatch[1]))
+                ])
+                    .then(([appStatus, targetStatus]) => {
                         result.appServiceRunning = !!appStatus.running;
                         result.appServiceStatus = appStatus.status || 'unknown';
+                        result.targetServiceRunning = !!targetStatus.running;
+                        result.targetServiceStatus = targetStatus.status || 'unknown';
                         writeJson(res, 200, result, headers);
                     })
                     .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));

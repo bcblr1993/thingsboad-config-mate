@@ -42,6 +42,7 @@ function createCleanupService({
     logger = console
 }) {
     let activeCleanupService = null;
+    const resolvedBackupRoot = path.resolve(backupRoot);
 
     function toAppRootPath(relativePath) {
         const abs = path.resolve(appRoot, relativePath);
@@ -59,7 +60,6 @@ function createCleanupService({
         if (!def || !dataDir) return null;
 
         const dataAbsPath = toAppRootPath(dataDir);
-        const resolvedBackupRoot = path.resolve(backupRoot);
         const root = path.resolve(appRoot);
         const rel = path.relative(root, resolvedBackupRoot);
         if (rel.startsWith('..') || path.isAbsolute(rel)) {
@@ -77,7 +77,7 @@ function createCleanupService({
 
     function buildCleanupBackupDir(serviceId, actor, date = new Date()) {
         const segment = `${formatTimestampForPath(date)}-${serviceId}-${sanitizePathSegment(actor.operator)}`;
-        return path.join(backupRoot, segment);
+        return path.join(resolvedBackupRoot, segment);
     }
 
     function getUniqueBackupDir(preferredDir) {
@@ -104,13 +104,16 @@ function createCleanupService({
             dataDir: def.dataDir,
             dataPath: def.dataAbsPath,
             dataDirMode: def.dataDirMode,
-            backupRoot,
+            backupRoot: resolvedBackupRoot,
             backupDir,
             composePath: def.composePath,
             requiresAppStopped: true,
+            requiresTargetStopped: true,
             appServiceRunning: false,
+            targetServiceRunning: false,
             warnings: [
-                '该操作会停止目标服务并归档当前数据目录。',
+                '该操作只会归档当前数据目录并重建空目录，不会自动停止或启动服务。',
+                '目标服务正在运行时禁止清理，请先停止目标服务。',
                 '业务服务正在运行时禁止清理，请先停止 IoT Cloud/IoT Edge。',
                 '清理后不会自动执行 ThingsBoard 初始化安装。'
             ]
@@ -119,7 +122,7 @@ function createCleanupService({
 
     function appendAuditLog(entry) {
         try {
-            fs.mkdirSync(runtimeDir, { recursive: true });
+            fs.mkdirSync(path.dirname(auditLogFile), { recursive: true });
             fs.appendFileSync(auditLogFile, JSON.stringify(entry) + '\n');
         } catch (e) {
             logger.error(`[Audit] Failed to write audit log: ${e.message}`);
@@ -236,9 +239,27 @@ function createCleanupService({
             };
         }
 
+        const targetStatusBefore = await getServiceStatus(def);
+        if (targetStatusBefore.running) {
+            const blocked = buildAuditEntry('blocked', serviceId, actor, {
+                reason: 'TARGET_SERVICE_RUNNING',
+                targetService: serviceId,
+                sourcePath: def.dataAbsPath,
+                backupDir: '',
+                composePath: def.composePath,
+                targetStatusBefore: summarizeServiceStatus(targetStatusBefore)
+            });
+            appendAuditLog(blocked);
+            logger.log(`[Audit] Cleanup blocked operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=n/a status=blocked reason=TARGET_SERVICE_RUNNING`);
+            return {
+                status: 'error',
+                code: 'TARGET_SERVICE_RUNNING',
+                message: `请先停止 ${def.label}，再执行数据清理。`
+            };
+        }
+
         activeCleanupService = serviceId;
         const startedAt = new Date();
-        const targetStatusBefore = await getServiceStatus(def);
         const backupDir = getUniqueBackupDir(buildCleanupBackupDir(serviceId, actor, startedAt));
         const archivedDataPath = path.join(backupDir, path.basename(def.dataAbsPath));
         const manifestPath = path.join(backupDir, 'manifest.json');
@@ -276,16 +297,8 @@ function createCleanupService({
             fs.mkdirSync(backupDir, { recursive: true });
             writeCleanupManifest(manifestPath, manifest);
 
-            const down = await docker.exec(docker.dockerComposeCmd, docker.composeArgsFor(def, ['down']));
-            output += down.stdout + down.stderr;
-            if (down.error) throw new Error(down.error.message);
-
             const archived = safeMovePath(def.dataAbsPath, archivedDataPath);
             recreateDataDir(def);
-
-            const up = await docker.exec(docker.dockerComposeCmd, docker.composeArgsFor(def, ['up', '-d']));
-            output += up.stdout + up.stderr;
-            if (up.error) throw new Error(up.error.message);
 
             const targetStatusAfter = await getServiceStatus(def);
             manifest.finishedAt = new Date().toISOString();

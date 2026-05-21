@@ -569,12 +569,13 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 }
 
 .cm-service-card-menu button.is-danger {
-    color: var(--cm-cloud-fg);
+    background: var(--cm-cloud-danger-soft);
+    color: var(--cm-cloud-danger);
 }
 
 .cm-service-card-menu button.is-danger:hover:not(:disabled) {
-    background: var(--cm-cloud-primary-soft);
-    color: var(--cm-cloud-primary);
+    background: var(--cm-cloud-danger);
+    color: var(--cm-cloud-surface);
 }
 
 .cm-service-card-menu button:disabled {

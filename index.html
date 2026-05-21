@@ -830,7 +830,7 @@
                 <span class="confirm-title-text">高风险数据清理</span>
             </div>
             <div class="cleanup-warning">
-                该操作会停止目标容器，归档当前数据目录，重建空目录后重新启动。不会自动执行业务初始化安装。
+                该操作只在业务服务和目标服务都已停止时允许执行；会归档当前数据目录并重建空目录，不会自动停止或启动服务，也不会自动执行业务初始化安装。
             </div>
             <div class="cleanup-detail-grid">
                 <div class="cleanup-detail-label">目标服务</div>

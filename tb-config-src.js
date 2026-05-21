@@ -46,8 +46,9 @@ if (!fs.existsSync(RUNTIME_DIR)) {
 }
 const PID_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.pid`);
 const LOG_FILE = path.join(RUNTIME_DIR, `tb-config-mate-${PORT}.log`);
-const CLEANUP_BACKUP_ROOT = path.join(RUNTIME_DIR, 'backups');
-const AUDIT_LOG_FILE = path.join(RUNTIME_DIR, 'audit.log');
+const CONFIG_MATE_SERVICE_DIR = path.join(APP_ROOT, 'services', 'config-mate');
+const CLEANUP_BACKUP_ROOT = path.join(CONFIG_MATE_SERVICE_DIR, 'backups');
+const AUDIT_LOG_FILE = path.join(CLEANUP_BACKUP_ROOT, 'audit.log');
 const DEFAULT_CONFIG_MATE_PASSWORD = '123456';
 const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || DEFAULT_CONFIG_MATE_PASSWORD;
 const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
