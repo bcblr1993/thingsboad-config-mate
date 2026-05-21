@@ -12,7 +12,7 @@
         install:    { container: '#install-modal' },
     };
 
-    const DEFAULT_ROUTE = 'deployment';
+    const DEFAULT_ROUTE = 'overview';
     const LEGACY_HASH_MAP = {
         'deployment-panel': 'deployment',
         'config-workspace': 'config',

@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="assets/styles/pages/login.css">
 </head>
 
-<body data-workbench-page="deployment-panel" data-route-booting="true">
+<body data-workbench-page="overview-page" data-route-booting="true">
 
     <div id="login-overlay" class="login-overlay cm-login-route">
         <aside class="cm-login-brand-panel" aria-hidden="true">
@@ -59,7 +59,7 @@
             </div>
 
             <div class="cm-login-brand-foot">
-                <span>© sprixin-iotcloud</span>
+                <span id="login-service-info">© --</span>
                 <span id="login-host-info">--</span>
             </div>
         </aside>
@@ -92,7 +92,7 @@
                             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                         </svg>
                         <input id="login-password" class="field-input cm-login-input cm-login-input-mono" type="password"
-                            placeholder="••••••••••••" autocomplete="current-password" required>
+                            placeholder="请输入管理口令" autocomplete="current-password" required>
                     </span>
                 </label>
 
@@ -147,10 +147,11 @@
                     </div>
                 </div>
                 <nav class="mega-nav" aria-label="主导航">
-                    <button type="button" class="mega-nav-item" data-mega-nav="overview"
+                    <button type="button" class="mega-nav-item active" data-mega-nav="overview"
+                        aria-current="page"
                         onclick="navigateRoute('overview')">总览</button>
-                    <button type="button" class="mega-nav-item active" data-mega-nav="deployment"
-                        aria-current="page" onclick="navigateRoute('deployment')">服务管理</button>
+                    <button type="button" class="mega-nav-item" data-mega-nav="deployment"
+                        onclick="navigateRoute('deployment')">服务管理</button>
                     <button type="button" class="mega-nav-item" data-mega-nav="config"
                         onclick="navigateRoute('config')">平台配置管理</button>
                     <button type="button" class="mega-nav-item" data-mega-nav="install"
@@ -177,7 +178,7 @@
             </div>
         </div>
         <div class="content">
-            <section id="overview-page" class="route-page overview-page" hidden aria-label="集群总览">
+            <section id="overview-page" class="route-page overview-page" aria-label="集群总览">
                 <div class="cm-breadcrumb">
                     <span>Config Mate</span>
                     <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"
@@ -241,7 +242,7 @@
                 </div>
             </section>
 
-            <div id="deployment-panel" class="deployment-panel cm-deployment">
+            <div id="deployment-panel" class="deployment-panel cm-deployment" hidden>
                 <div class="cm-breadcrumb">
                     <span>Config Mate</span>
                     <svg class="cm-breadcrumb-sep" width="10" height="10" viewBox="0 0 24 24" fill="none"

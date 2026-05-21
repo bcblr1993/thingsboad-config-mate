@@ -132,7 +132,7 @@ module.exports = {
 
     "EDGES_STORAGE_KAFKA_BACKFILL_THRESHOLD_MS": {
         label: "历史数据上送策略",
-        comment: "仅在使用 kafka 时生效，当实时数据时间与回填时间的差值小于该阈值，表示实时数据较为繁忙，系统将暂停历史数据回填，反之触发历史数据回填。默认值为 1000 ms（1 秒）。",
+        comment: "仅当使用 kafka 时生效。回填历史数据的间隔时间，每次上送完一批数据后，休眠该时长再继续下一轮回填。单位：毫秒，默认 1000 ms（1 秒）。",
         type: "number",
         group: "离线恢复策略",
         dependsOn: {

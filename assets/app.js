@@ -12,12 +12,16 @@ let cleanupConfirmPlan = null;
 let cleanupInFlightService = null;
 let configScrollObserver = null;
 let workbenchNavInitialized = false;
-let activeWorkbenchPage = 'deployment-panel';
+let activeWorkbenchPage = 'overview-page';
 let activeConfigGroupId = null;
 const ALL_CONFIG_GROUPS_ID = '__all_config_groups__';
 let servicePollTimer = null;
 let statusPollTimer = null;
 let currentOperator = '';
+let loginContext = null;
+const serviceActionBusyServices = new Set();
+let saveConfigInFlight = false;
+let saveApplyInFlight = false;
 
 // Dirty Check State
 let initialConfigValues = {};
@@ -87,6 +91,26 @@ function buildUserProjectLabel() {
     return '';
 }
 
+function getLoginContext() {
+    const fromDeployment = deploymentInfo ? {
+        appType: deploymentInfo.appType,
+        appService: deploymentInfo.appService
+    } : null;
+    const fromConfig = configValues?.APPTYPE ? {
+        appType: configValues.APPTYPE,
+        appService: String(configValues.APPTYPE).toUpperCase() === 'EDGE' ? 'iotedge' : 'iotcloud'
+    } : null;
+    return fromDeployment || loginContext || fromConfig || {};
+}
+
+function setLoginButtonLabel(label) {
+    const btn = document.getElementById('btn-login');
+    if (!btn) return;
+    const span = btn.querySelector('span');
+    if (span) span.textContent = label;
+    else btn.textContent = label;
+}
+
 function showLoginOverlay(message = '') {
     stopPollingTimers();
     updateAuthUI('');
@@ -94,6 +118,7 @@ function showLoginOverlay(message = '') {
     const operator = document.getElementById('login-operator');
     const password = document.getElementById('login-password');
     if (overlay) overlay.style.display = 'flex';
+    setLoginButtonLabel('登录控制台');
     if (operator) {
         operator.value = 'admin';
     }
@@ -111,11 +136,18 @@ function fillLoginMeta() {
     const hostBrand = document.getElementById('login-host-info');
     const hostInline = document.getElementById('login-host-text');
     const apptypeEl = document.getElementById('login-apptype-text');
+    const serviceEl = document.getElementById('login-service-info');
+    const context = getLoginContext();
     if (hostBrand) hostBrand.textContent = (window.location && window.location.host) || '--';
     if (hostInline) hostInline.textContent = (window.location && window.location.host) || '--';
     if (apptypeEl) {
-        const appType = (deploymentInfo?.appType || configValues?.APPTYPE || '').toUpperCase() || 'Cloud';
+        const appType = (context.appType || '').toUpperCase() || 'CLOUD';
         apptypeEl.textContent = appType.charAt(0) + appType.slice(1).toLowerCase();
+    }
+    if (serviceEl) {
+        const appType = (context.appType || '').toUpperCase();
+        const appService = context.appService || (appType === 'EDGE' ? 'iotedge' : appType === 'CLOUD' ? 'iotcloud' : '');
+        serviceEl.textContent = appService ? `© sprixin-${appService}` : '© --';
     }
 }
 
@@ -125,6 +157,10 @@ async function boot() {
     try {
         const res = await ConfigMateApi.authStatus();
         const auth = await res.json();
+        loginContext = {
+            appType: auth.appType,
+            appService: auth.appService
+        };
         if (auth.required && !auth.authenticated) {
             updateAuthUI('');
             showLoginOverlay();
@@ -144,14 +180,13 @@ async function login(event) {
     const operator = 'admin';
     const password = document.getElementById('login-password').value;
     btn.disabled = true;
-    const originalLabel = btn.textContent;
-    btn.textContent = '登录中...';
+    setLoginButtonLabel('登录中...');
     try {
         const res = await ConfigMateApi.login({ operator, password });
         const data = await res.json();
         if (!res.ok || data.status !== 'success') {
             showToast(data.message || '登录失败', 'error');
-            btn.textContent = originalLabel;
+            setLoginButtonLabel('登录控制台');
             return;
         }
         updateAuthUI(data.operator || operator);
@@ -167,9 +202,7 @@ async function login(event) {
         // After a successful login the overlay is hidden — leave label as-is.
         if (document.getElementById('login-overlay')?.style.display !== 'none') {
             // 保留 "登录控制台 →" 完整标签结构需要重建; 简化为文本.
-            const span = btn.querySelector('span');
-            if (span) span.textContent = '登录控制台';
-            else btn.textContent = '登录';
+            setLoginButtonLabel('登录控制台');
         }
     }
 }
@@ -187,7 +220,9 @@ async function logout() {
     ConfigMateApi.resetAuthExpiredNotice();
     stopPollingTimers();
     updateAuthUI('');
-    showLoginOverlay('已退出登录');
+    closeConfigPendingModal();
+    closeRuntimeDiffModal();
+    showLoginOverlay();
 }
 
 async function init() {
@@ -580,7 +615,8 @@ function syncConfigTabs() {
     const tabs = document.getElementById('cm-config-tabs');
     const legacyList = document.getElementById('config-nav-list');
     if (!tabs || !legacyList) return;
-    const items = Array.from(legacyList.querySelectorAll('.config-nav-item'));
+    const items = Array.from(legacyList.querySelectorAll('.config-nav-item'))
+        .filter(item => !item.classList.contains('hidden'));
     tabs.innerHTML = items.map(item => {
         const name = item.querySelector('.config-nav-name')?.textContent || item.dataset.target || '';
         const count = item.querySelector('.config-nav-item-count')?.textContent || '';
@@ -723,6 +759,7 @@ function updateConfigNavVisibility() {
     }
     const countEl = document.getElementById('config-nav-count');
     if (countEl) countEl.textContent = `${visibleCount}/${groupItems.length}`;
+    syncConfigTabs();
 }
 
 function initConfigScrollSpy() {
@@ -1653,12 +1690,18 @@ async function startAllServices() {
 
 async function serviceAction(serviceId, action) {
     const actionText = action === 'up' ? '启动' : (action === 'down' ? '停止' : '重启');
-    if (serviceId === getCurrentAppServiceId() && (action === 'up' || action === 'restart')) {
-        const ok = await ensureRequiredDependenciesRunning(`${actionText} ${getServiceDisplayNameById(serviceId)}`);
-        if (!ok) return;
+    if (serviceActionBusyServices.has(serviceId)) {
+        showToast(`${getServiceDisplayNameById(serviceId) || serviceId} 正在执行操作，请稍候`, 'info');
+        return;
     }
-    if (!await customConfirm(`确定要${actionText} ${serviceId} 吗？`, actionText, action === 'down' ? 'var(--danger)' : 'var(--primary)')) return;
+    serviceActionBusyServices.add(serviceId);
+    setServiceCardBusy(serviceId, true);
     try {
+        if (serviceId === getCurrentAppServiceId() && (action === 'up' || action === 'restart')) {
+            const ok = await ensureRequiredDependenciesRunning(`${actionText} ${getServiceDisplayNameById(serviceId)}`);
+            if (!ok) return;
+        }
+        if (!await customConfirm(`确定要${actionText} ${serviceId} 吗？`, actionText, action === 'down' ? 'var(--danger)' : 'var(--primary)')) return;
         const res = await ConfigMateApi.serviceAction(serviceId, action);
         const data = await res.json();
         if (data.status === 'success') {
@@ -1671,7 +1714,23 @@ async function serviceAction(serviceId, action) {
         }
     } catch (e) {
         showToast(`${actionText}失败：${e.message}`, 'error');
+    } finally {
+        serviceActionBusyServices.delete(serviceId);
+        setServiceCardBusy(serviceId, false);
     }
+}
+
+function setServiceCardBusy(serviceId, busy) {
+    const selectorId = window.CSS?.escape
+        ? CSS.escape(String(serviceId))
+        : String(serviceId).replace(/["\\]/g, '\\$&');
+    const card = document.querySelector(`.service-card[data-service-id="${selectorId}"]`);
+    if (!card) return;
+    card.classList.toggle('is-action-busy', !!busy);
+    card.querySelectorAll('.cm-svc-actions button').forEach(btn => {
+        btn.disabled = !!busy;
+        btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+    });
 }
 
 function renderField(key) {
@@ -1822,6 +1881,27 @@ function checkDirtyState() {
     }
 }
 
+function setConfigSaveBusy(busy, label = '') {
+    const saveButtons = [
+        document.getElementById('btn-save-only'),
+        document.getElementById('btn-cfg-save-only')
+    ].filter(Boolean);
+    const applyButtons = [
+        document.getElementById('btn-save-apply'),
+        document.getElementById('btn-cfg-save-apply')
+    ].filter(Boolean);
+    saveButtons.forEach(btn => {
+        btn.disabled = !!busy || !isDirty;
+        btn.textContent = busy && label ? label : '保存配置';
+        btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+    });
+    applyButtons.forEach(btn => {
+        btn.disabled = !!busy || !isDirty;
+        btn.textContent = busy && label ? label : '保存并应用到服务';
+        btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+    });
+}
+
 function setDirty(dirty) {
     isDirty = dirty;
     const btnSaveOnly = document.getElementById('btn-save-only');
@@ -1829,7 +1909,7 @@ function setDirty(dirty) {
 
     if (btnSaveOnly) {
         if (isDirty) {
-            btnSaveOnly.disabled = false;
+            btnSaveOnly.disabled = saveConfigInFlight || saveApplyInFlight;
             btnSaveOnly.textContent = "保存配置";
         } else {
             btnSaveOnly.disabled = true;
@@ -1837,7 +1917,7 @@ function setDirty(dirty) {
         }
     }
     if (btnSaveApply) {
-        btnSaveApply.disabled = !isDirty;
+        btnSaveApply.disabled = !isDirty || saveConfigInFlight || saveApplyInFlight;
     }
 
     // Cloud Console 顶栏的变更操作区
@@ -1845,7 +1925,7 @@ function setDirty(dirty) {
     const cfgSaveApply = document.getElementById('btn-cfg-save-apply');
     if (cfgSaveOnly) {
         cfgSaveOnly.classList.toggle('is-hidden', !isEditMode || !isDirty);
-        cfgSaveOnly.disabled = !isDirty;
+        cfgSaveOnly.disabled = !isDirty || saveConfigInFlight || saveApplyInFlight;
         cfgSaveOnly.textContent = '保存配置';
     }
     if (cfgSaveApply) {
@@ -1853,7 +1933,7 @@ function setDirty(dirty) {
     }
     if (cfgSaveApply) {
         cfgSaveApply.classList.toggle('is-hidden', !isEditMode || !isDirty);
-        cfgSaveApply.disabled = !isDirty;
+        cfgSaveApply.disabled = !isDirty || saveConfigInFlight || saveApplyInFlight;
     }
     syncConfigChangeActions();
 
@@ -2267,13 +2347,19 @@ function validateConfig() {
 }
 
 async function saveConfig(silent = false) {
+    if (saveConfigInFlight || saveApplyInFlight) {
+        if (!silent) showToast('配置正在保存，请稍候', 'info');
+        return false;
+    }
     // Validation step
     const errors = validateConfig();
     if (errors.length > 0) {
         showToast(`❌ 保存失败：配置校验未通过：\n${errors.join('\n')}`, 'error');
-        return;
+        return false;
     }
 
+    saveConfigInFlight = true;
+    setConfigSaveBusy(true, '保存中');
     try {
         if (isSourceMode) {
             const rawContent = document.getElementById('source-editor').value;
@@ -2293,46 +2379,63 @@ async function saveConfig(silent = false) {
             setEditMode(false);
             showToast('✅ 配置保存成功', 'success');
         }
-    } catch (e) { showToast('Error: ' + e.message, 'error'); }
+        return true;
+    } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+        return false;
+    } finally {
+        saveConfigInFlight = false;
+        setConfigSaveBusy(false);
+    }
 }
 
 async function saveAndApplyPlan() {
+    if (saveApplyInFlight || saveConfigInFlight) {
+        showToast('配置操作正在执行，请稍候', 'info');
+        return;
+    }
     const errors = validateConfig();
     if (errors.length > 0) {
         showToast(`❌ 应用失败：配置校验未通过：\n${errors.join('\n')}`, 'error');
         return;
     }
 
-    const appServiceId = getCurrentAppServiceId();
-    const appServiceName = getServiceDisplayNameById(appServiceId) || '当前业务服务';
-    await updateDeploymentPlan();
-
-    const appStatus = getCurrentAppServiceStatus();
-    if (!appStatus?.running) {
-        const ok = await customConfirm(
-            `当前服务容器 ${appServiceName} 没有运行，无法把配置应用到服务。\n\n是否仅保存配置到 .env？`,
-            '仅保存配置',
-            'var(--cm-warning)'
-        );
-        if (ok) await saveConfig();
-        return;
-    }
-
-    const missingDependencies = getMissingRequiredDependencies();
-    if (missingDependencies.length > 0) {
-        await showDependencyBlock(missingDependencies, `保存并应用 ${appServiceName}`);
-        return;
-    }
-
-    const missingDependencyNames = (latestPlan?.missingServices || [])
-        .filter(id => id !== appServiceId)
-        .map(getServiceDisplayNameById);
-    const missingNote = missingDependencyNames.length
-        ? `\n\n当前仍有依赖服务未运行：${missingDependencyNames.join('、')}。本操作不会自动启动它们。`
-        : '';
-    if (!await customConfirm(`该操作会保存配置，并重启当前服务：${appServiceName}。\n重启期间服务会短暂不可用，是否确认？${missingNote}`, '保存并应用到服务', 'var(--cm-warning)')) return;
-
+    saveApplyInFlight = true;
+    setConfigSaveBusy(true, '应用中');
     try {
+        const appServiceId = getCurrentAppServiceId();
+        const appServiceName = getServiceDisplayNameById(appServiceId) || '当前业务服务';
+        await updateDeploymentPlan();
+
+        const appStatus = getCurrentAppServiceStatus();
+        if (!appStatus?.running) {
+            const ok = await customConfirm(
+                `当前服务容器 ${appServiceName} 没有运行，无法把配置应用到服务。\n\n是否仅保存配置到 .env？`,
+                '仅保存配置',
+                'var(--cm-warning)'
+            );
+            if (ok) {
+                saveApplyInFlight = false;
+                setConfigSaveBusy(false);
+                await saveConfig();
+            }
+            return;
+        }
+
+        const missingDependencies = getMissingRequiredDependencies();
+        if (missingDependencies.length > 0) {
+            await showDependencyBlock(missingDependencies, `保存并应用 ${appServiceName}`);
+            return;
+        }
+
+        const missingDependencyNames = (latestPlan?.missingServices || [])
+            .filter(id => id !== appServiceId)
+            .map(getServiceDisplayNameById);
+        const missingNote = missingDependencyNames.length
+            ? `\n\n当前仍有依赖服务未运行：${missingDependencyNames.join('、')}。本操作不会自动启动它们。`
+            : '';
+        if (!await customConfirm(`该操作会保存配置，并重启当前服务：${appServiceName}。\n重启期间服务会短暂不可用，是否确认？${missingNote}`, '保存并应用到服务', 'var(--cm-warning)')) return;
+
         const res = await ConfigMateApi.applyPlan(configValues, true);
         const data = await res.json();
         if (data.status === 'success') {
@@ -2350,13 +2453,20 @@ async function saveAndApplyPlan() {
                 '仅保存配置',
                 'var(--cm-warning)'
             );
-            if (ok) await saveConfig();
+            if (ok) {
+                saveApplyInFlight = false;
+                setConfigSaveBusy(false);
+                await saveConfig();
+            }
             return;
         } else {
             showToast('❌ 应用失败：\n' + (data.output || data.message || ''), 'error');
         }
     } catch (e) {
         showToast('❌ 应用失败：' + e.message, 'error');
+    } finally {
+        saveApplyInFlight = false;
+        setConfigSaveBusy(false);
     }
 }
 

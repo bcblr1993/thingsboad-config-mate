@@ -50,7 +50,9 @@ function createSystemRoutes({
             writeJson(res, 200, {
                 required: authRequired,
                 authenticated: isAuthenticated(req),
-                operator: session?.operator || ''
+                operator: session?.operator || '',
+                appType,
+                appService: getPackageServiceId()
             }, headers);
             return true;
         }
