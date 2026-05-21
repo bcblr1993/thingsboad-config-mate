@@ -155,9 +155,172 @@ body[data-workbench-page] .deployment-context .btn-active {
 }
 
 .btn-close:hover {
-    border-color: var(--cm-cloud-primary-border);
-    background: var(--cm-cloud-primary-soft);
-    color: var(--cm-cloud-primary);
+    border-color: var(--cm-cloud-border-strong);
+    background: var(--cm-cloud-surface-sunken);
+    color: var(--cm-cloud-fg);
+}
+
+/* Action color semantics.
+   Keep buttons visually quiet by default, then tint by operation risk. */
+body :is(
+    .btn,
+    .btn-ghost,
+    .btn-header,
+    .btn-confirm,
+    .btn-install-init,
+    .btn-logs,
+    .history-action,
+    .cm-install-log-btn,
+    .cm-logs-tool-btn,
+    .cm-alert-action,
+    .cm-overview-card-action,
+    .copy-config-value,
+    .secret-toggle,
+    .toggle-btn,
+    .logs-search-clear,
+    .cm-svc-actions button,
+    .cm-service-card-menu button,
+    .btn-close,
+    .cm-icon-close,
+    .close-btn,
+    .cm-detail-close-btn
+):is(
+    .btn-action-primary,
+    .btn-action-apply,
+    .btn-action-refresh,
+    .btn-action-verify,
+    .btn-action-history,
+    .btn-action-view,
+    .btn-action-save,
+    .btn-action-start,
+    .btn-action-restart,
+    .btn-action-warning,
+    .btn-action-stop,
+    .btn-action-danger,
+    .btn-action-cleanup,
+    .btn-action-close,
+    .btn-action-cancel,
+    .btn-action-copy,
+    .btn-action-tool
+) {
+    border-color: var(--cm-action-border, var(--cm-cloud-border));
+    background: var(--cm-action-bg, var(--cm-cloud-surface));
+    color: var(--cm-action-fg, var(--cm-cloud-muted));
+}
+
+body :is(
+    .btn,
+    .btn-ghost,
+    .btn-header,
+    .btn-confirm,
+    .btn-install-init,
+    .btn-logs,
+    .history-action,
+    .cm-install-log-btn,
+    .cm-logs-tool-btn,
+    .cm-alert-action,
+    .cm-overview-card-action,
+    .copy-config-value,
+    .secret-toggle,
+    .toggle-btn,
+    .logs-search-clear,
+    .cm-svc-actions button,
+    .cm-service-card-menu button,
+    .btn-close,
+    .cm-icon-close,
+    .close-btn,
+    .cm-detail-close-btn
+):is(
+    .btn-action-primary,
+    .btn-action-apply,
+    .btn-action-refresh,
+    .btn-action-verify,
+    .btn-action-history,
+    .btn-action-view,
+    .btn-action-save,
+    .btn-action-start,
+    .btn-action-restart,
+    .btn-action-warning,
+    .btn-action-stop,
+    .btn-action-danger,
+    .btn-action-cleanup,
+    .btn-action-close,
+    .btn-action-cancel,
+    .btn-action-copy,
+    .btn-action-tool
+):hover:not(:disabled) {
+    border-color: var(--cm-action-hover-border, var(--cm-cloud-border-strong));
+    background: var(--cm-action-hover-bg, var(--cm-cloud-surface-sunken));
+    color: var(--cm-action-hover-fg, var(--cm-cloud-fg));
+}
+
+body :is(.btn-action-primary, .btn-action-apply) {
+    --cm-action-border: var(--cm-primary);
+    --cm-action-bg: var(--cm-primary);
+    --cm-action-fg: var(--cm-primary-foreground);
+    --cm-action-hover-border: var(--cm-primary-hover);
+    --cm-action-hover-bg: var(--cm-primary-hover);
+    --cm-action-hover-fg: var(--cm-primary-foreground);
+}
+
+body :is(.btn-action-refresh, .btn-action-verify, .btn-action-history, .btn-action-view) {
+    --cm-action-border: var(--cm-cloud-primary-border);
+    --cm-action-bg: var(--cm-cloud-primary-soft);
+    --cm-action-fg: var(--cm-cloud-primary);
+    --cm-action-hover-border: var(--cm-cloud-primary);
+    --cm-action-hover-bg: var(--cm-cloud-primary);
+    --cm-action-hover-fg: var(--cm-primary-foreground);
+}
+
+body .btn-action-save {
+    --cm-action-border: var(--cm-cloud-info-border);
+    --cm-action-bg: var(--cm-cloud-info-soft);
+    --cm-action-fg: var(--cm-cloud-info);
+    --cm-action-hover-border: var(--cm-cloud-info);
+    --cm-action-hover-bg: var(--cm-cloud-info);
+    --cm-action-hover-fg: var(--cm-primary-foreground);
+}
+
+body .btn-action-start {
+    --cm-action-border: var(--cm-cloud-success-border);
+    --cm-action-bg: var(--cm-cloud-success-soft);
+    --cm-action-fg: var(--cm-cloud-success);
+    --cm-action-hover-border: var(--cm-cloud-success);
+    --cm-action-hover-bg: var(--cm-cloud-success);
+    --cm-action-hover-fg: var(--cm-primary-foreground);
+}
+
+body :is(.btn-action-restart, .btn-action-warning) {
+    --cm-action-border: var(--cm-cloud-warning-border);
+    --cm-action-bg: var(--cm-cloud-warning-soft);
+    --cm-action-fg: var(--cm-cloud-warning);
+    --cm-action-hover-border: var(--cm-cloud-warning);
+    --cm-action-hover-bg: var(--cm-cloud-warning);
+    --cm-action-hover-fg: var(--cm-primary-foreground);
+}
+
+body :is(.btn-action-stop, .btn-action-danger, .btn-action-cleanup) {
+    --cm-action-border: var(--cm-cloud-danger-border);
+    --cm-action-bg: var(--cm-cloud-danger-soft);
+    --cm-action-fg: var(--cm-cloud-danger);
+    --cm-action-hover-border: var(--cm-cloud-danger);
+    --cm-action-hover-bg: var(--cm-cloud-danger);
+    --cm-action-hover-fg: var(--cm-primary-foreground);
+}
+
+body :is(.btn-action-close, .btn-action-cancel, .btn-action-copy, .btn-action-tool) {
+    --cm-action-border: var(--cm-cloud-border);
+    --cm-action-bg: var(--cm-cloud-surface);
+    --cm-action-fg: var(--cm-cloud-muted);
+    --cm-action-hover-border: var(--cm-cloud-border-strong);
+    --cm-action-hover-bg: var(--cm-cloud-surface-sunken);
+    --cm-action-hover-fg: var(--cm-cloud-fg);
+}
+
+body :is(.cm-logs-tool-btn, .cm-install-log-btn).btn-action-tool.active {
+    --cm-action-border: var(--cm-cloud-primary-border);
+    --cm-action-bg: var(--cm-cloud-primary-soft);
+    --cm-action-fg: var(--cm-cloud-primary);
 }
 
 .cm-icon-close,
@@ -185,9 +348,9 @@ body[data-workbench-page] .deployment-context .btn-active {
 .close-btn:hover,
 .cm-detail-close-btn:hover,
 .toast-close:hover {
-    border-color: var(--cm-cloud-primary-border);
-    background: var(--cm-cloud-primary-soft);
-    color: var(--cm-cloud-primary);
+    border-color: var(--cm-cloud-border-strong);
+    background: var(--cm-cloud-surface-sunken);
+    color: var(--cm-cloud-fg);
 }
 
 .field-input,

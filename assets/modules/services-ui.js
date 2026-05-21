@@ -159,22 +159,22 @@
         const logDisabled = isDisabledStatus(status) ? 'disabled' : '';
         if (isDisabledStatus(status)) {
             return `
-                <button type="button" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${logDisabled}>日志</button>
-                <button type="button" class="cm-svc-action-primary" disabled>启动</button>
-                <button type="button" class="cm-svc-action-more" onclick="openServiceCardMenu(event, ${idArg}, ${cleanupSupported ? 'true' : 'false'}, ${cleanupDisabled ? 'true' : 'false'}, ${cleanupBusy ? 'true' : 'false'})" aria-haspopup="menu" aria-label="更多操作">...</button>
+                <button type="button" class="cm-svc-action-log btn-action-view" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${logDisabled}>日志</button>
+                <button type="button" class="cm-svc-action-start btn-action-start" disabled>启动</button>
+                <button type="button" class="cm-svc-action-more btn-action-tool" onclick="openServiceCardMenu(event, ${idArg}, ${cleanupSupported ? 'true' : 'false'}, ${cleanupDisabled ? 'true' : 'false'}, ${cleanupBusy ? 'true' : 'false'})" aria-haspopup="menu" aria-label="更多操作">...</button>
             `;
         }
         const primaryAction = canStart
-            ? `<button type="button" class="cm-svc-action-primary" onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')">启动</button>`
-            : `<button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'down')" ${canOperateRunning ? '' : 'disabled'}>停止</button>`;
+            ? `<button type="button" class="cm-svc-action-start btn-action-start" onclick="event.stopPropagation(); serviceAction(${idArg}, 'up')">启动</button>`
+            : `<button type="button" class="cm-svc-action-stop btn-action-stop" onclick="event.stopPropagation(); serviceAction(${idArg}, 'down')" ${canOperateRunning ? '' : 'disabled'}>停止</button>`;
         const restartAction = canOperateRunning
-            ? `<button type="button" onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')">重启</button>`
+            ? `<button type="button" class="cm-svc-action-restart btn-action-restart" onclick="event.stopPropagation(); serviceAction(${idArg}, 'restart')">重启</button>`
             : '';
         return `
-            <button type="button" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${logDisabled}>日志</button>
+            <button type="button" class="cm-svc-action-log btn-action-view" onclick="event.stopPropagation(); showLogs(true, ${idArg})" ${logDisabled}>日志</button>
             ${primaryAction}
             ${restartAction}
-            <button type="button" class="cm-svc-action-more" onclick="openServiceCardMenu(event, ${idArg}, ${cleanupSupported ? 'true' : 'false'}, ${cleanupDisabled ? 'true' : 'false'}, ${cleanupBusy ? 'true' : 'false'})" aria-haspopup="menu" aria-label="更多操作">...</button>
+            <button type="button" class="cm-svc-action-more btn-action-tool" onclick="openServiceCardMenu(event, ${idArg}, ${cleanupSupported ? 'true' : 'false'}, ${cleanupDisabled ? 'true' : 'false'}, ${cleanupBusy ? 'true' : 'false'})" aria-haspopup="menu" aria-label="更多操作">...</button>
         `;
     }
 
@@ -331,7 +331,7 @@
                     <div class="cm-detail-subtitle">${escapeHtml(data.service?.label || serviceId)} · tier=${escapeHtml(tier)}</div>
                 </div>
                 <div class="cm-detail-actions">
-                    <button class="cm-icon-close cm-detail-close-btn" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
+                    <button class="cm-icon-close cm-detail-close-btn btn-action-close" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
                 </div>
             </div>
 
@@ -450,10 +450,10 @@
         const value = item.value === undefined || item.value === null ? '' : String(item.value);
         const displayValue = item.sensitive && value ? '******' : value;
         const toggle = item.sensitive && value
-            ? `<button class="secret-toggle" type="button" title="显示" aria-label="显示 ${escapeHtml(key || '敏感配置')}" onclick="toggleServiceSecret(${sectionIndex}, ${itemIndex}, this)">${renderServiceSecretIcon(false)}</button>`
+            ? `<button class="secret-toggle btn-action-tool" type="button" title="显示" aria-label="显示 ${escapeHtml(key || '敏感配置')}" onclick="toggleServiceSecret(${sectionIndex}, ${itemIndex}, this)">${renderServiceSecretIcon(false)}</button>`
             : '';
         const copyButton = shouldShowServiceConfigCopy(item, serviceId, sectionTitle)
-            ? `<button class="copy-config-value" type="button" title="复制 ${escapeHtml(key || '配置值')}" aria-label="复制 ${escapeHtml(key || '配置值')}" onclick="copyServiceConfigValue(${sectionIndex}, ${itemIndex})">
+            ? `<button class="copy-config-value btn-action-copy" type="button" title="复制 ${escapeHtml(key || '配置值')}" aria-label="复制 ${escapeHtml(key || '配置值')}" onclick="copyServiceConfigValue(${sectionIndex}, ${itemIndex})">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>

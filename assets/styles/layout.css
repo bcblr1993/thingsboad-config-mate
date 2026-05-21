@@ -222,6 +222,18 @@
     transform: translateY(-1px);
 }
 
+.user-logout-action.btn-action-danger {
+    border-color: var(--cm-danger-border);
+    background: var(--cm-danger-soft);
+    color: var(--cm-danger);
+}
+
+.user-logout-action.btn-action-danger:hover {
+    border-color: var(--cm-danger);
+    background: var(--cm-danger);
+    color: var(--cm-primary-foreground);
+}
+
 .user-logout-action:focus-visible {
     outline: 2px solid var(--cm-cloud-primary);
     outline-offset: 2px;

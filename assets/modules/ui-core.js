@@ -47,7 +47,7 @@
                 <div class="toast-title">${toastTitle(type)}</div>
                 <div class="toast-message">${escapeHtml(message).replace(/\n/g, '<br>')}</div>
             </div>
-            <button class="cm-icon-close toast-close" type="button" aria-label="关闭提示">&times;</button>
+            <button class="cm-icon-close toast-close btn-action-close" type="button" aria-label="关闭提示">&times;</button>
             <div class="toast-progress" aria-hidden="true"></div>
         `;
         container.appendChild(toast);
@@ -160,7 +160,13 @@
             }
             if (btnYes) {
                 btnYes.innerText = confirmBtnText;
-                btnYes.className = `btn-confirm btn-confirm-${variant}`;
+                const actionClass = {
+                    primary: 'btn-action-primary',
+                    success: 'btn-action-start',
+                    warning: 'btn-action-warning',
+                    danger:  'btn-action-danger'
+                }[variant] || 'btn-action-primary';
+                btnYes.className = `btn-confirm btn-confirm-${variant} ${actionClass}`;
                 btnYes.style.background = variant === 'primary' ? confirmBtnColor : '';
             }
             openModal('confirm-modal');

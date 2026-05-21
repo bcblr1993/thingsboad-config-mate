@@ -905,7 +905,9 @@
 }
 
 .cm-history-route .history-action.danger:hover {
-    background: var(--cm-cloud-danger-border);
+    border-color: var(--cm-cloud-danger);
+    background: var(--cm-cloud-danger);
+    color: var(--cm-cloud-surface);
 }
 
 .cm-history-route .history-state {

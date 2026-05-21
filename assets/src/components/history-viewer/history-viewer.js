@@ -170,17 +170,17 @@ export function createHistoryUi(options = {}) {
                                 </div>
                             </div>
                             <div class="timeline-actions">
-                                <button class="history-action" type="button" data-history-action="view" data-history-file="${safeFilename}" title="查看内容">
+                                <button class="history-action btn-action-view" type="button" data-history-action="view" data-history-file="${safeFilename}" title="查看内容">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                                     查看
                                 </button>
-                                <button class="history-action" type="button" data-history-action="compare" data-history-file="${safeFilename}" title="与当前配置对比">
+                                <button class="history-action btn-action-verify" type="button" data-history-action="compare" data-history-file="${safeFilename}" title="与当前配置对比">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M9 21H4v-5"></path></svg>
                                     对比
                                 </button>
-                                <button class="history-action danger" type="button" data-history-action="restore" data-history-file="${safeFilename}" title="回滚到此版本">
+                                <button class="history-action danger btn-action-danger" type="button" data-history-action="restore" data-history-file="${safeFilename}" title="回滚到此版本">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                         stroke-width="2"><path d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8"></path></svg>
                                     回滚

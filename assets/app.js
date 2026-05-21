@@ -1387,9 +1387,9 @@ function openServiceCardMenu(event, serviceId, cleanupSupported = false, cleanup
     menu.className = 'cm-service-card-menu';
     menu.setAttribute('role', 'menu');
     menu.innerHTML = `
-        <button type="button" role="menuitem" onclick="closeServiceCardMenu(); openServiceDetail(${idArg})">详细信息</button>
+        <button type="button" role="menuitem" class="btn-action-view" onclick="closeServiceCardMenu(); openServiceDetail(${idArg})">详细信息</button>
         ${cleanupSupported
-            ? `<button type="button" role="menuitem" class="is-danger" onclick="closeServiceCardMenu(); cleanupService(${idArg})" ${cleanupDisabled ? 'disabled' : ''}>${cleanupBusy ? '清理中' : '数据清理'}</button>`
+            ? `<button type="button" role="menuitem" class="is-danger btn-action-cleanup" onclick="closeServiceCardMenu(); cleanupService(${idArg})" ${cleanupDisabled ? 'disabled' : ''}>${cleanupBusy ? '清理中' : '数据清理'}</button>`
             : ''}
     `;
     document.body.appendChild(menu);
@@ -1468,7 +1468,7 @@ function renderServiceConfigState(message, type = '') {
     document.body.classList.add('cm-service-detail-open');
     panel.style.display = 'flex';
     panel.innerHTML = renderServiceDetailShell(
-        `<button class="cm-icon-close cm-detail-close-btn cm-detail-state-close" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
+        `<button class="cm-icon-close cm-detail-close-btn cm-detail-state-close btn-action-close" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>
         <div class="service-config-state ${type}">${escapeHtml(message)}</div>`,
         'cm-service-detail-dialog-state'
     );
@@ -1694,7 +1694,7 @@ function renderField(key) {
         inputHtml = `
         <div class="password-wrapper">
             <input type="password" id="input-${key}" class="field-input field-input-secret" value="${safeValue}" onchange="updateValue('${key}', this.value)">
-            <button class="toggle-btn" tabindex="-1" onclick="togglePassword('input-${key}', this)">
+            <button class="toggle-btn btn-action-tool" tabindex="-1" onclick="togglePassword('input-${key}', this)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
             </button>
         </div>`;
@@ -3721,7 +3721,7 @@ async function checkEnvConfigValidation() {
 
             actionBtn.textContent = '已修复，刷新页面重试 (Reload)';
             actionBtn.classList.remove('btn-ghost');
-            actionBtn.classList.add('btn-confirm', 'btn-confirm-danger');
+            actionBtn.classList.add('btn-confirm', 'btn-confirm-danger', 'btn-action-danger');
             actionBtn.style.backgroundColor = '';
             actionBtn.onclick = () => location.reload();
 
@@ -3758,7 +3758,7 @@ async function checkEnvConfigValidation() {
             // Change action button to Reload
             actionBtn.textContent = '已修复，刷新页面重试 (Reload)';
             actionBtn.classList.remove('btn-ghost');
-            actionBtn.classList.add('btn-confirm', 'btn-confirm-danger');
+            actionBtn.classList.add('btn-confirm', 'btn-confirm-danger', 'btn-action-danger');
             actionBtn.style.backgroundColor = '';
             actionBtn.onclick = () => location.reload();
 

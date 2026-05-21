@@ -249,7 +249,7 @@
                     <div class="cm-alert-title">${escapeHtml(a.title)}</div>
                     <div class="cm-alert-desc">${escapeHtml(a.desc)}</div>
                 </div>
-                <button class="cm-alert-action" type="button" onclick="navigateRoute('${escapeHtml(a.action.target)}')">${escapeHtml(a.action.label)} →</button>
+                <button class="cm-alert-action btn-action-view" type="button" onclick="navigateRoute('${escapeHtml(a.action.target)}')">${escapeHtml(a.action.label)} →</button>
             </div>`).join('');
     }
 

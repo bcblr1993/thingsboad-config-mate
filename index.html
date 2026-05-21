@@ -10,13 +10,13 @@
     <link rel="stylesheet" href="assets/styles/tokens.css">
     <link rel="stylesheet" href="assets/styles/base.css">
     <link rel="stylesheet" href="assets/styles.css?v=20260520-unified-typography">
-    <link rel="stylesheet" href="assets/styles/components.css?v=20260520-site-acceptance">
-    <link rel="stylesheet" href="assets/styles/layout.css?v=20260520-no-global-search">
+    <link rel="stylesheet" href="assets/styles/components.css?v=20260521-action-colors">
+    <link rel="stylesheet" href="assets/styles/layout.css?v=20260521-action-colors">
     <link rel="stylesheet" href="assets/styles/pages/install.css?v=20260520-unified-typography">
-    <link rel="stylesheet" href="assets/styles/pages/history.css?v=20260520-history-layout">
+    <link rel="stylesheet" href="assets/styles/pages/history.css?v=20260521-action-colors">
     <link rel="stylesheet" href="assets/styles/pages/logs.css?v=20260520-unified-typography">
     <link rel="stylesheet" href="assets/styles/pages/overview.css?v=20260520-unified-typography">
-    <link rel="stylesheet" href="assets/styles/pages/deployment.css?v=20260520-deployment-summary-typography">
+    <link rel="stylesheet" href="assets/styles/pages/deployment.css?v=20260521-action-colors">
     <link rel="stylesheet" href="assets/styles/pages/config.css?v=20260520-verify-config-action">
     <link rel="stylesheet" href="assets/styles/pages/cloud-modals.css?v=20260520-site-acceptance">
     <link rel="stylesheet" href="assets/styles/pages/login.css">
@@ -100,7 +100,7 @@
                     <span class="cm-login-admin-note">仅 admin 可登录；生产环境建议立即修改默认密码。</span>
                 </div>
 
-                <button id="btn-login" class="btn btn-primary w-full cm-login-submit" type="submit">
+                <button id="btn-login" class="btn btn-primary btn-action-primary w-full cm-login-submit" type="submit">
                     <span>登录控制台</span>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -164,7 +164,7 @@
                             <span id="user-project" class="user-project">--</span>
                         </span>
                     </div>
-                    <button type="button" class="user-logout-action" title="退出登录" aria-label="退出登录" onclick="logout()">
+                    <button type="button" class="user-logout-action btn-action-danger" title="退出登录" aria-label="退出登录" onclick="logout()">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -192,7 +192,7 @@
                         <p id="overview-subtitle" class="cm-page-subtitle">正在读取部署环境...</p>
                     </div>
                     <div class="cm-page-header-actions">
-                        <button id="btn-overview-refresh" class="btn btn-ghost" type="button" onclick="refreshOverview(true)">
+                        <button id="btn-overview-refresh" class="btn btn-ghost btn-action-refresh" type="button" onclick="refreshOverview(true)">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <polyline points="23 4 23 10 17 10"></polyline>
@@ -201,7 +201,7 @@
                             </svg>
                             <span id="overview-refresh-label">刷新</span>
                         </button>
-                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('config')">平台配置管理</button>
+                        <button class="btn btn-ghost btn-action-view" type="button" onclick="navigateRoute('config')">平台配置管理</button>
                     </div>
                 </div>
 
@@ -217,7 +217,7 @@
                                     <div class="cm-overview-card-title">服务运行状况</div>
                                     <div class="cm-overview-card-subtitle" id="overview-services-meta">--</div>
                                 </div>
-                                <button class="cm-overview-card-action" type="button" onclick="navigateRoute('deployment')">全部服务 →</button>
+                                <button class="cm-overview-card-action btn-action-view" type="button" onclick="navigateRoute('deployment')">全部服务 →</button>
                             </header>
                             <div id="overview-services" class="cm-overview-services">
                                 <div class="cm-overview-empty">正在读取服务列表...</div>
@@ -230,7 +230,7 @@
                         <section class="cm-overview-card cm-overview-card-tight">
                             <header class="cm-overview-card-header">
                                 <div class="cm-overview-card-title">最近活动</div>
-                                <button class="cm-overview-card-action" type="button" onclick="navigateRoute('config')">去平台配置管理 →</button>
+                                <button class="cm-overview-card-action btn-action-view" type="button" onclick="navigateRoute('config')">去平台配置管理 →</button>
                             </header>
                             <ol id="overview-activity" class="cm-overview-activity">
                                 <li class="cm-overview-empty">正在读取历史记录...</li>
@@ -261,7 +261,7 @@
                         <p id="deployment-subtitle" class="cm-page-subtitle">服务启停与运行配置</p>
                     </div>
                     <div class="cm-page-header-actions">
-                        <button id="btn-deployment-refresh" class="btn btn-ghost" type="button" onclick="refreshDeployment({ interactive: true })">
+                        <button id="btn-deployment-refresh" class="btn btn-ghost btn-action-refresh" type="button" onclick="refreshDeployment({ interactive: true })">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <polyline points="23 4 23 10 17 10"></polyline>
@@ -270,7 +270,7 @@
                             </svg>
                             <span id="deployment-refresh-label">刷新</span>
                         </button>
-                        <button class="btn btn-ghost" type="button" onclick="navigateRoute('config')">平台配置管理</button>
+                        <button class="btn btn-ghost btn-action-view" type="button" onclick="navigateRoute('config')">平台配置管理</button>
                     </div>
                 </div>
 
@@ -291,7 +291,7 @@
                         </div>
                         <div id="header-app-type" class="deployment-mode"></div>
                         <div class="status-badge"><span class="status-dot"></span>Running</div>
-                        <button class="btn-header" onclick="refreshDeployment({ interactive: true })">刷新状态</button>
+                        <button class="btn-header btn-action-refresh" onclick="refreshDeployment({ interactive: true })">刷新状态</button>
                     </div>
                 </div>
 
@@ -355,17 +355,17 @@
                                 <button type="button" class="cm-segmented-item" data-config-view="source"
                                     onclick="setConfigView('source')">源码</button>
                             </div>
-                            <button class="btn btn-ghost cm-config-verify-btn" type="button" id="btn-config-runtime-check"
+                            <button class="btn btn-ghost btn-action-verify cm-config-verify-btn" type="button" id="btn-config-runtime-check"
                                 onclick="openConfigRuntimeDiffModal()"
                                 title="校验当前配置是否与正在运行容器中的配置一致">
                                 <span>校验配置</span>
                                 <span class="cm-config-verify-hint" aria-hidden="true"
                                     title="校验当前配置是否与正在运行容器中的配置一致">!</span>
                             </button>
-                            <button class="btn btn-ghost" type="button" onclick="openConfigHistoryModal()">历史版本</button>
+                            <button class="btn btn-ghost btn-action-history" type="button" onclick="openConfigHistoryModal()">历史版本</button>
                         </div>
                         <div id="cm-config-change-actions" class="cm-config-change-actions is-idle" aria-live="polite" aria-label="平台配置编辑操作">
-                            <button class="btn btn-primary" type="button" id="btn-cfg-edit" onclick="setEditMode(true)">开启编辑</button>
+                            <button class="btn btn-primary btn-action-primary" type="button" id="btn-cfg-edit" onclick="setEditMode(true)">开启编辑</button>
                             <button class="cm-config-dirty-trigger is-hidden" type="button" id="btn-config-pending-trigger"
                                 onclick="openConfigPendingModal()" aria-label="查看未保存配置变更">
                                 <span class="cm-config-dirty-icon" aria-hidden="true">!</span>
@@ -373,9 +373,9 @@
                                 <span id="cm-config-pending-count-inline" class="cm-config-pending-count">0</span>
                             </button>
                             <span id="cm-config-change-summary" class="cm-config-change-summary is-hidden">编辑中</span>
-                            <button class="btn btn-ghost is-hidden" type="button" id="btn-cfg-cancel-edit" onclick="cancelEdit()">退出编辑</button>
-                            <button class="btn btn-ghost is-hidden" type="button" id="btn-cfg-save-only" onclick="saveConfig()">保存配置</button>
-                            <button class="btn btn-primary is-hidden" type="button" id="btn-cfg-save-apply" onclick="saveAndApplyPlan()">保存并应用到服务</button>
+                            <button class="btn btn-ghost btn-action-cancel is-hidden" type="button" id="btn-cfg-cancel-edit" onclick="cancelEdit()">退出编辑</button>
+                            <button class="btn btn-ghost btn-action-save is-hidden" type="button" id="btn-cfg-save-only" onclick="saveConfig()">保存配置</button>
+                            <button class="btn btn-primary btn-action-apply is-hidden" type="button" id="btn-cfg-save-apply" onclick="saveAndApplyPlan()">保存并应用到服务</button>
                         </div>
                     </div>
                 </div>
@@ -436,7 +436,7 @@
                                     <div id="source-panel-meta" class="source-panel-meta">直接查看当前 .env 原文，修改前请先开启编辑。</div>
                                 </div>
                                 <div class="source-panel-actions">
-                                    <button class="btn-header" id="btn-source-fullscreen" type="button"
+                                    <button class="btn-header btn-action-tool" id="btn-source-fullscreen" type="button"
                                         onclick="toggleSourceFullscreen()">全屏</button>
                                 </div>
                             </div>
@@ -452,14 +452,14 @@
                 <div id="action-subtitle" class="action-subtitle">服务启停请在上方服务卡片中操作；保存并应用只处理当前业务服务。</div>
             </div>
             <div class="action-buttons">
-                <button id="btn-install-init" class="btn-install-init" onclick="checkInstallAndConfirm()">初始化安装</button>
-                <button id="btn-edit" class="btn btn-primary" onclick="setEditMode(true)">开启编辑</button>
-                <button id="btn-cancel-edit" class="btn btn-ghost is-hidden" onclick="cancelEdit()">取消修改</button>
+                <button id="btn-install-init" class="btn-install-init btn-action-warning" onclick="checkInstallAndConfirm()">初始化安装</button>
+                <button id="btn-edit" class="btn btn-primary btn-action-primary" onclick="setEditMode(true)">开启编辑</button>
+                <button id="btn-cancel-edit" class="btn btn-ghost btn-action-cancel is-hidden" onclick="cancelEdit()">取消修改</button>
 
 
 
-                <button id="btn-save-only" class="btn btn-primary is-hidden" onclick="saveConfig()">保存配置</button>
-                <button id="btn-save-apply" class="btn btn-success is-hidden" onclick="saveAndApplyPlan()">保存并应用到服务</button>
+                <button id="btn-save-only" class="btn btn-primary btn-action-save is-hidden" onclick="saveConfig()">保存配置</button>
+                <button id="btn-save-apply" class="btn btn-success btn-action-apply is-hidden" onclick="saveAndApplyPlan()">保存并应用到服务</button>
             </div>
         </div>
 
@@ -496,8 +496,8 @@
                     </p>
                 </div>
                 <div class="cm-page-header-actions">
-                    <button class="btn btn-ghost" type="button" onclick="openHistoryModal()">刷新</button>
-                    <button class="btn btn-close" type="button" onclick="closeHistoryModal()">关闭</button>
+                    <button class="btn btn-ghost btn-action-refresh" type="button" onclick="openHistoryModal()">刷新</button>
+                    <button class="btn btn-close btn-action-close" type="button" onclick="closeHistoryModal()">关闭</button>
                 </div>
             </div>
 
@@ -573,7 +573,7 @@
         <div class="modal-content modal-wide modal-tall">
             <div class="modal-header">
                 <div class="modal-title" id="diff-title">内容对比</div>
-                <button class="cm-icon-close close-btn" type="button" onclick="closeDiffModal()" aria-label="关闭内容对比">&times;</button>
+                <button class="cm-icon-close close-btn btn-action-close" type="button" onclick="closeDiffModal()" aria-label="关闭内容对比">&times;</button>
             </div>
             <div class="modal-body modal-body-flush">
                 <div id="diff-content" class="diff-container flex-fill">
@@ -581,7 +581,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-close" type="button" onclick="closeDiffModal()">关闭</button>
+                <button class="btn btn-close btn-action-close" type="button" onclick="closeDiffModal()">关闭</button>
             </div>
         </div>
     </div>
@@ -595,7 +595,7 @@
                     <div class="modal-title" id="config-pending-modal-title">配置变更</div>
                     <div class="cm-config-pending-sub">保存后需重启业务服务才能生效</div>
                 </div>
-                <button class="cm-icon-close close-btn" type="button" onclick="closeConfigPendingModal()"
+                <button class="cm-icon-close close-btn btn-action-close" type="button" onclick="closeConfigPendingModal()"
                     aria-label="关闭配置变更">&times;</button>
             </div>
             <div class="modal-body cm-config-pending-modal-body">
@@ -614,7 +614,7 @@
                 </ol>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-close" type="button" onclick="closeConfigPendingModal()">关闭</button>
+                <button class="btn btn-close btn-action-close" type="button" onclick="closeConfigPendingModal()">关闭</button>
             </div>
         </div>
     </div>
@@ -661,9 +661,9 @@
                         <option value="success">Success</option>
                         <option value="info">Info</option>
                     </select>
-                    <button class="btn btn-ghost" onclick="copyVisibleLogs()">复制</button>
-                    <button class="btn btn-ghost" id="btn-log-pause" onclick="toggleLogPause()">暂停</button>
-                    <button class="btn btn-close" type="button" onclick="closeLogs()">关闭</button>
+                    <button class="btn btn-ghost btn-action-copy" onclick="copyVisibleLogs()">复制</button>
+                    <button class="btn btn-ghost btn-action-tool" id="btn-log-pause" onclick="toggleLogPause()">暂停</button>
+                    <button class="btn btn-close btn-action-close" type="button" onclick="closeLogs()">关闭</button>
                 </div>
             </div>
 
@@ -677,18 +677,18 @@
                                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                             </svg>
                             <input id="logs-search-input" type="search" placeholder="搜索（regex）" oninput="handleLogSearch(this.value)">
-                            <button id="logs-search-clear" class="logs-search-clear" onclick="clearLogSearch()" title="清空搜索" type="button">×</button>
+                            <button id="logs-search-clear" class="logs-search-clear btn-action-close" onclick="clearLogSearch()" title="清空搜索" type="button">×</button>
                         </label>
                         <div class="cm-logs-tools">
-                            <button id="btn-log-follow" class="cm-logs-tool-btn active" onclick="toggleLogFollow()" title="跟随最新日志">跟随</button>
-                            <button id="btn-wrap-toggle" class="cm-logs-tool-btn active" onclick="toggleLogWrap()" title="切换自动换行">换行</button>
-                            <button id="btn-log-fullscreen" class="cm-logs-tool-btn" onclick="toggleLogFullscreen()" title="切换全屏">全屏</button>
+                            <button id="btn-log-follow" class="cm-logs-tool-btn btn-action-tool active" onclick="toggleLogFollow()" title="跟随最新日志">跟随</button>
+                            <button id="btn-wrap-toggle" class="cm-logs-tool-btn btn-action-tool active" onclick="toggleLogWrap()" title="切换自动换行">换行</button>
+                            <button id="btn-log-fullscreen" class="cm-logs-tool-btn btn-action-tool" onclick="toggleLogFullscreen()" title="切换全屏">全屏</button>
                         </div>
                     </div>
                     <div id="logs-content" class="logs-content wrap-mode"></div>
                     <div class="cm-logs-footer">
                         <div id="logs-meta" class="cm-logs-footer-meta">0 行</div>
-                        <button class="cm-logs-tool-btn" onclick="clearLogs()">清空</button>
+                        <button class="cm-logs-tool-btn btn-action-danger" onclick="clearLogs()">清空</button>
                     </div>
                 </section>
             </div>
@@ -718,7 +718,7 @@
                 </div>
             </div>
             <div class="confirm-actions">
-                <button class="btn-confirm btn-confirm-danger" onclick="closeMissingAlertModal()">确认并继续</button>
+                <button class="btn-confirm btn-confirm-danger btn-action-danger" onclick="closeMissingAlertModal()">确认并继续</button>
             </div>
         </div>
     </div>
@@ -740,8 +740,8 @@
                     <p id="install-subtitle" class="cm-page-subtitle">执行 <code>docker-compose-install.yml</code> · 应用数据库迁移与系统数据</p>
                 </div>
                 <div class="cm-page-header-actions">
-                    <button class="btn btn-ghost" type="button" onclick="copyInstallLogs()">复制日志</button>
-                    <button class="btn btn-primary" id="btn-install-start" type="button" onclick="checkInstallAndConfirm()">开始初始化</button>
+                    <button class="btn btn-ghost btn-action-copy" type="button" onclick="copyInstallLogs()">复制日志</button>
+                    <button class="btn btn-primary btn-action-apply" id="btn-install-start" type="button" onclick="checkInstallAndConfirm()">开始初始化</button>
                 </div>
             </div>
 
@@ -780,11 +780,11 @@
                         <span class="cm-install-log-sub">tb-install · stdout + stderr</span>
                     </div>
                     <div class="cm-install-log-actions">
-                        <button id="btn-install-follow" class="cm-install-log-btn active" type="button" onclick="toggleInstallFollow()">跟随</button>
-                        <button id="btn-install-wrap" class="cm-install-log-btn active" type="button" onclick="toggleInstallWrap()">换行</button>
-                        <button id="btn-install-fullscreen" class="cm-install-log-btn" type="button" onclick="toggleInstallLogFullscreen()">全屏</button>
-                        <button class="cm-install-log-btn" type="button" onclick="copyInstallLogs()">复制</button>
-                        <button class="cm-install-log-btn" type="button" onclick="clearInstallLogs()">清空</button>
+                        <button id="btn-install-follow" class="cm-install-log-btn btn-action-tool active" type="button" onclick="toggleInstallFollow()">跟随</button>
+                        <button id="btn-install-wrap" class="cm-install-log-btn btn-action-tool active" type="button" onclick="toggleInstallWrap()">换行</button>
+                        <button id="btn-install-fullscreen" class="cm-install-log-btn btn-action-tool" type="button" onclick="toggleInstallLogFullscreen()">全屏</button>
+                        <button class="cm-install-log-btn btn-action-copy" type="button" onclick="copyInstallLogs()">复制</button>
+                        <button class="cm-install-log-btn btn-action-danger" type="button" onclick="clearInstallLogs()">清空</button>
                     </div>
                 </div>
                 <div id="install-logs" class="install-terminal wrap-mode"></div>
@@ -810,8 +810,8 @@
             </div>
             <div class="confirm-message" id="confirm-message">确认要执行此操作吗？</div>
             <div class="confirm-actions">
-                <button class="btn-ghost" onclick="resolveConfirm(false)">取消</button>
-                <button class="btn-confirm" id="btn-confirm-yes" onclick="resolveConfirm(true)">确定</button>
+                <button class="btn-ghost btn-action-cancel" onclick="resolveConfirm(false)">取消</button>
+                <button class="btn-confirm btn-action-primary" id="btn-confirm-yes" onclick="resolveConfirm(true)">确定</button>
             </div>
         </div>
     </div>
@@ -849,8 +849,8 @@
                 oninput="syncCleanupConfirmButton()">
             <div id="cleanup-block-note" class="cleanup-block-note" style="display:none;"></div>
             <div class="confirm-actions">
-                <button class="btn-ghost" type="button" onclick="resolveCleanupConfirm(false)">取消</button>
-                <button class="btn-confirm btn-confirm-danger cleanup-confirm-btn" id="btn-cleanup-confirm" type="button"
+                <button class="btn-ghost btn-action-cancel" type="button" onclick="resolveCleanupConfirm(false)">取消</button>
+                <button class="btn-confirm btn-confirm-danger btn-action-cleanup cleanup-confirm-btn" id="btn-cleanup-confirm" type="button"
                     onclick="resolveCleanupConfirm(true)" disabled>确认清理</button>
             </div>
         </div>
@@ -866,12 +866,12 @@
         当前目录未检测到 <code>docker-compose.yml</code> 文件，无法执行启动、停止或日志等操作。
     </div>
     <script src="assets/api.js"></script>
-    <script src="assets/modules/ui-core.js?v=20260520-dependency-check-dialog-2"></script>
-    <script src="assets/modules/services-ui.js?v=20260520-close-actions"></script>
-    <script src="assets/modules/overview-ui.js?v=20260520-platform-config-label"></script>
+    <script src="assets/modules/ui-core.js?v=20260521-action-colors"></script>
+    <script src="assets/modules/services-ui.js?v=20260521-action-colors"></script>
+    <script src="assets/modules/overview-ui.js?v=20260521-action-colors"></script>
     <script src="assets/modules/router.js?v=20260518-route-config-layout"></script>
-    <script src="assets/app.js?v=20260520-verify-config-action"></script>
-    <script type="module" src="assets/src/main.js?v=20260520-history-layout"></script>
+    <script src="assets/app.js?v=20260521-action-colors"></script>
+    <script type="module" src="assets/src/main.js?v=20260521-action-colors"></script>
 
     <!-- Validation Warning Modal -->
     <!-- Validation Warning Modal -->
@@ -903,9 +903,9 @@
 
             <div class="confirm-actions">
                 <!-- Close button logic handles visibility -->
-                <button class="btn btn-ghost" id="validate-modal-close" onclick="closeValidateModal()"
+                <button class="btn btn-ghost btn-action-cancel" id="validate-modal-close" onclick="closeValidateModal()"
                     style="display: none;">取消</button>
-                <button class="btn btn-confirm btn-confirm-danger" id="validate-modal-btn" onclick="closeValidateModal()">我知道了</button>
+                <button class="btn btn-confirm btn-confirm-danger btn-action-danger" id="validate-modal-btn" onclick="closeValidateModal()">我知道了</button>
             </div>
         </div>
     </div>
@@ -926,9 +926,9 @@
                     <p class="cm-page-subtitle">通过 <code>docker inspect</code> 读取容器真实环境变量，与本地 <code>.env</code> 比对</p>
                 </div>
                 <div class="cm-page-header-actions">
-                    <button class="btn btn-ghost" id="btn-runtime-recheck" type="button" onclick="checkRuntimeSync()">重新校验</button>
-                    <button class="btn btn-primary" type="button" id="btn-restart-from-diff" onclick="restartService()">立即重启服务</button>
-                    <button class="btn btn-close" type="button" onclick="closeRuntimeDiffModal()">关闭</button>
+                    <button class="btn btn-ghost btn-action-verify" id="btn-runtime-recheck" type="button" onclick="checkRuntimeSync()">重新校验</button>
+                    <button class="btn btn-primary btn-action-restart" type="button" id="btn-restart-from-diff" onclick="restartService()">立即重启服务</button>
+                    <button class="btn btn-close btn-action-close" type="button" onclick="closeRuntimeDiffModal()">关闭</button>
                 </div>
             </div>
 
