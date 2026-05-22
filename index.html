@@ -741,7 +741,6 @@
                     <p id="install-subtitle" class="cm-page-subtitle">执行 <code>docker-compose-install.yml</code> · 应用数据库迁移与系统数据</p>
                 </div>
                 <div class="cm-page-header-actions">
-                    <button class="btn btn-ghost btn-action-copy" type="button" onclick="copyInstallLogs()">复制日志</button>
                     <button class="btn btn-primary btn-action-apply" id="btn-install-start" type="button" onclick="checkInstallAndConfirm()">开始初始化</button>
                 </div>
             </div>
@@ -755,7 +754,7 @@
                 <div class="cm-install-kpi" data-tone="primary">
                     <div class="cm-install-kpi-label">当前阶段</div>
                     <div id="install-current-stage" class="cm-install-kpi-value">等待开始</div>
-                    <div class="cm-install-kpi-sub">0 / 6</div>
+                    <div class="cm-install-kpi-sub" id="install-stage-progress">0 / 6</div>
                 </div>
                 <div class="cm-install-kpi" data-tone="primary">
                     <div class="cm-install-kpi-label">进度</div>
@@ -871,7 +870,7 @@
     <script src="assets/modules/services-ui.js?v=20260521-action-colors"></script>
     <script src="assets/modules/overview-ui.js?v=20260521-action-colors"></script>
     <script src="assets/modules/router.js?v=20260518-route-config-layout"></script>
-    <script src="assets/app.js?v=20260521-action-colors"></script>
+    <script src="assets/app.js?v=20260522-install-state"></script>
     <script type="module" src="assets/src/main.js?v=20260521-action-colors"></script>
 
     <!-- Validation Warning Modal -->

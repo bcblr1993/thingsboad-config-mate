@@ -11,6 +11,7 @@ ARG DOCKER_DOWNLOAD_FALLBACK_BASE=https://download.docker.com/linux/static/stabl
 ARG COMPOSE_DOWNLOAD_BASE=https://gh-proxy.com/https://github.com/docker/compose/releases/download
 ARG COMPOSE_DOWNLOAD_FALLBACK_BASE_1=https://gh.llkk.cc/https://github.com/docker/compose/releases/download
 ARG COMPOSE_DOWNLOAD_FALLBACK_BASE_2=https://github.com/docker/compose/releases/download
+ARG NPM_REPLACE_REGISTRY_HOST=always
 ARG TARGETARCH
 
 RUN find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i \
@@ -39,6 +40,7 @@ WORKDIR /opt/tb-config-mate
 
 COPY package*.json ./
 RUN npm config set registry "${NPM_REGISTRY}" \
+    && npm config set replace-registry-host "${NPM_REPLACE_REGISTRY_HOST}" \
     && npm ci --omit=dev --registry="${NPM_REGISTRY}" \
     && npm cache clean --force
 

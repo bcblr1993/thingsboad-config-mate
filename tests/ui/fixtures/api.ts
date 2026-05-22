@@ -1,4 +1,4 @@
-import type { Page, Route } from '@playwright/test';
+import type { Page, Request, Route } from '@playwright/test';
 
 export const FIXED_NOW_ISO = '2026-05-20T08:00:00+08:00';
 
@@ -102,6 +102,21 @@ function text(body: string, status = 200) {
     };
 }
 
+type MockApiResponse = ReturnType<typeof json> | ReturnType<typeof text>;
+
+type MockApiHandlerContext = {
+    authenticated: boolean;
+    method: string;
+    pathname: string;
+    request: Request;
+    url: URL;
+};
+
+type MockConfigMateApiOptions = {
+    authenticated?: boolean;
+    apiHandler?: (context: MockApiHandlerContext) => MockApiResponse | undefined | Promise<MockApiResponse | undefined>;
+};
+
 function responseFor(pathname: string, method: string, authenticated: boolean) {
     if (pathname === '/api/auth/status') {
         return json({ required: true, authenticated, operator: authenticated ? 'admin' : '' });
@@ -174,7 +189,7 @@ async function installFixedClock(page: Page) {
     }, FIXED_NOW_ISO);
 }
 
-export async function mockConfigMateApi(page: Page, options: { authenticated?: boolean } = {}) {
+export async function mockConfigMateApi(page: Page, options: MockConfigMateApiOptions = {}) {
     const authenticated = options.authenticated !== false;
     await installFixedClock(page);
     await page.route('**/*', async (route: Route) => {
@@ -182,6 +197,17 @@ export async function mockConfigMateApi(page: Page, options: { authenticated?: b
         const url = new URL(request.url());
         if (!url.pathname.startsWith('/api/')) {
             await route.continue();
+            return;
+        }
+        const overridden = await options.apiHandler?.({
+            authenticated,
+            method: request.method(),
+            pathname: url.pathname,
+            request,
+            url
+        });
+        if (overridden) {
+            await route.fulfill(overridden);
             return;
         }
         await route.fulfill(responseFor(url.pathname, request.method(), authenticated));

@@ -53,6 +53,28 @@ const plan = {
     warnings: ['Redis 当前未启动，保存并应用前请确认缓存服务状态。']
 };
 
+function servicesForScenario(scenario) {
+    if (scenario?.label !== 'install-route') return services;
+    const installDependencyIds = new Set(['postgres', 'cassandra', 'redis', 'kafka', 'iotcloud']);
+    return services.map(service => {
+        if (!installDependencyIds.has(service.id)) return service;
+        return { ...service, status: 'running', running: true, message: '' };
+    });
+}
+
+function planForScenario(scenario) {
+    if (scenario?.label !== 'install-route') return plan;
+    const scenarioServices = servicesForScenario(scenario);
+    return {
+        ...plan,
+        statuses: scenarioServices
+            .filter(service => ['postgres', 'cassandra', 'redis', 'kafka', 'iotcloud'].includes(service.id))
+            .map(service => ({ id: service.id, label: service.label, status: service.status, running: service.running })),
+        missingServices: [],
+        warnings: []
+    };
+}
+
 const deployment = {
     status: 'success',
     appRoot: '/opt/sprixin',
@@ -94,15 +116,15 @@ function text(body, status = 200) {
     };
 }
 
-function responseFor(pathname, method, authenticated) {
+function responseFor(pathname, method, authenticated, scenario) {
     if (pathname === '/api/auth/status') return json({ required: true, authenticated, operator: authenticated ? 'admin' : '' });
     if (pathname === '/api/login' && method === 'POST') return json({ status: 'success', operator: 'admin' });
     if (pathname === '/api/version') return json({ version: '1.4.17' });
     if (!authenticated) return json({ status: 'unauthorized', message: '请先登录 Config Mate' }, 401);
     if (pathname === '/api/config') return json({ status: 'success', meta: configMeta, values: configValues });
     if (pathname === '/api/deployment') return json(deployment);
-    if (pathname === '/api/plan') return json({ status: 'success', plan });
-    if (pathname === '/api/services') return json({ status: 'success', services });
+    if (pathname === '/api/plan') return json({ status: 'success', plan: planForScenario(scenario) });
+    if (pathname === '/api/services') return json({ status: 'success', services: servicesForScenario(scenario) });
     if (pathname === '/api/disk-usage') return json({ status: 'success', usage: { available: true, percent: 62, usedBytes: 33285996544, totalBytes: 53687091200 } });
     if (pathname === '/api/diff-runtime') {
         return json({
@@ -161,6 +183,6 @@ module.exports = async (page, scenario) => {
             request.continue();
             return;
         }
-        request.respond(responseFor(requestUrl.pathname, request.method(), authenticated));
+        request.respond(responseFor(requestUrl.pathname, request.method(), authenticated, scenario));
     });
 };
