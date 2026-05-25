@@ -1,4 +1,5 @@
 name: Docker Image Build Check
+run-name: Docker image check ${{ github.ref_name || github.sha }}
 
 on:
   workflow_dispatch:
@@ -12,6 +13,15 @@ on:
 
 permissions:
   contents: read
+
+env:
+  CI_IMAGE_BUILD_ARGS: >-
+    --build-arg NODE_IMAGE=node:18-bookworm-slim
+    --build-arg APT_MIRROR=deb.debian.org
+    --build-arg APT_SECURITY_MIRROR=security.debian.org/debian-security
+    --build-arg NPM_REGISTRY=https://registry.npmjs.org
+    --build-arg DOCKER_DOWNLOAD_BASE=https://download.docker.com/linux/static/stable
+    --build-arg COMPOSE_DOWNLOAD_BASE=https://github.com/docker/compose/releases/download
 
 jobs:
   docker-images:
@@ -53,7 +63,7 @@ jobs:
           image_name="tb-config-mate:${{ matrix.platform.label }}"
 
           pushd dist/config-mate-image-build
-          PLATFORM="${{ matrix.platform.docker_platform }}" BASE_IMAGE_NAME="${base_image}" ./build-base.sh
+          PLATFORM="${{ matrix.platform.docker_platform }}" BASE_IMAGE_NAME="${base_image}" EXTRA_BUILD_ARGS="${CI_IMAGE_BUILD_ARGS}" ./build-base.sh
           PLATFORM="${{ matrix.platform.docker_platform }}" BASE_IMAGE_NAME="${base_image}" IMAGE_NAME="${image_name}" ./build-image.sh
           popd
 
