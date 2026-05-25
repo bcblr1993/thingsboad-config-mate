@@ -20,6 +20,24 @@ function mockJson(data: unknown, status = 200) {
     };
 }
 
+const readyInstallServices = [
+    { id: 'postgres', label: 'PostgreSQL', status: 'running', running: true },
+    { id: 'cassandra', label: 'Cassandra', status: 'running', running: true },
+    { id: 'redis', label: 'Redis', status: 'running', running: true },
+    { id: 'kafka', label: 'Kafka', status: 'running', running: true },
+    { id: 'iotcloud', label: 'IoT Cloud', status: 'running', running: true }
+];
+
+function readyInstallPlan() {
+    return {
+        appService: 'iotcloud',
+        services: readyInstallServices.map((service, index) => ({ id: service.id, label: service.label, order: (index + 1) * 10 })),
+        statuses: readyInstallServices,
+        missingServices: [],
+        warnings: []
+    };
+}
+
 test.describe('Config Mate UI consistency', () => {
     test('login page', async ({ page }) => {
         await mockConfigMateApi(page, { authenticated: false });
@@ -125,27 +143,14 @@ test.describe('Config Mate UI consistency', () => {
     });
 
     test('install route', async ({ page }) => {
-        const readyServices = [
-            { id: 'postgres', label: 'PostgreSQL', status: 'running', running: true },
-            { id: 'cassandra', label: 'Cassandra', status: 'running', running: true },
-            { id: 'redis', label: 'Redis', status: 'running', running: true },
-            { id: 'kafka', label: 'Kafka', status: 'running', running: true },
-            { id: 'iotcloud', label: 'IoT Cloud', status: 'running', running: true }
-        ];
         await mockConfigMateApi(page, {
             authenticated: true,
             apiHandler: ({ pathname }) => {
-                if (pathname === '/api/services') return mockJson({ status: 'success', services: readyServices });
+                if (pathname === '/api/services') return mockJson({ status: 'success', services: readyInstallServices });
                 if (pathname === '/api/plan') {
                     return mockJson({
                         status: 'success',
-                        plan: {
-                            appService: 'iotcloud',
-                            services: readyServices.map((service, index) => ({ id: service.id, label: service.label, order: (index + 1) * 10 })),
-                            statuses: readyServices,
-                            missingServices: [],
-                            warnings: []
-                        }
+                        plan: readyInstallPlan()
                     });
                 }
                 return undefined;
@@ -158,6 +163,125 @@ test.describe('Config Mate UI consistency', () => {
         await expect(page.locator('button', { hasText: '复制日志' })).toHaveCount(0);
         await expect(page.locator('.cm-install-log-actions button', { hasText: '复制' })).toHaveCount(1);
         await expect(page).toHaveScreenshot('install-route.png', { fullPage: true });
+    });
+
+    test('install run locks navigation and keeps progress visible', async ({ page }) => {
+        let releaseInstall!: () => void;
+        let markInstallRequest!: () => void;
+        const installRequestSeen = new Promise<void>(resolve => {
+            markInstallRequest = resolve;
+        });
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: ({ pathname }) => {
+                if (pathname === '/api/services') return mockJson({ status: 'success', services: readyInstallServices });
+                if (pathname === '/api/plan') return mockJson({ status: 'success', plan: readyInstallPlan() });
+                return undefined;
+            }
+        });
+        await page.route('**/api/install', async route => {
+            markInstallRequest();
+            await new Promise<void>(resolve => {
+                releaseInstall = resolve;
+            });
+            await route.fulfill({
+                status: 200,
+                contentType: 'text/plain; charset=utf-8',
+                body: '[INFO] 正在执行清理 (Clean up)...\n[SUCCESS] 安装完成。\n'
+            });
+        });
+
+        await page.goto('/#/install');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await page.locator('#install-logs .install-log-line').first().waitFor({ state: 'visible' });
+        await page.locator('#btn-install-start').click();
+        await expect(page.locator('#confirm-modal.active')).toBeVisible({ timeout: 500 });
+        await page.locator('#btn-confirm-yes').click();
+
+        await expect(page.locator('#install-state-badge')).toHaveText('运行中');
+        await expect(page.locator('[data-mega-nav="deployment"]')).toBeDisabled();
+        await page.evaluate(() => {
+            (window as typeof window & { navigateRoute?: (route: string) => void }).navigateRoute?.('deployment');
+        });
+        await expect(page.locator('#install-modal')).toHaveClass(/route-active/);
+        await expect(page.locator('#install-current-stage')).toContainText('准备启动安装任务');
+
+        await installRequestSeen;
+        releaseInstall();
+        await expect(page.locator('#install-state-badge')).toHaveText('已完成');
+        await expect(page.locator('[data-mega-nav="deployment"]')).toBeEnabled();
+    });
+
+    test('action confirmations open without waiting for slow plan refresh', async ({ page }) => {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: ({ pathname }) => {
+                if (pathname === '/api/services') return mockJson({ status: 'success', services: readyInstallServices });
+                if (pathname === '/api/plan') return mockJson({ status: 'success', plan: readyInstallPlan() });
+                return undefined;
+            }
+        });
+        await page.goto('/#/install');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await page.locator('#install-logs .install-log-line').first().waitFor({ state: 'visible' });
+
+        let slowPlanRequests = 0;
+        await page.route('**/api/plan', async route => {
+            slowPlanRequests += 1;
+            await new Promise(() => {});
+            await route.fulfill(mockJson({ status: 'success', plan: readyInstallPlan() }));
+        });
+
+        await page.locator('#btn-install-start').click();
+        await expect(page.locator('#btn-install-start')).toHaveClass(/is-action-feedback/);
+        await expect(page.locator('#confirm-modal.active')).toBeVisible({ timeout: 500 });
+        expect(slowPlanRequests).toBe(0);
+        await page.locator('#confirm-modal .btn-action-cancel').click();
+        await expect(page.locator('#confirm-modal.active')).toHaveCount(0);
+
+        await page.locator('[data-mega-nav="deployment"]').click();
+        await expect(page.locator('#deployment-panel')).toBeVisible();
+        await expect(page.locator('.service-card[data-service-id="iotcloud"] .cm-svc-action-restart')).toBeVisible();
+        await page.locator('.service-card[data-service-id="iotcloud"] .cm-svc-action-restart').click();
+        await expect(page.locator('#confirm-modal.active')).toBeVisible({ timeout: 500 });
+        expect(slowPlanRequests).toBe(0);
+
+        await page.unroute('**/api/plan');
+    });
+
+    test('config save apply confirmation opens without slow plan refresh', async ({ page }) => {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: ({ pathname }) => {
+                if (pathname === '/api/services') return mockJson({ status: 'success', services: readyInstallServices });
+                if (pathname === '/api/plan') return mockJson({ status: 'success', plan: readyInstallPlan() });
+                return undefined;
+            }
+        });
+        await page.goto('/#/config');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await page.locator('#form-container .cm-cfg-field').first().waitFor({ state: 'visible' });
+        await page.locator('#btn-cfg-edit').click();
+
+        const jdbcInput = page.locator('#card-SPRING_DATASOURCE_URL input.field-input');
+        await jdbcInput.fill('jdbc:postgresql://postgres:5432/thingsboard_confirm_fast');
+        const planRefreshAfterEdit = page.waitForResponse(response => response.url().includes('/api/plan'));
+        await jdbcInput.dispatchEvent('change');
+        await planRefreshAfterEdit;
+        await expect(page.locator('#btn-cfg-save-apply')).toBeVisible();
+        await expect(page.locator('#btn-cfg-save-apply')).toBeEnabled();
+
+        await page.route('**/api/plan', async route => {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            await route.fulfill(mockJson({ status: 'success', plan: readyInstallPlan() }));
+        });
+
+        await page.locator('#btn-cfg-save-apply').click();
+        await expect(page.locator('#btn-cfg-save-apply')).toHaveClass(/is-action-feedback/);
+        await expect(page.locator('#confirm-modal.active')).toBeVisible({ timeout: 500 });
+        await page.locator('#confirm-modal .btn-action-cancel').click();
+
+        await page.unroute('**/api/plan');
     });
 
     test('install readiness reflects dependency and stage progress', async ({ page }) => {

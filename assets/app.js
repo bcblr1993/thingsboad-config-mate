@@ -453,6 +453,10 @@ async function init() {
    modal openers. */
 function navigateRoute(key) {
     if (!window.ConfigMateRouter) return;
+    if (typeof window.ConfigMateCanNavigateRoute === 'function'
+        && window.ConfigMateCanNavigateRoute(String(key || '').replace(/^#?\/?/, '').toLowerCase(), ConfigMateRouter.currentRoute?.()) === false) {
+        return;
+    }
     /* Router.onChange (initWorkbenchNavigation) is the single source of
        truth for opening / closing modal-style routes; just point the hash. */
     ConfigMateRouter.navigate(key);
@@ -460,8 +464,24 @@ function navigateRoute(key) {
 
 let lastRouteKey = null;
 
+function canNavigateWorkbenchRoute(nextKey, fromKey) {
+    if (installRunning && fromKey === 'install' && nextKey !== 'install') {
+        showToast('初始化安装正在执行，完成前不能切换到其他页面', 'warning');
+        return false;
+    }
+    return true;
+}
+
+window.ConfigMateCanNavigateRoute = canNavigateWorkbenchRoute;
+
 function handleRouteTransition(newKey) {
     if (lastRouteKey === newKey) return;
+    if (!canNavigateWorkbenchRoute(newKey, lastRouteKey)) {
+        if (window.ConfigMateRouter?.currentRoute?.() !== 'install') {
+            ConfigMateRouter.navigate('install');
+        }
+        return;
+    }
 
     /* Teardown previous route */
     if (lastRouteKey === 'history') {
@@ -1346,6 +1366,14 @@ async function ensureRequiredDependenciesRunning(actionText) {
     return false;
 }
 
+async function ensureKnownRequiredDependenciesRunning(actionText) {
+    if (!latestPlan) return true;
+    const missingDependencies = getMissingRequiredDependencies();
+    if (missingDependencies.length === 0) return true;
+    await showDependencyBlock(missingDependencies, actionText);
+    return false;
+}
+
 async function handleDependencyBlockedResponse(data, actionText) {
     if (data?.code !== 'DEPENDENCIES_NOT_RUNNING') return false;
     if (data.plan) {
@@ -1927,7 +1955,7 @@ async function serviceAction(serviceId, action) {
     if (!lock) return;
     try {
         if (serviceId === getCurrentAppServiceId() && (action === 'up' || action === 'restart')) {
-            const ok = await ensureRequiredDependenciesRunning(`${actionText} ${getServiceDisplayNameById(serviceId)}`);
+            const ok = await ensureKnownRequiredDependenciesRunning(`${actionText} ${getServiceDisplayNameById(serviceId)}`);
             if (!ok) return;
         }
         if (!await customConfirm(`确定要${actionText} ${serviceId} 吗？`, actionText, action === 'down' ? 'var(--danger)' : 'var(--primary)')) return;
@@ -2657,10 +2685,8 @@ async function saveAndApplyPlan() {
     try {
         const appServiceId = getCurrentAppServiceId();
         const appServiceName = getServiceDisplayNameById(appServiceId) || '当前业务服务';
-        await updateDeploymentPlan();
-
         const appStatus = getCurrentAppServiceStatus();
-        if (!appStatus?.running) {
+        if (appStatus && !appStatus.running) {
             const ok = await customConfirm(
                 `当前服务容器 ${appServiceName} 没有运行，无法把配置应用到服务。\n\n是否仅保存配置到 .env？`,
                 '仅保存配置',
@@ -2674,9 +2700,7 @@ async function saveAndApplyPlan() {
             return;
         }
 
-        const missingDependencies = getMissingRequiredDependencies();
-        if (missingDependencies.length > 0) {
-            await showDependencyBlock(missingDependencies, `保存并应用 ${appServiceName}`);
+        if (!await ensureKnownRequiredDependenciesRunning(`保存并应用 ${appServiceName}`)) {
             return;
         }
 
@@ -3082,7 +3106,7 @@ async function restartServiceOnly(event) {
     const originalText = btn.innerText;
 
     try {
-        if (!await ensureRequiredDependenciesRunning(dependencyAction)) return;
+        if (!await ensureKnownRequiredDependenciesRunning(dependencyAction)) return;
         if (!await customConfirm(msg, title, color)) return;
 
         btn.innerText = isStart ? '启动中...' : '重启中...';
@@ -3124,7 +3148,7 @@ async function restartService() {
     const originalText = btn ? btn.innerText : '立即重启服务';
 
     try {
-        if (!await ensureRequiredDependenciesRunning(dependencyAction)) return;
+        if (!await ensureKnownRequiredDependenciesRunning(dependencyAction)) return;
         if (!await customConfirm('确定要重启服务以应用更改吗？', '重启服务', 'var(--cm-warning)')) return;
 
         if (btn) {
@@ -3594,6 +3618,27 @@ let installDroppedLogCount = 0;
 let installLastDropNoticeCount = 0;
 let installUiMode = 'idle';
 
+function setInstallNavigationLockUi(locked) {
+    document.body?.classList.toggle('cm-install-running', !!locked);
+    document.querySelectorAll('[data-mega-nav]').forEach(btn => {
+        const isInstallNav = btn.dataset.megaNav === 'install';
+        if (isInstallNav) return;
+        if (locked) {
+            if (btn.dataset.cmInstallPrevDisabled === undefined) {
+                btn.dataset.cmInstallPrevDisabled = btn.disabled ? 'true' : 'false';
+            }
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+            btn.title = '初始化安装正在执行，完成前不能切换页面';
+        } else if (btn.dataset.cmInstallPrevDisabled !== undefined) {
+            btn.disabled = btn.dataset.cmInstallPrevDisabled === 'true';
+            if (!btn.disabled) btn.removeAttribute('aria-disabled');
+            delete btn.dataset.cmInstallPrevDisabled;
+            if (btn.title === '初始化安装正在执行，完成前不能切换页面') btn.removeAttribute('title');
+        }
+    });
+}
+
 async function checkInstallAvailability() {
     if (!isAuthenticatedSessionActive()) return;
     const buttons = ['btn-install-init', 'btn-install-start']
@@ -3631,6 +3676,7 @@ async function checkInstallAvailability() {
 
 function prepareInstallRoute() {
     if (installRunning) return;
+    setInstallNavigationLockUi(false);
     resetInstallUi();
     syncInstallReadinessUi();
     appendInstallLine('[INFO] 初始化安装已就绪。点击「开始初始化」后将进行确认并执行安装任务。', 'system');
@@ -3646,7 +3692,7 @@ async function checkInstallAndConfirm() {
         return;
     }
     const appName = getAppDisplayName();
-    if (!await ensureRequiredDependenciesRunning(`初始化安装 ${appName}`)) return;
+    if (!await ensureKnownRequiredDependenciesRunning(`初始化安装 ${appName}`)) return;
 
     const message = `
         <b>初始化安装确认</b><br><br>
@@ -3683,13 +3729,14 @@ async function startInstallService() {
     }
     resetInstallUi();
     installUiMode = 'running';
+    installRunning = true;
+    setInstallNavigationLockUi(true);
     setInstallState('running', '运行中');
     setInstallProgress(3, '准备启动安装任务', 'cleanup');
     startInstallTimer();
     appendInstallLine('[INFO] 初始化任务已创建，正在连接安装接口...', 'system');
 
     let alreadyInitialized = false;
-    installRunning = true;
     installHadError = false;
     setInstallStartButton(true, '初始化中');
 
@@ -3893,6 +3940,7 @@ function setInstallState(state, label) {
 function finishInstallUi(state, badgeText, note) {
     installRunning = false;
     installUiMode = 'finished';
+    setInstallNavigationLockUi(false);
     stopInstallTimer();
     setInstallState(state, badgeText);
     updateInstallSteps('finish', state === 'error' || state === 'initialized' ? state : 'success');
@@ -3906,6 +3954,7 @@ function setInstallStartButton(disabled, label) {
     const startBtn = document.getElementById('btn-install-start');
     if (!startBtn) return;
     startBtn.disabled = !!disabled;
+    startBtn.setAttribute('aria-busy', disabled && installRunning ? 'true' : 'false');
     startBtn.textContent = label || (disabled ? '初始化中' : '开始初始化');
 }
 

@@ -3,7 +3,7 @@ FROM ${BASE_IMAGE}
 
 WORKDIR /opt/tb-config-mate
 
-COPY tb-config-src.js config-meta.js index.html ./
+COPY package.json tb-config-src.js config-meta.js index.html ./
 COPY assets ./assets
 COPY src ./src
 COPY meta ./meta

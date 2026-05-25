@@ -104,6 +104,11 @@
     background: var(--cm-cloud-surface-muted);
 }
 
+.mega-nav-item:disabled {
+    cursor: not-allowed;
+    opacity: 46%;
+}
+
 .mega-nav-item.active {
     color: var(--cm-cloud-primary);
     background: var(--cm-cloud-primary-soft);

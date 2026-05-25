@@ -1,6 +1,14 @@
 (function () {
     const DEFAULT_TOAST_DURATION_MS = 5000;
     let confirmResolver = null;
+    const modalCloseTimers = new WeakMap();
+
+    function clearModalCloseTimer(modal) {
+        const timer = modalCloseTimers.get(modal);
+        if (!timer) return;
+        clearTimeout(timer);
+        modalCloseTimers.delete(modal);
+    }
 
     function escapeHtml(text) {
         if (text === null || text === undefined) return '';
@@ -69,6 +77,7 @@
     function openModal(modalOrId, display = 'flex') {
         const modal = typeof modalOrId === 'string' ? document.getElementById(modalOrId) : modalOrId;
         if (!modal) return null;
+        clearModalCloseTimer(modal);
         modal.classList.remove('is-closing');
         /* In route-page mode the modal lives inline in .content; the
            overlay's display is owned by cloud-modals.css. Avoid stomping
@@ -84,6 +93,7 @@
     function closeModal(modalOrId, options = {}) {
         const modal = typeof modalOrId === 'string' ? document.getElementById(modalOrId) : modalOrId;
         if (!modal) return;
+        clearModalCloseTimer(modal);
         const delay = options.delay ?? 200;
         const display = options.display ?? 'none';
         const wasRouteActive = modal.classList.contains('route-active');
@@ -94,7 +104,8 @@
         if (options.removeClasses) {
             options.removeClasses.forEach(className => modal.classList.remove(className));
         }
-        setTimeout(() => {
+        const timer = setTimeout(() => {
+            modalCloseTimers.delete(modal);
             modal.classList.remove('is-closing');
             if (!wasRouteActive) {
                 modal.style.display = display;
@@ -103,6 +114,7 @@
             }
             if (typeof options.afterClose === 'function') options.afterClose();
         }, delay);
+        modalCloseTimers.set(modal, timer);
     }
 
     function confirmVariantFromColor(color) {
@@ -183,6 +195,31 @@
         });
     }
 
+    function markActionFeedback(button) {
+        if (!button || button.disabled) return;
+        button.classList.remove('is-action-feedback');
+        void button.offsetWidth;
+        button.classList.add('is-action-feedback');
+        clearTimeout(button._cmActionFeedbackTimer);
+        button._cmActionFeedbackTimer = setTimeout(() => {
+            button.classList.remove('is-action-feedback');
+            delete button._cmActionFeedbackTimer;
+        }, 650);
+    }
+
+    document.addEventListener('pointerdown', (event) => {
+        const button = event.target?.closest?.('button');
+        if (!button || !button.matches('[class*="btn-action-"], .btn, .btn-header, .btn-confirm, .cm-svc-actions button, .cm-service-card-menu button')) return;
+        markActionFeedback(button);
+    }, true);
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const button = event.target?.closest?.('button');
+        if (!button || !button.matches('[class*="btn-action-"], .btn, .btn-header, .btn-confirm, .cm-svc-actions button, .cm-service-card-menu button')) return;
+        markActionFeedback(button);
+    }, true);
+
     async function copyText(text, successMessage = '已复制') {
         const value = String(text || '');
         if (navigator.clipboard?.writeText) {
@@ -209,6 +246,7 @@
         closeModal,
         customConfirm,
         resolveConfirm,
+        markActionFeedback,
         copyText
     };
 })();

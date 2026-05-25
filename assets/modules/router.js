@@ -22,6 +22,7 @@
         'history-modal': 'config',
     };
     const listeners = new Set();
+    let activeRouteKey = DEFAULT_ROUTE;
 
     function parseHash(hash) {
         const m = (hash || '').match(/^#\/?([a-z][a-z0-9-]*)/i);
@@ -44,9 +45,26 @@
         return !!(ROUTES[key] && document.querySelector(ROUTES[key].container));
     }
 
+    function canLeaveRoute(nextKey, fromKey) {
+        if (typeof window.ConfigMateCanNavigateRoute !== 'function') return true;
+        try {
+            return window.ConfigMateCanNavigateRoute(nextKey, fromKey) !== false;
+        } catch (err) {
+            console.warn('[router] navigation guard failed', err);
+            return true;
+        }
+    }
+
     function navigate(route) {
         const key = String(route || '').replace(/^#?\/?/, '').toLowerCase();
         if (!ROUTES[key] || !hasContainer(key)) return false;
+        if (!canLeaveRoute(key, activeRouteKey)) {
+            if (location.hash !== '#/' + activeRouteKey) {
+                history.replaceState(null, '', '#/' + activeRouteKey);
+            }
+            apply(activeRouteKey, { notify: false });
+            return false;
+        }
         if (location.hash === '#/' + key) {
             apply(key);
         } else {
@@ -57,6 +75,7 @@
 
     function apply(routeKey, options = {}) {
         const key = ROUTES[routeKey] ? routeKey : DEFAULT_ROUTE;
+        activeRouteKey = key;
         Object.entries(ROUTES).forEach(([k, def]) => {
             const el = document.querySelector(def.container);
             if (!el) return;
@@ -104,6 +123,11 @@
         window.addEventListener('hashchange', () => {
             const raw = rawHashRoute(location.hash);
             const key = currentRoute();
+            if (!canLeaveRoute(key, activeRouteKey)) {
+                history.replaceState(null, '', '#/' + activeRouteKey);
+                apply(activeRouteKey, { notify: false });
+                return;
+            }
             if (raw && raw !== key) {
                 history.replaceState(null, '', '#/' + key);
             }
