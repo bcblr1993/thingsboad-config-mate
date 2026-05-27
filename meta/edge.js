@@ -103,6 +103,7 @@ module.exports = {
         group: "云边通信状态检查",
         dependsOn: { key: "APPTYPE", value: "EDGE" },
         default: 10,
+        min: 0,
         required: true
     },
 
@@ -121,6 +122,7 @@ module.exports = {
         comment: "启用离线恢复后实时遥测数据优先（断点续传）功能时，历史数据单次上送条数默认为 50 条，值越大恢复越快，但会增加内存和网络开销，过大可能影响实时数据以及系统稳定性，建议谨慎调整。最大不建议超过 1000",
         type: "number",
         group: "离线恢复策略",
+        min: 0,
         dependsOn: {
             and: [
                 { key: "APPTYPE", value: "EDGE" },
@@ -135,6 +137,7 @@ module.exports = {
         comment: "仅当使用 kafka 时生效。回填历史数据的间隔时间，每次上送完一批数据后，休眠该时长再继续下一轮回填。单位：毫秒，默认 1000 ms（1 秒）。",
         type: "number",
         group: "离线恢复策略",
+        min: 0,
         dependsOn: {
             and: [
                 { key: "APPTYPE", value: "EDGE" },
@@ -176,6 +179,7 @@ module.exports = {
         comment: "配置该参数后，遥测数据将按照指定的队列分区数量进行并行上送，默认值为 2。例如，在 10 万条/秒的数据量场景下，启用遥测分离配置并保持默认值 2 时，每个队列分区约承担 5 万条/秒的数据上送。该参数可根据现场实际负载情况进行动态调整，数值越大表示并行处理能力越强、可支持的数据量越大，但同时对服务器的 CPU、内存和网络资源要求也越高。",
         type: "number",
         group: "Edge 遥测分离",
+        min: 0,
         dependsOn: {
             and: [
                 { key: "APPTYPE", value: "EDGE" },
@@ -210,6 +214,7 @@ module.exports = {
         comment: "该参数用于配置历史数据清理任务的执行周期，单位为毫秒，默认值为 7,200,000 ms（2 小时）。",
         type: "number",
         default: 7200000,
+        min: 0,
         group: "核心存储",
         dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
     },
@@ -218,6 +223,7 @@ module.exports = {
         comment: "该参数用于配置历史数据的保留时间，单位为秒。  0 表示记录永不过期。默认值为: 259200 (3天)",
         type: "number",
         default: 259200,
+        min: 0,
         group: "核心存储",
         dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
     },
@@ -352,6 +358,7 @@ module.exports = {
         type: "number",
         default: 0,
         group: "缓存配置",
+        min: 0,
         dependsOn: {
             and: [
                 { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
@@ -446,6 +453,7 @@ module.exports = {
         comment: "PG 上云事件表清理检测间隔时间，单位为毫秒。默认值为 7200000 毫秒，(2 小时)。注意: 仅在 TB_QUEUE_TYPE 为 in-memory 时生效",
         type: "number",
         default: 7200000,
+        min: 0,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
     },
@@ -454,6 +462,7 @@ module.exports = {
         comment: "PG 上云事件表保留时间，单位为秒。默认值为 259200 秒，(3 天)。注意: 仅在 TB_QUEUE_TYPE 为 in-memory 时生效",
         type: "number",
         default: 259200,
+        min: 0,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "in-memory" }
     },
@@ -462,6 +471,7 @@ module.exports = {
         comment: "上云通用事件(Cloud_Event)最大拉取数，单位为条。默认值为 100。注意: 仅在 TB_QUEUE_TYPE 为 kafka 时生效",
         type: "number",
         default: 100,
+        min: 0,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
     },
@@ -470,6 +480,7 @@ module.exports = {
         comment: "上云遥测事件(TS_KV_Cloud_Event)最大拉取数，单位为条。默认值为 200。注意: 仅在 TB_QUEUE_TYPE 为 kafka 时生效",
         type: "number",
         default: 200,
+        min: 0,
         group: "消息队列",
         dependsOn: { key: "TB_QUEUE_TYPE", value: "kafka" }
     },
@@ -478,6 +489,7 @@ module.exports = {
         comment: "开启遥测分离时，遥测分离上云事件(Telemetry_Ts_Kv_Cloud_Event)最大拉取数，单位为条。默认值为 200。注意: 仅在 TB_QUEUE_TYPE 为 kafka 时生效",
         type: "number",
         default: 200,
+        min: 0,
         group: "消息队列",
         dependsOn: {
             and: [
@@ -504,6 +516,7 @@ module.exports = {
         type: "number",
         group: "MQTT 传输",
         default: 65536,
+        min: 0,
         required: true
     },
     // === 高级设置 ===

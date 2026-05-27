@@ -31,6 +31,7 @@ module.exports = {
         comment: "该参数用于配置历史数据清理任务的执行周期，单位为毫秒，默认值为 86400000 ms（1天）。",
         type: "number",
         default: 86400000,
+        min: 0,
         group: "核心存储",
         dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
     },
@@ -39,6 +40,7 @@ module.exports = {
         comment: "该参数用于配置历史数据的保留时间，单位为秒。0 表示记录永不过期。默认值为: 0",
         type: "number",
         default: 0,
+        min: 0,
         group: "核心存储",
         dependsOn: { key: "DATABASE_TS_TYPE", value: "sql" }
     },
@@ -194,6 +196,7 @@ module.exports = {
         type: "number",
         default: 0,
         group: "缓存配置",
+        min: 0,
         dependsOn: {
             and: [
                 { or: [{ key: "CACHE_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis" }, { key: "DATABASE_TS_LATEST_TYPE", value: "redis-cluster" }] },
@@ -298,6 +301,7 @@ module.exports = {
         type: "number",
         group: "MQTT 传输",
         default: 65536,
+        min: 0,
         required: true
     },
 

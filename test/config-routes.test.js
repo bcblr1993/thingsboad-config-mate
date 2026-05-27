@@ -5,6 +5,8 @@ const {
     parseRuntimeEnvFromInspect,
     validateConfigValues
 } = require('../src/server/routes/config');
+const cloudMeta = require('../meta/cloud');
+const edgeMeta = require('../meta/edge');
 
 test('parseRuntimeEnvFromInspect converts docker inspect env list to map', () => {
     const runtime = parseRuntimeEnvFromInspect(JSON.stringify([
@@ -101,4 +103,59 @@ test('validateConfigValues enforces required, number range, and select options',
     }), [
         { key: 'CACHE_TYPE', label: '缓存类型', message: '缓存类型不能为空' }
     ]);
+});
+
+test('form metadata rejects negative values for non-negative numeric keys', () => {
+    const nonNegativeKeys = [
+        'CLOUD_CHECK_STATUS_PERIOD_MIN',
+        'EDGES_STORAGE_MAX_READ_HISTORY_COUNT',
+        'EDGES_STORAGE_KAFKA_BACKFILL_THRESHOLD_MS',
+        'TB_QUEUE_TELEMETRY_TS_KV_CLOUD_EVENT_PARTITIONS',
+        'TS_KV_TTL',
+        'REDIS_PORT',
+        'REDIS_DB',
+        'SQL_TTL_CLOUD_EVENTS_EXECUTION_INTERVAL',
+        'SQL_TTL_CLOUD_EVENTS_TTL',
+        'TB_QUEUE_KAFKA_CLOUD_EVENT_MAX_POLL_RECORDS',
+        'TB_QUEUE_KAFKA_CLOUD_EVENT_TS_MAX_POLL_RECORDS',
+        'TB_QUEUE_KAFKA_TELEMETRY_TS_KV_CLOUD_EVENT_MAX_POLL_RECORDS',
+        'MQTT_BIND_PORT',
+        'NETTY_MAX_PAYLOAD_SIZE',
+        'TBEL_MAX_TOTAL_ARGS_SIZE',
+        'TBEL_MAX_RESULT_SIZE',
+        'TBEL_MAX_SCRIPT_BODY_SIZE',
+        'JS_MAX_TOTAL_ARGS_SIZE',
+        'JS_MAX_RESULT_SIZE',
+        'JS_MAX_SCRIPT_BODY_SIZE',
+        'SQL_TTL_TS_EXECUTION_INTERVAL',
+        'SQL_TTL_TS_TS_KEY_VALUE_TTL'
+    ];
+    const metaSources = { CLOUD: cloudMeta, EDGE: edgeMeta };
+
+    for (const [appType, metaSource] of Object.entries(metaSources)) {
+        for (const key of nonNegativeKeys) {
+            if (!metaSource[key]) continue;
+
+            assert.equal(metaSource[key].type, 'number', `${appType} ${key} should be numeric`);
+            assert.ok(
+                metaSource[key].min !== undefined && Number(metaSource[key].min) >= 0,
+                `${appType} ${key} should define a non-negative minimum`
+            );
+
+            const meta = {
+                [key]: {
+                    ...metaSource[key],
+                    dependsOn: undefined,
+                    required: false
+                }
+            };
+            const errors = validateConfigValues(meta, { APPTYPE: appType, [key]: '-1' });
+
+            assert.deepEqual(errors, [{
+                key,
+                label: metaSource[key].label,
+                message: `${metaSource[key].label}不能小于 ${metaSource[key].min}`
+            }], `${appType} ${key} should reject -1`);
+        }
+    }
 });
