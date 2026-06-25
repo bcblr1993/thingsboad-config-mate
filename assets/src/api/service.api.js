@@ -10,7 +10,7 @@ export const serviceApi = {
     list:           () => http.get(`${base}/services`),
     config:         serviceId => http.get(path(serviceId, '/config')),
     cleanupPlan:    serviceId => http.get(path(serviceId, '/cleanup-plan')),
-    cleanup:        (serviceId, confirmServiceId) => http.postJson(path(serviceId, '/cleanup'), { confirmServiceId }),
+    cleanup:        (serviceId, confirmServiceId, backupDir) => http.postJson(path(serviceId, '/cleanup'), { confirmServiceId, backupDir }),
     runAction:      (serviceId, action) => http.request(path(serviceId, `/${encodeURIComponent(action)}`), { method: 'POST' }),
     runtimeDiff:    () => http.get(`${base}/diff-runtime`),
 

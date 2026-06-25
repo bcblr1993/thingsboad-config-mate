@@ -413,49 +413,6 @@
     line-height: 1.55;
 }
 
-.cm-diff-kpis {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-}
-
-.cm-diff-kpi {
-    background: var(--cm-cloud-surface);
-    border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
-    padding: 14px 16px;
-    box-shadow: var(--cm-cloud-shadow-sm);
-}
-
-.cm-diff-kpi-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--cm-cloud-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.cm-diff-kpi-value {
-    font-family: var(--cm-font-mono);
-    font-size: 26px;
-    font-weight: 800;
-    color: var(--cm-cloud-fg);
-    margin-top: 6px;
-    font-variant-numeric: tabular-nums;
-}
-
-.cm-diff-kpi-sub {
-    font-size: 11px;
-    color: var(--cm-cloud-muted);
-    margin-top: 2px;
-}
-
-.cm-diff-kpi[data-tone="ok"]     .cm-diff-kpi-value { color: var(--cm-cloud-success); }
-.cm-diff-kpi[data-tone="warn"]   .cm-diff-kpi-value { color: var(--cm-cloud-warning); }
-.cm-diff-kpi[data-tone="danger"] .cm-diff-kpi-value { color: var(--cm-cloud-danger); }
-.cm-diff-kpi[data-tone="info"]   .cm-diff-kpi-value { color: var(--cm-cloud-info); }
-.cm-diff-kpi[data-tone="purple"] .cm-diff-kpi-value { color: var(--cm-tier-cache-fg); }
-
 .cm-diff-table-shell {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
@@ -645,11 +602,6 @@
     align-self: start;
 }
 
-.cm-diff-route.active:not(.route-active) .cm-diff-kpis {
-    flex-shrink: 0;
-    gap: 16px;
-}
-
 .cm-diff-route.active:not(.route-active) .cm-diff-table-shell {
     min-height: 0;
     overflow: auto;
@@ -663,10 +615,6 @@
 
 .cm-diff-route.active:not(.route-active) .cm-diff-banner {
     padding: 18px 22px;
-}
-
-.cm-diff-route.active:not(.route-active) .cm-diff-kpi {
-    padding: 18px 20px;
 }
 
 .cm-diff-route.active:not(.route-active) .cm-diff-table-shell {
@@ -752,11 +700,6 @@
     align-self: start;
 }
 
-.cm-diff-route.is-closing:not(.route-active) .cm-diff-kpis {
-    flex-shrink: 0;
-    gap: 16px;
-}
-
 .cm-diff-route.is-closing:not(.route-active) .cm-diff-result {
     gap: 18px;
     padding: 12px 0 0 !important;
@@ -765,10 +708,6 @@
 
 .cm-diff-route.is-closing:not(.route-active) .cm-diff-banner {
     padding: 18px 22px;
-}
-
-.cm-diff-route.is-closing:not(.route-active) .cm-diff-kpi {
-    padding: 18px 20px;
 }
 
 .cm-diff-route.is-closing:not(.route-active) .cm-diff-table-shell {
@@ -800,14 +739,6 @@
     .cm-history-route.is-closing:not(.route-active) .cm-history-grid {
         grid-template-columns: 1fr !important;
     }
-}
-
-@media (max-width: 1024px) {
-    .cm-diff-kpis { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 640px) {
-    .cm-diff-kpis { grid-template-columns: 1fr; }
 }
 
 /* ---- Install wizard: KPI + 6 列 step grid + 彩色终端 -------------- */

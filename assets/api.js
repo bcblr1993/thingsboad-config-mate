@@ -78,7 +78,7 @@
         services: () => request('/api/services'),
         serviceConfig: serviceId => request(servicePath(serviceId, '/config')),
         cleanupPlan: serviceId => request(servicePath(serviceId, '/cleanup-plan')),
-        cleanup: (serviceId, confirmServiceId) => postJson(servicePath(serviceId, '/cleanup'), { confirmServiceId }),
+        cleanup: (serviceId, confirmServiceId, backupDir) => postJson(servicePath(serviceId, '/cleanup'), { confirmServiceId, backupDir }),
         serviceAction: (serviceId, action) => request(servicePath(serviceId, `/${encodeURIComponent(action)}`), { method: 'POST' }),
         rawEnv: () => request('/api/env-raw'),
         saveRaw: rawContent => postText('/api/save-raw', rawContent),

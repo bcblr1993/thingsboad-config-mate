@@ -68,7 +68,7 @@
             <form class="login-box cm-login-form" onsubmit="login(event)">
                 <div class="cm-login-form-kicker">登录</div>
                 <h2 class="login-title cm-login-form-title">欢迎回来</h2>
-                <p class="login-desc cm-login-form-desc">此控制台只开放 admin 管理员账号。默认密码为 123456，可在 docker-compose 环境变量 CONFIG_MATE_PASSWORD 中修改。</p>
+                <p class="login-desc cm-login-form-desc">此控制台只开放 admin 管理员账号。默认密码为 123456，可通过 .env 文件中 CONFIG_MATE_PASSWORD 变量修改密码。</p>
 
                 <label class="cm-login-field" for="login-operator">
                     <span class="cm-login-field-label">管理员账号</span>
@@ -347,8 +347,6 @@
                     <div class="cm-page-header-actions cm-config-header-actions">
                         <div class="cm-config-tool-actions" aria-label="平台配置工具">
                             <div class="cm-segmented cm-config-view-toggle" id="cm-config-view-toggle" role="tablist" aria-label="视图切换">
-                                <button type="button" class="cm-segmented-item" data-config-view="overview"
-                                    onclick="setConfigView('overview')">总览</button>
                                 <button type="button" class="cm-segmented-item cm-config-collapse-toggle" id="btn-toggle-all"
                                     onclick="toggleAllGroups()" title="折叠或展开全部表单分组">折叠全部</button>
                                 <button type="button" class="cm-segmented-item active" data-config-view="form"
@@ -392,12 +390,12 @@
                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                         </svg>
                         <input id="config-search-input" type="search" placeholder="搜索平台配置项..."
-                            onkeyup="filterConfig(this.value)">
+                            oninput="filterConfig(this.value)" onsearch="filterConfig(this.value)">
                     </label>
                 </div>
 
                 <div id="cm-config-anchor-chips" class="cm-config-anchor-chips" hidden aria-label="分组锚点">
-                    <!-- Anchor chips populated by syncConfigAnchorChips() in overview view. -->
+                    <!-- Anchor chips kept for compatibility with older config navigation. -->
                 </div>
 
                 <div class="config-workspace-header is-legacy-hidden" aria-hidden="true">
@@ -412,7 +410,7 @@
                                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                             </svg>
                             <input type="text" class="search-input" placeholder="搜索平台配置项..."
-                                onkeyup="filterConfig(this.value)">
+                                oninput="filterConfig(this.value)">
                         </div>
                     </div>
                 </div>
@@ -647,12 +645,6 @@
                             <span>实时监听中</span>
                         </span>
                     </p>
-                    <ul id="cm-logs-level-list" class="cm-logs-level-list cm-logs-level-strip" aria-label="当前可见日志级别分布">
-                        <li data-lvl="error"><span class="cm-logs-level-dot"></span><span class="cm-logs-level-label">ERROR</span><span class="cm-logs-level-count" id="cm-logs-level-count-error">0</span></li>
-                        <li data-lvl="warn"><span class="cm-logs-level-dot"></span><span class="cm-logs-level-label">WARN</span><span class="cm-logs-level-count" id="cm-logs-level-count-warn">0</span></li>
-                        <li data-lvl="success"><span class="cm-logs-level-dot"></span><span class="cm-logs-level-label">SUCCESS</span><span class="cm-logs-level-count" id="cm-logs-level-count-success">0</span></li>
-                        <li data-lvl="info"><span class="cm-logs-level-dot"></span><span class="cm-logs-level-label">INFO</span><span class="cm-logs-level-count" id="cm-logs-level-count-info">0</span></li>
-                    </ul>
                 </div>
                 <div class="cm-page-header-actions">
                     <select id="logs-level-filter" class="cm-logs-level-select" onchange="setLogLevelFilter(this.value)" title="日志级别">
@@ -927,7 +919,6 @@
                 </div>
                 <div class="cm-page-header-actions">
                     <button class="btn btn-ghost btn-action-verify" id="btn-runtime-recheck" type="button" onclick="checkRuntimeSync()">重新校验</button>
-                    <button class="btn btn-primary btn-action-restart" type="button" id="btn-restart-from-diff" onclick="restartService()">立即重启服务</button>
                     <button class="btn btn-close btn-action-close" type="button" onclick="closeRuntimeDiffModal()">关闭</button>
                 </div>
             </div>
@@ -943,29 +934,6 @@
             <div id="runtime-diff-result" class="runtime-result is-hidden cm-diff-result">
                 <div id="cm-diff-banner" class="cm-diff-banner" aria-live="polite">
                     <!-- 状态横幅 by JS -->
-                </div>
-
-                <div id="cm-diff-kpis" class="cm-diff-kpis" aria-label="差异统计">
-                    <div class="cm-diff-kpi" data-tone="ok">
-                        <div class="cm-diff-kpi-label">一致</div>
-                        <div class="cm-diff-kpi-value" id="cm-diff-kpi-match">0</div>
-                        <div class="cm-diff-kpi-sub">Runtime ≡ Local</div>
-                    </div>
-                    <div class="cm-diff-kpi" data-tone="warn">
-                        <div class="cm-diff-kpi-label">已修改</div>
-                        <div class="cm-diff-kpi-value" id="cm-diff-kpi-mod">0</div>
-                        <div class="cm-diff-kpi-sub">需要重启服务</div>
-                    </div>
-                    <div class="cm-diff-kpi" data-tone="info">
-                        <div class="cm-diff-kpi-label">仅本地</div>
-                        <div class="cm-diff-kpi-value" id="cm-diff-kpi-onlylocal">0</div>
-                        <div class="cm-diff-kpi-sub">容器未应用</div>
-                    </div>
-                    <div class="cm-diff-kpi" data-tone="purple">
-                        <div class="cm-diff-kpi-label">仅运行时</div>
-                        <div class="cm-diff-kpi-value" id="cm-diff-kpi-onlyruntime">0</div>
-                        <div class="cm-diff-kpi-sub">镜像默认值</div>
-                    </div>
                 </div>
 
                 <!-- Legacy single bar (kept hidden — JS may still target it). -->

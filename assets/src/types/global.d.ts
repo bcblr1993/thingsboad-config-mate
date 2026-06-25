@@ -21,7 +21,7 @@ interface LegacyConfigMateApi {
     services: () => Promise<Response>;
     serviceConfig: (serviceId: string) => Promise<Response>;
     cleanupPlan: (serviceId: string) => Promise<Response>;
-    cleanup: (serviceId: string, confirmServiceId: string) => Promise<Response>;
+    cleanup: (serviceId: string, confirmServiceId: string, backupDir?: string) => Promise<Response>;
     serviceAction: (serviceId: string, action: string) => Promise<Response>;
     rawEnv: () => Promise<Response>;
     saveRaw: (rawContent: string) => Promise<Response>;

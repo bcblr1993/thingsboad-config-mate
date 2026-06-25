@@ -329,7 +329,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 
 .cm-config .group-content {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+    grid-template-columns: 1fr;
     gap: 14px;
     padding: 16px 18px 18px;
     background: var(--cm-cloud-surface-muted);
@@ -634,11 +634,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     line-height: 1.5;
 }
 
-/* ---- View mode switching: overview / form / source ---------------- */
-
-body[data-config-view="overview"] .cm-config .group-section.inactive-group {
-    display: block;
-}
+/* ---- View mode switching: form / source ---------------------------- */
 
 body[data-config-view="source"] .cm-config-tabs,
 body[data-config-view="source"] .cm-config-toolbar .cm-deployment-search {
@@ -721,12 +717,12 @@ body[data-workbench-page="config-workspace"] .cm-config-shell > .config-nav.is-l
     display: none !important;
 }
 
-/* 覆盖 styles.css line 3941 minmax(280px, 1fr) — 让字段卡片按可用空间铺满。 */
+/* 覆盖 styles.css line 3941 minmax(280px, 1fr) — 配置项逐行展示，避免长值挤压布局。 */
 body[data-workbench-page="config-workspace"] #config-workspace .group-content {
-    grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)) !important;
+    grid-template-columns: 1fr !important;
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .group-section .group-content {
+body[data-workbench-page="config-workspace"] #config-workspace .group-section .group-content {
     grid-template-columns: 1fr !important;
     gap: 10px;
     padding: 14px;
@@ -734,7 +730,7 @@ body[data-workbench-page="config-workspace"] #form-container.single-group-mode .
         linear-gradient(180deg, var(--cm-cloud-surface-muted), var(--cm-cloud-surface));
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .cm-cfg-field {
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(320px, 34%);
     align-items: center;
@@ -745,32 +741,32 @@ body[data-workbench-page="config-workspace"] #form-container.single-group-mode .
     box-shadow: var(--cm-cloud-shadow-sm);
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .cm-cfg-field-head {
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field-head {
     display: flex;
     flex-direction: column;
     justify-content: center;
     gap: 8px;
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .field-label {
+body[data-workbench-page="config-workspace"] #config-workspace .field-label {
     white-space: normal;
     line-height: 1.35;
     font-size: var(--cm-text-md);
     font-weight: 850;
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .field-desc {
+body[data-workbench-page="config-workspace"] #config-workspace .field-desc {
     max-width: 58ch;
     line-height: 1.55;
     font-size: var(--cm-text-xs);
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .cm-cfg-field-badges {
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field-badges {
     justify-content: flex-start;
     max-width: 100%;
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .var-code {
+body[data-workbench-page="config-workspace"] #config-workspace .var-code {
     padding: 4px 8px;
     border-radius: var(--cm-radius-md);
     line-height: 1.25;
@@ -778,7 +774,7 @@ body[data-workbench-page="config-workspace"] #form-container.single-group-mode .
     background: var(--cm-cloud-surface-sunken);
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .cm-cfg-field-input {
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field-input {
     margin-top: 0;
     gap: 7px;
     justify-self: end;
@@ -787,23 +783,23 @@ body[data-workbench-page="config-workspace"] #form-container.single-group-mode .
     max-width: 430px;
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .field-input {
+body[data-workbench-page="config-workspace"] #config-workspace .field-input {
     min-height: 46px;
     padding: 11px 14px;
     font-size: var(--cm-text-sm);
     background: var(--cm-cloud-surface-muted);
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .cm-cfg-field-modified {
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field-modified {
     border-color: var(--cm-cloud-warning-border);
     background: var(--cm-cloud-surface);
 }
 
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .cm-cfg-field,
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .cm-cfg-field *,
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .cm-cfg-field-input,
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .field-input,
-body[data-workbench-page="config-workspace"] #form-container.single-group-mode .password-wrapper {
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field,
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field *,
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field-input,
+body[data-workbench-page="config-workspace"] #config-workspace .field-input,
+body[data-workbench-page="config-workspace"] #config-workspace .password-wrapper {
     min-width: 0;
 }
 
@@ -983,7 +979,7 @@ body[data-workbench-page="config-workspace"] .action-buttons .btn-install-init {
 /* ---- Responsive ---------------------------------------------------- */
 
 @media (max-width: 1280px) {
-    .cm-config .group-content { grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
+    .cm-config .group-content { grid-template-columns: 1fr; }
     .cm-config .cm-config-shell {
         grid-template-columns: 1fr !important;
         grid-template-areas: "main" !important;
@@ -992,12 +988,12 @@ body[data-workbench-page="config-workspace"] .action-buttons .btn-install-init {
 
 @media (max-width: 960px) {
     .cm-config { padding: 18px 16px; }
-    .cm-config .group-content { grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); padding: 12px; }
-    body[data-workbench-page="config-workspace"] #form-container.single-group-mode .group-section .group-content {
+    .cm-config .group-content { grid-template-columns: 1fr; padding: 12px; }
+    body[data-workbench-page="config-workspace"] #config-workspace .group-section .group-content {
         grid-template-columns: 1fr !important;
         padding: 12px;
     }
-    body[data-workbench-page="config-workspace"] #form-container.single-group-mode .cm-cfg-field {
+    body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field {
         grid-template-columns: 1fr;
         gap: 12px;
         min-height: 0;

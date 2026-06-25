@@ -102,6 +102,10 @@ services:
         { key: 'POSTGRES_PASSWORD', value: 'secret', sensitive: true },
         { key: 'POSTGRES_DB', value: 'thingsboard', sensitive: false }
     ]);
+    assert.deepEqual(postgres.sections.map(section => section.title), ['关键配置', '端口', '挂载', '其他']);
+    assert.deepEqual(postgres.sections.find(section => section.title === '其他').items, [
+        { key: 'restart', value: 'always', sensitive: false }
+    ]);
 
     const app = builder.buildServiceComposeConfig('iotcloud');
     assert.equal(app.summary.image, 'tb-cloud:test');

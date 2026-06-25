@@ -201,6 +201,62 @@ test('runCleanupService archives stopped service data directory and writes manif
     assert.equal(dockerCalls.length, 0);
 });
 
+test('runCleanupService uses backup dir returned by cleanup plan', async () => {
+    const root = createTempRoot();
+    touch(path.join(root, 'services/postgres/docker-compose.yml'));
+    touch(path.join(root, 'services/postgres/data/current.txt'), 'current-data');
+    const { backupRoot, service } = createService(root);
+    const plan = service.buildCleanupPlan('postgres', actor);
+
+    const result = await service.runCleanupService('postgres', 'postgres', actor, {
+        backupDir: plan.backupDir
+    });
+
+    assert.equal(result.status, 'success');
+    assert.equal(result.backupDir, plan.backupDir);
+    assert.equal(fs.readdirSync(backupRoot).filter(name => fs.statSync(path.join(backupRoot, name)).isDirectory()).length, 1);
+    assert.equal(fs.existsSync(path.join(plan.backupDir, 'manifest.json')), true);
+    assert.equal(fs.readFileSync(path.join(plan.backupDir, 'data/current.txt'), 'utf8'), 'current-data');
+});
+
+test('runCleanupService rejects requested backup dir outside backup root', async () => {
+    const root = createTempRoot();
+    touch(path.join(root, 'services/postgres/docker-compose.yml'));
+    touch(path.join(root, 'services/postgres/data/current.txt'), 'current-data');
+    const { auditLogFile, service } = createService(root);
+
+    const result = await service.runCleanupService('postgres', 'postgres', actor, {
+        backupDir: path.join(root, 'outside-backup')
+    });
+    const audit = readAuditEntries(auditLogFile);
+
+    assert.equal(result.status, 'error');
+    assert.equal(result.code, 'BACKUP_DIR_INVALID');
+    assert.equal(audit[0].status, 'failure');
+    assert.equal(audit[0].reason, 'BACKUP_DIR_INVALID');
+    assert.equal(fs.existsSync(path.join(root, 'services/postgres/data/current.txt')), true);
+});
+
+test('runCleanupService rejects stale requested backup dir that already exists', async () => {
+    const root = createTempRoot();
+    touch(path.join(root, 'services/postgres/docker-compose.yml'));
+    touch(path.join(root, 'services/postgres/data/current.txt'), 'current-data');
+    const { auditLogFile, service } = createService(root);
+    const plan = service.buildCleanupPlan('postgres', actor);
+    fs.mkdirSync(plan.backupDir, { recursive: true });
+
+    const result = await service.runCleanupService('postgres', 'postgres', actor, {
+        backupDir: plan.backupDir
+    });
+    const audit = readAuditEntries(auditLogFile);
+
+    assert.equal(result.status, 'error');
+    assert.equal(result.code, 'BACKUP_DIR_EXISTS');
+    assert.equal(audit[0].status, 'failure');
+    assert.equal(audit[0].reason, 'BACKUP_DIR_EXISTS');
+    assert.equal(fs.existsSync(path.join(root, 'services/postgres/data/current.txt')), true);
+});
+
 test('runCleanupService recreates kafka data directory with required mode', async () => {
     const root = createTempRoot();
     touch(path.join(root, 'services/kafka/docker-compose.yml'));

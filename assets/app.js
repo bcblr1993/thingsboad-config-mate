@@ -102,8 +102,7 @@ function syncHeaderServiceActionLockUi() {
     const busy = isServiceActionLocked();
     const buttons = [
         document.getElementById('btn-stop'),
-        document.getElementById('btn-restart-only'),
-        document.getElementById('btn-restart-from-diff')
+        document.getElementById('btn-restart-only')
     ].filter(Boolean);
     buttons.forEach(btn => {
         if (busy) {
@@ -841,9 +840,6 @@ function activateConfigTab(btn) {
     if (!btn) return;
     const target = btn.dataset.target;
     if (!target) return;
-    if (configView === 'overview') {
-        setConfigView('form');
-    }
     document.querySelectorAll('#cm-config-tabs .cm-segmented-item').forEach(el => {
         el.classList.toggle('active', el === btn);
     });
@@ -1883,7 +1879,7 @@ async function cleanupService(serviceId) {
         renderServices();
         if (selectedServiceId === serviceId && selectedServiceConfig) renderServiceConfig(selectedServiceConfig);
         const confirmServiceId = document.getElementById('cleanup-confirm-input')?.value.trim() || '';
-        const res = await ConfigMateApi.cleanup(serviceId, confirmServiceId);
+        const res = await ConfigMateApi.cleanup(serviceId, confirmServiceId, cleanupConfirmPlan?.backupDir || '');
         const data = await res.json();
         if (data.status === 'success') {
             const extra = serviceId === 'postgres' ? '。PostgreSQL 已为空库，如需业务表结构，请手动执行初始化安装。' : '';
@@ -2325,7 +2321,8 @@ function syncConfigViewControls(mode) {
 }
 
 async function setConfigView(mode) {
-    if (mode !== 'overview' && mode !== 'form' && mode !== 'source') return;
+    if (mode === 'overview') mode = 'form';
+    if (mode !== 'form' && mode !== 'source') return;
     const previousMode = configView || 'form';
     if (mode === 'source') {
         if (!isSourceMode && typeof toggleSourceMode === 'function') {
@@ -2346,13 +2343,7 @@ async function setConfigView(mode) {
     }
     syncConfigViewControls(mode);
     const chips = document.getElementById('cm-config-anchor-chips');
-    if (mode === 'overview') {
-        if (typeof showAllConfigGroups === 'function') showAllConfigGroups(null);
-        syncConfigAnchorChips();
-        if (chips) chips.hidden = false;
-    } else {
-        if (chips) chips.hidden = true;
-    }
+    if (chips) chips.hidden = true;
 }
 
 function syncConfigAnchorChips() {
@@ -2505,6 +2496,34 @@ function toggleAllGroups() {
     }
 }
 
+function cloneInitialConfigValues() {
+    return JSON.parse(JSON.stringify(initialConfigValues || {}));
+}
+
+function discardFormChangesToInitial() {
+    configValues = cloneInitialConfigValues();
+    window.__CM__?.stateBridge?.pushConfigValues(configValues, { markClean: true });
+    setDirty(false);
+    renderAll();
+    checkAllDependencies();
+}
+
+function discardSourceChangesToInitial() {
+    const editor = document.getElementById('source-editor');
+    if (editor) editor.value = initialSourceContent || '';
+    setDirty(false);
+    renderConfigPendingPanel();
+    syncConfigChangeActions();
+}
+
+function discardUnsavedChangesForCurrentMode() {
+    if (isSourceMode) {
+        discardSourceChangesToInitial();
+    } else {
+        discardFormChangesToInitial();
+    }
+}
+
 // --- Source Mode ---
 let isSourceMode = false;
 let isSourceFullscreen = false;
@@ -2522,6 +2541,7 @@ async function toggleSourceMode() {
         if (!await customConfirm('当前有未保存的修改，切换模式将丢失这些修改。是否继续？', '丢弃并切换', 'var(--danger)')) {
             return false;
         }
+        discardUnsavedChangesForCurrentMode();
     }
 
     if (nextMode) {
@@ -2795,9 +2815,6 @@ function mountLogsRoute() {
     });
     renderLogsSourceList(targetServiceId);
     updateLogsPageSubtitle(targetServiceId);
-    resetLogsLevelDistribution();
-    // 监听 #logs-content 变化以更新统计 (一次性绑定).
-    ensureLogsLevelObserver();
 }
 
 function renderLogsSourceList(currentServiceId) {
@@ -2834,50 +2851,6 @@ function updateLogsPageSubtitle(serviceId) {
         return;
     }
     text.textContent = `${serviceId} · stdout`;
-}
-
-function resetLogsLevelDistribution() {
-    ['error', 'warn', 'success', 'info'].forEach(lvl => {
-        const el = document.getElementById('cm-logs-level-count-' + lvl);
-        if (el) el.textContent = '0';
-    });
-}
-
-let logsLevelObserverBound = false;
-function ensureLogsLevelObserver() {
-    if (logsLevelObserverBound) return;
-    const content = document.getElementById('logs-content');
-    if (!content) return;
-    logsLevelObserverBound = true;
-    const counts = { error: 0, warn: 0, success: 0, info: 0 };
-    const writeCounts = () => {
-        Object.entries(counts).forEach(([lvl, n]) => {
-            const el = document.getElementById('cm-logs-level-count-' + lvl);
-            if (el) el.textContent = String(n);
-        });
-    };
-    const observer = new MutationObserver(records => {
-        for (const r of records) {
-            r.addedNodes.forEach(n => {
-                if (!(n instanceof Element)) return;
-                if (!n.classList || !n.classList.contains('log-line')) return;
-                if (n.classList.contains('error')) counts.error += 1;
-                else if (n.classList.contains('warn')) counts.warn += 1;
-                else if (n.classList.contains('success')) counts.success += 1;
-                else counts.info += 1;
-            });
-        }
-        writeCounts();
-    });
-    observer.observe(content, { childList: true });
-    // Reset hook when clearLogs sets innerHTML = ''.
-    const resetObserver = new MutationObserver(records => {
-        if (content.children.length === 0) {
-            counts.error = counts.warn = counts.success = counts.info = 0;
-            writeCounts();
-        }
-    });
-    resetObserver.observe(content, { childList: true });
 }
 
 function closeLogs() {
@@ -3134,53 +3107,6 @@ async function restartServiceOnly(event) {
     }
 }
 
-async function restartService() {
-    if (isServiceActionLocked()) {
-        showToast(`${getServiceActionLockLabel()}正在执行，请稍候`, 'info');
-        return;
-    }
-    const dependencyAction = `重启 ${getServiceDisplayNameById(getCurrentAppServiceId()) || getAppDisplayName()}`;
-    const appServiceId = getCurrentAppServiceId();
-    const lock = beginServiceActionLock({ serviceId: appServiceId, action: 'restart', label: dependencyAction });
-    if (!lock) return;
-
-    const btn = document.getElementById('btn-restart-from-diff');
-    const originalText = btn ? btn.innerText : '立即重启服务';
-
-    try {
-        if (!await ensureKnownRequiredDependenciesRunning(dependencyAction)) return;
-        if (!await customConfirm('确定要重启服务以应用更改吗？', '重启服务', 'var(--cm-warning)')) return;
-
-        if (btn) {
-            btn.innerText = '重启中...';
-            btn.disabled = true;
-        }
-        // Clear logs before restart to show fresh status
-        clearLogs();
-
-        const res = await ConfigMateApi.restartAppService();
-        const data = await res.json();
-
-        if (data.status === 'success') {
-            showLogs(true, deploymentInfo?.appService || null); // Open logs in manual mode to monitor
-            const settled = await waitForServiceActionSettled(appServiceId, 'restart', dependencyAction);
-            if (settled.settled) showToast('✅ 服务已重启', 'success');
-            // Close the modal upon successful restart initiation
-            closeRuntimeDiffModal();
-        } else if (await handleDependencyBlockedResponse(data, dependencyAction)) {
-            return;
-        } else {
-            showToast('❌ 重启失败：\n' + data.output, 'error');
-        }
-    } catch (e) {
-        showToast('❌ 请求失败：' + e.message, 'error');
-    } finally {
-        if (btn) {
-            btn.innerText = originalText;
-        }
-        finishServiceActionLock(lock);
-    }
-}
 // --- History Feature ---
 let historyUi = null;
 
@@ -3331,6 +3257,13 @@ async function cancelEdit() {
         if (!await customConfirm('当前有未保存的修改，取消将丢失这些修改并重置配置。确定吗？', '确认取消', 'var(--danger)')) return;
     }
 
+    if (isSourceMode) {
+        discardSourceChangesToInitial();
+        isEditMode = false;
+        setEditMode(false);
+        return;
+    }
+
     // Reset mode and reload
     isEditMode = false;
     // setEditMode(false) will be called by renderAll() inside init()
@@ -3355,16 +3288,10 @@ async function checkRuntimeSync(sessionId = null) {
     const tbody = document.getElementById('runtime-diff-tbody');
     const loadingDiv = document.getElementById('runtime-diff-loading');
     const resultDiv = document.getElementById('runtime-diff-result');
-    const restartBtn = document.getElementById('btn-restart-from-diff');
 
     // Banner 切到 info 态 "正在检查...", 不再依赖独立的 loading spinner.
     if (loadingDiv) loadingDiv.classList.add('is-hidden');
     if (resultDiv) resultDiv.classList.remove('is-hidden');
-    if (restartBtn) restartBtn.style.display = 'none';
-    ['cm-diff-kpi-match', 'cm-diff-kpi-mod', 'cm-diff-kpi-onlylocal', 'cm-diff-kpi-onlyruntime'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = '—';
-    });
     if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="runtime-empty-cell">正在读取容器环境变量...</td></tr>';
     renderRuntimeDiffStatus('info', '正在检查运行配置...', '正在通过 docker inspect 读取容器环境变量。');
 
@@ -3406,22 +3333,16 @@ async function checkRuntimeSync(sessionId = null) {
     }
 }
 
-/* 打开配置校验弹窗的 idle 占位 — 不显示 spinner, 立即显示空态 banner
-   + KPI 全 "—" + 表格区放占位提示. checkRuntimeSync 接管后切换. */
+/* 打开配置校验弹窗的 idle 占位：不显示 spinner，先显示空态 banner 和表格占位。
+   checkRuntimeSync 接管后切换为真实比对结果。 */
 function prepareRuntimeDiffIdle() {
     const modal = document.getElementById('runtime-diff-modal');
     const tbody = document.getElementById('runtime-diff-tbody');
     const loadingDiv = document.getElementById('runtime-diff-loading');
     const resultDiv = document.getElementById('runtime-diff-result');
-    const restartBtn = document.getElementById('btn-restart-from-diff');
     if (modal && typeof openModal === 'function') openModal(modal);
     if (loadingDiv) loadingDiv.classList.add('is-hidden');
     if (resultDiv) resultDiv.classList.remove('is-hidden');
-    if (restartBtn) restartBtn.style.display = 'none';
-    ['cm-diff-kpi-match', 'cm-diff-kpi-mod', 'cm-diff-kpi-onlylocal', 'cm-diff-kpi-onlyruntime'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = '—';
-    });
     renderRuntimeDiffStatus('info', '配置校验', '即将开始检查运行时配置与本地 .env 的差异...');
     if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="runtime-empty-cell">等待检查结果...</td></tr>';
 }
@@ -3457,15 +3378,9 @@ function renderRuntimeDiffError(title, detail) {
     const tbody = document.getElementById('runtime-diff-tbody');
     const loadingDiv = document.getElementById('runtime-diff-loading');
     const resultDiv = document.getElementById('runtime-diff-result');
-    const restartBtn = document.getElementById('btn-restart-from-diff');
     if (modal && typeof openModal === 'function') openModal(modal);
     if (loadingDiv) loadingDiv.classList.add('is-hidden');
     if (resultDiv) resultDiv.classList.remove('is-hidden');
-    if (restartBtn) restartBtn.style.display = 'none';
-    ['cm-diff-kpi-match', 'cm-diff-kpi-mod', 'cm-diff-kpi-onlylocal', 'cm-diff-kpi-onlyruntime'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = '—';
-    });
     renderRuntimeDiffStatus('warn', title, detail);
     if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="runtime-empty-cell">${escapeHtml(detail || '暂无可比对数据')}</td></tr>`;
 }
@@ -3477,7 +3392,6 @@ function renderRuntimeDiff(data) {
     const banner = document.getElementById('cm-diff-banner');
     const loadingDiv = document.getElementById('runtime-diff-loading');
     const resultDiv = document.getElementById('runtime-diff-result');
-    const restartBtn = document.getElementById('btn-restart-from-diff');
 
     openModal(modal);
 
@@ -3492,20 +3406,6 @@ function renderRuntimeDiff(data) {
         else if (d.state === 'NEW') counts.new += 1;
         else if (d.state === 'DELETED') counts.deleted += 1;
     });
-    // 与 C 方案 4 KPI 对齐 (MATCH / MODIFIED / ONLY LOCAL / ONLY RUNTIME):
-    // - MODIFIED 对应 state="MODIFIED"
-    // - ONLY LOCAL = NEW (本地存在但运行时缺失)
-    // - ONLY RUNTIME = DELETED (运行时仍存在但本地已删)
-    const setKpi = (id, val) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = String(val);
-    };
-    // 真实"一致" count 未由后端返回, 这里用 0 占位; 横幅 + 表格已表达状态.
-    setKpi('cm-diff-kpi-match', '—');
-    setKpi('cm-diff-kpi-mod', counts.mod);
-    setKpi('cm-diff-kpi-onlylocal', counts.new);
-    setKpi('cm-diff-kpi-onlyruntime', counts.deleted);
-
     const needRestart = counts.mod > 0;
     const synced = diffs.length === 0;
 
@@ -3547,9 +3447,7 @@ function renderRuntimeDiff(data) {
 
     if (synced) {
         tbody.innerHTML = '<tr><td colspan="4" class="runtime-empty-cell">所有配置项均已同步生效。</td></tr>';
-        if (restartBtn) restartBtn.style.display = 'none';
     } else {
-        if (restartBtn) restartBtn.style.display = needRestart ? '' : 'none';
         tbody.innerHTML = diffs.map(diff => {
             let runtimeClass = '';
             let localClass = '';

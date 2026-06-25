@@ -18,4 +18,6 @@ test('cleanup status codes preserve API behavior', () => {
     assert.equal(cleanupStatusCode({ status: 'error', code: 'TARGET_SERVICE_RUNNING' }), 409);
     assert.equal(cleanupStatusCode({ status: 'error', code: 'CLEANUP_RUNNING' }), 409);
     assert.equal(cleanupStatusCode({ status: 'error', code: 'CONFIRMATION_MISMATCH' }), 400);
+    assert.equal(cleanupStatusCode({ status: 'error', code: 'BACKUP_DIR_INVALID' }), 400);
+    assert.equal(cleanupStatusCode({ status: 'error', code: 'BACKUP_DIR_EXISTS' }), 409);
 });

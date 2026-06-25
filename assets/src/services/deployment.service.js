@@ -99,10 +99,10 @@ async function planCleanup(serviceId) {
     }
 }
 
-async function performCleanup(serviceId, confirmServiceId) {
+async function performCleanup(serviceId, confirmServiceId, backupDir) {
     uiStore.setLoading(LOADING_KEY.CLEANUP, true);
     try {
-        const result = await serviceApi.cleanup(serviceId, confirmServiceId);
+        const result = await serviceApi.cleanup(serviceId, confirmServiceId, backupDir);
         eventBus.emit('service:cleanup-completed', { serviceId, result });
         refreshServices().catch(err => logger.warn('post-cleanup refresh failed:', err));
         return result;

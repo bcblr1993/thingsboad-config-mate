@@ -196,6 +196,8 @@ function createServiceComposeConfigBuilder({
                 ]
             });
             appendPortAndVolumeSections(response, service);
+            const otherItems = buildOtherItems(service);
+            if (otherItems.length) response.sections.push({ title: '其他', items: otherItems });
             return response;
         }
 
@@ -208,6 +210,8 @@ function createServiceComposeConfigBuilder({
                 ]
             });
             appendPortAndVolumeSections(response, service);
+            const otherItems = buildOtherItems(service);
+            if (otherItems.length) response.sections.push({ title: '其他', items: otherItems });
             return response;
         }
 

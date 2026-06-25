@@ -89,6 +89,17 @@ function createCleanupService({
         throw new Error('无法创建唯一备份目录，请检查备份目录是否异常。');
     }
 
+    function normalizeRequestedBackupDir(backupDir) {
+        const value = String(backupDir || '').trim();
+        if (!value) return '';
+        const resolved = path.resolve(value);
+        const rel = path.relative(resolvedBackupRoot, resolved);
+        if (rel.startsWith('..') || path.isAbsolute(rel)) {
+            throw new Error('Cleanup backup dir must be inside backup root');
+        }
+        return resolved;
+    }
+
     function buildCleanupPlan(serviceId, actor = { operator: 'operator' }) {
         const def = getCleanupDefinition(serviceId);
         if (!def) {
@@ -96,7 +107,7 @@ function createCleanupService({
         }
         if (!def.exists) return { status: 'error', message: `Compose file not found: ${def.composePath}` };
 
-        const backupDir = buildCleanupBackupDir(serviceId, actor);
+        const backupDir = getUniqueBackupDir(buildCleanupBackupDir(serviceId, actor));
         return {
             status: 'success',
             service: { id: def.id, label: def.label },
@@ -161,7 +172,7 @@ function createCleanupService({
         }
     }
 
-    async function runCleanupService(serviceId, confirmServiceId, actor) {
+    async function runCleanupService(serviceId, confirmServiceId, actor, options = {}) {
         const def = getCleanupDefinition(serviceId);
         if (!def) {
             appendAuditLog(buildAuditEntry('failure', serviceId, actor, {
@@ -170,6 +181,26 @@ function createCleanupService({
             }));
             logger.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=n/a backup=n/a status=failure error=UNSUPPORTED_SERVICE`);
             return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra。' };
+        }
+
+        let requestedBackupDir = '';
+        try {
+            requestedBackupDir = normalizeRequestedBackupDir(options.backupDir);
+        } catch (e) {
+            const invalid = buildAuditEntry('failure', serviceId, actor, {
+                sourcePath: def.dataAbsPath,
+                backupDir: options.backupDir || '',
+                composePath: def.composePath,
+                error: e.message
+            });
+            invalid.reason = 'BACKUP_DIR_INVALID';
+            appendAuditLog(invalid);
+            logger.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=${options.backupDir || 'n/a'} status=failure error=BACKUP_DIR_INVALID`);
+            return {
+                status: 'error',
+                code: 'BACKUP_DIR_INVALID',
+                message: '备份目录不合法，请刷新清理弹窗后重试。'
+            };
         }
 
         if (confirmServiceId !== serviceId) {
@@ -260,7 +291,24 @@ function createCleanupService({
 
         activeCleanupService = serviceId;
         const startedAt = new Date();
-        const backupDir = getUniqueBackupDir(buildCleanupBackupDir(serviceId, actor, startedAt));
+        const backupDir = requestedBackupDir || getUniqueBackupDir(buildCleanupBackupDir(serviceId, actor, startedAt));
+        if (requestedBackupDir && fs.existsSync(backupDir)) {
+            const exists = buildAuditEntry('failure', serviceId, actor, {
+                sourcePath: def.dataAbsPath,
+                backupDir,
+                composePath: def.composePath,
+                error: 'Requested backup dir already exists'
+            });
+            exists.reason = 'BACKUP_DIR_EXISTS';
+            appendAuditLog(exists);
+            logger.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=${def.dataAbsPath} backup=${backupDir} status=failure error=BACKUP_DIR_EXISTS`);
+            activeCleanupService = null;
+            return {
+                status: 'error',
+                code: 'BACKUP_DIR_EXISTS',
+                message: '预计备份目录已存在，请刷新清理弹窗后重试。'
+            };
+        }
         const archivedDataPath = path.join(backupDir, path.basename(def.dataAbsPath));
         const manifestPath = path.join(backupDir, 'manifest.json');
         const sourceExisted = fs.existsSync(def.dataAbsPath);

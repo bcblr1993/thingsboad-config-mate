@@ -309,9 +309,6 @@
             { k: '容器名', v: summary.containerName || '—' },
             { k: '重启策略', v: summary.restart || '—' },
             { k: '容器 ID', v: serviceStatus.containerId ? serviceStatus.containerId.slice(0, 12) : '—' },
-            { k: '运行时长', v: running ? formatUptime(serviceStatus.startedAt) : '—' },
-            { k: 'CPU', v: '—' },
-            { k: '内存', v: '—' },
         ];
 
         const sectionsHtml = (otherSections || []).map((section, sectionIndex) =>

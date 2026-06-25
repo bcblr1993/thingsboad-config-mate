@@ -8,7 +8,7 @@ function serviceActionStatusCode(result) {
 
 function cleanupStatusCode(result) {
     if (result.status === 'success') return 200;
-    if (['APP_SERVICE_RUNNING', 'TARGET_SERVICE_RUNNING', 'CLEANUP_RUNNING'].includes(result.code)) return 409;
+    if (['APP_SERVICE_RUNNING', 'TARGET_SERVICE_RUNNING', 'CLEANUP_RUNNING', 'BACKUP_DIR_EXISTS'].includes(result.code)) return 409;
     return 400;
 }
 
@@ -67,7 +67,9 @@ function createServiceRoutes({
         if (serviceCleanupMatch && method === 'POST') {
             readRequestBody(req).then(body => {
                 const payload = body ? JSON.parse(body) : {};
-                return runCleanupService(serviceCleanupMatch[1], payload.confirmServiceId, getRequestActor(req));
+                return runCleanupService(serviceCleanupMatch[1], payload.confirmServiceId, getRequestActor(req), {
+                    backupDir: payload.backupDir
+                });
             }).then(result => {
                 writeJson(res, cleanupStatusCode(result), result, headers);
             }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
