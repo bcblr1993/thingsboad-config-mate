@@ -512,7 +512,11 @@ export function createLogViewer(options = {}) {
         if (!button) return;
         button.classList.toggle('active', isActive);
         const span = button.querySelector('span');
-        if (span) span.textContent = label;
+        if (span) {
+            span.textContent = label;
+        } else {
+            button.textContent = label;
+        }
     }
 
     function updateMeta() {

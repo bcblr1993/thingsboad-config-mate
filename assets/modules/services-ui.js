@@ -298,7 +298,9 @@
         const sections = data.sections || [];
         const portSection = sections.find(s => (s.title || '') === '端口');
         const volumeSection = sections.find(s => (s.title || '') === '挂载');
-        const otherSections = sections.filter(s => !['端口', '挂载'].includes(s.title || ''));
+        const otherSections = sections
+            .map((section, sectionIndex) => ({ section, sectionIndex }))
+            .filter(({ section }) => !['端口', '挂载'].includes(section.title || ''));
 
         const portsHtml = renderPortsList(portSection);
         const volumesHtml = renderVolumesList(volumeSection);
@@ -311,7 +313,7 @@
             { k: '容器 ID', v: serviceStatus.containerId ? serviceStatus.containerId.slice(0, 12) : '—' },
         ];
 
-        const sectionsHtml = (otherSections || []).map((section, sectionIndex) =>
+        const sectionsHtml = (otherSections || []).map(({ section, sectionIndex }) =>
             renderServiceConfigSection(section, sectionIndex, serviceId)
         ).join('');
 
@@ -361,7 +363,7 @@
             ${sectionsHtml ? `
                 <section class="cm-detail-sections">
                     <div class="cm-detail-col-title">完整环境变量</div>
-                    <div class="service-config-sections ${getServiceConfigSectionsClass(otherSections)}">
+                    <div class="service-config-sections ${getServiceConfigSectionsClass(otherSections.map(({ section }) => section))}">
                         ${sectionsHtml}
                     </div>
                 </section>` : ''}

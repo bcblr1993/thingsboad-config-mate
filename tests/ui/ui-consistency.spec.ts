@@ -249,6 +249,50 @@ test.describe('Config Mate UI consistency', () => {
         await page.unroute('**/api/plan');
     });
 
+    test('cleanup dialog opens before slow cleanup plan finishes', async ({ page }) => {
+        let releasePlan!: () => void;
+        let cleanupPlanRequests = 0;
+        const slowPlan = new Promise<void>(resolve => {
+            releasePlan = resolve;
+        });
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/services/redis/cleanup-plan') {
+                    cleanupPlanRequests += 1;
+                    await slowPlan;
+                    return mockJson({
+                        status: 'success',
+                        service: { id: 'redis', label: 'Redis' },
+                        appService: 'iotcloud',
+                        dataPath: '/opt/sprixin/services/redis/data',
+                        backupRoot: '/opt/sprixin/services/config-mate/backups',
+                        backupDir: '/opt/sprixin/services/config-mate/backups/redis-admin',
+                        appServiceRunning: false,
+                        targetServiceRunning: false
+                    });
+                }
+                return undefined;
+            }
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await expect(page.locator('.service-card[data-service-id="redis"] .cm-svc-action-more')).toBeVisible();
+
+        await page.locator('.service-card[data-service-id="redis"] .cm-svc-action-more').click();
+        await page.locator('.cm-service-card-menu .btn-action-cleanup').click();
+
+        await expect(page.locator('#cleanup-modal.active')).toBeVisible({ timeout: 500 });
+        await expect(page.locator('#cleanup-block-note')).toContainText('正在读取清理计划');
+        await expect(page.locator('#btn-cleanup-confirm')).toBeDisabled();
+        expect(cleanupPlanRequests).toBe(1);
+
+        releasePlan();
+        await expect(page.locator('#cleanup-backup-dir')).toContainText('/opt/sprixin/services/config-mate/backups/redis-admin');
+        await expect(page.locator('#cleanup-confirm-input')).toBeEnabled();
+        await page.locator('#cleanup-modal .btn-action-cancel').click();
+    });
+
     test('config save apply confirmation opens without slow plan refresh', async ({ page }) => {
         await mockConfigMateApi(page, {
             authenticated: true,
@@ -282,6 +326,73 @@ test.describe('Config Mate UI consistency', () => {
         await page.locator('#confirm-modal .btn-action-cancel').click();
 
         await page.unroute('**/api/plan');
+    });
+
+    test('runtime diff summary hides zero-count categories', async ({ page }) => {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: ({ pathname }) => {
+                if (pathname === '/api/diff-runtime') {
+                    return mockJson({
+                        status: 'success',
+                        service: 'iotcloud',
+                        diffs: [
+                            { key: 'SWAGGER_ENABLED', state: 'MODIFIED', runtimeVal: 'true', localVal: 'false' }
+                        ]
+                    });
+                }
+                return undefined;
+            }
+        });
+        await page.goto('/#/config');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await page.locator('#form-container .cm-cfg-field').first().waitFor({ state: 'visible' });
+
+        await page.locator('#btn-config-runtime-check').click();
+        await expect(page.locator('#runtime-diff-modal.active')).toBeVisible();
+        await expect(page.locator('#cm-diff-banner .cm-diff-banner-desc')).toHaveText('1 项已修改');
+        await expect(page.locator('#cm-diff-banner .cm-diff-banner-desc')).not.toContainText('0 项');
+    });
+
+    test('log pause button label follows paused state', async ({ page }) => {
+        await page.addInitScript(() => {
+            class MockEventSource {
+                url: string;
+                onmessage: ((event: MessageEvent) => void) | null = null;
+                onerror: (() => void) | null = null;
+
+                constructor(url: string) {
+                    this.url = url;
+                }
+
+                close() {}
+            }
+
+            Object.defineProperty(window, 'EventSource', {
+                configurable: true,
+                value: MockEventSource
+            });
+        });
+        await mockConfigMateApi(page, { authenticated: true });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await page.waitForFunction(() => {
+            return !!(window as typeof window & { __CM__?: unknown }).__CM__;
+        });
+
+        await page.evaluate(() => {
+            (window as typeof window & { showLogs?: (isManual?: boolean, serviceId?: string) => void }).showLogs?.(true, 'iotcloud');
+        });
+        await expect(page.locator('#logs-modal.active')).toBeVisible();
+        await expect(page.locator('#btn-log-pause')).toHaveText('暂停');
+
+        await page.locator('#btn-log-pause').click();
+        await expect(page.locator('#logs-status')).toContainText('已暂停实时刷新');
+        await expect(page.locator('#btn-log-pause')).toHaveText('继续');
+
+        await page.locator('#btn-log-pause').click();
+        await expect(page.locator('#logs-status')).toContainText('实时监听中');
+        await expect(page.locator('#btn-log-pause')).toHaveText('暂停');
     });
 
     test('install readiness reflects dependency and stage progress', async ({ page }) => {

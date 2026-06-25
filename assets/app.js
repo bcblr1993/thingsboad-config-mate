@@ -9,6 +9,7 @@ let selectedServiceConfig = null;
 let serviceConfigRequestSeq = 0;
 let cleanupConfirmResolver = null;
 let cleanupConfirmPlan = null;
+let cleanupConfirmRequestId = 0;
 let cleanupInFlightService = null;
 let configScrollObserver = null;
 let workbenchNavInitialized = false;
@@ -1805,11 +1806,26 @@ function syncCleanupConfirmButton() {
     const serviceId = cleanupConfirmPlan?.service?.id || '';
     if (!input || !btn) return;
     btn.disabled = input.value.trim() !== serviceId
+        || cleanupConfirmPlan?.status !== 'success'
+        || !cleanupConfirmPlan?.backupDir
+        || !!cleanupConfirmPlan?.loading
         || !!cleanupConfirmPlan?.appServiceRunning
         || !!cleanupConfirmPlan?.targetServiceRunning;
 }
 
-function confirmCleanup(plan) {
+function buildPendingCleanupPlan(serviceId) {
+    const label = getServiceDisplayNameById(serviceId) || serviceId;
+    return {
+        status: 'loading',
+        loading: true,
+        service: { id: serviceId, label },
+        dataPath: '正在读取清理计划...',
+        backupRoot: '正在读取清理计划...',
+        backupDir: '正在读取清理计划...'
+    };
+}
+
+function renderCleanupConfirmPlan(plan, { resetInput = false } = {}) {
     cleanupConfirmPlan = plan;
     setCleanupModalText('cleanup-service-label', `${plan.service?.label || plan.service?.id || ''} (${plan.service?.id || ''})`);
     setCleanupModalText('cleanup-source-path', plan.dataPath || plan.dataDir || '');
@@ -1820,22 +1836,29 @@ function confirmCleanup(plan) {
 
     const input = document.getElementById('cleanup-confirm-input');
     if (input) {
-        input.value = '';
+        if (resetInput) input.value = '';
         input.placeholder = plan.service?.id || '';
+        input.disabled = !!plan.loading || plan.status === 'error';
     }
 
     const note = document.getElementById('cleanup-block-note');
     if (note) {
         const blockMessages = [];
-        if (plan.appServiceRunning) {
+        if (plan.loading) {
+            blockMessages.push('正在读取清理计划，请稍候。');
+        } else if (plan.status === 'error') {
+            blockMessages.push(plan.message || '清理计划读取失败，请稍后重试。');
+        }
+        if (!plan.loading && plan.status !== 'error' && plan.appServiceRunning) {
             blockMessages.push(`当前业务服务 ${plan.appService || 'iotcloud/iotedge'} 正在运行。请先停止业务服务。`);
         }
-        if (plan.targetServiceRunning) {
+        if (!plan.loading && plan.status !== 'error' && plan.targetServiceRunning) {
             blockMessages.push(`当前目标服务 ${plan.service?.label || plan.service?.id || '目标服务'} 正在运行。请先停止目标服务。`);
         }
         if (blockMessages.length > 0) {
             note.style.display = 'block';
-            note.textContent = `${blockMessages.join(' ')}停止后再执行数据清理。`;
+            const suffix = plan.loading || plan.status === 'error' ? '' : '停止后再执行数据清理。';
+            note.textContent = `${blockMessages.join(' ')}${suffix}`;
         } else {
             note.style.display = 'none';
             note.textContent = '';
@@ -1843,7 +1866,12 @@ function confirmCleanup(plan) {
     }
 
     syncCleanupConfirmButton();
+}
+
+function confirmCleanup(plan) {
+    renderCleanupConfirmPlan(plan, { resetInput: true });
     openModal('cleanup-modal');
+    const input = document.getElementById('cleanup-confirm-input');
     setTimeout(() => input?.focus(), 60);
 
     return new Promise(resolve => {
@@ -1864,22 +1892,37 @@ function resolveCleanupConfirm(result) {
 
 async function cleanupService(serviceId) {
     if (!isCleanupSupportedService(serviceId)) return;
+    const requestId = ++cleanupConfirmRequestId;
+    const confirmationPromise = confirmCleanup(buildPendingCleanupPlan(serviceId));
     try {
         const planRes = await ConfigMateApi.cleanupPlan(serviceId);
         const plan = await planRes.json();
         if (!planRes.ok || plan.status !== 'success') {
+            if (cleanupConfirmRequestId === requestId) {
+                renderCleanupConfirmPlan({
+                    ...buildPendingCleanupPlan(serviceId),
+                    status: 'error',
+                    loading: false,
+                    message: plan.message || '清理计划读取失败'
+                });
+            }
             showToast(plan.message || '清理计划读取失败', 'error');
+            await confirmationPromise;
             return;
         }
 
-        const confirmed = await confirmCleanup(plan);
+        if (cleanupConfirmRequestId === requestId) {
+            renderCleanupConfirmPlan(plan);
+        }
+        const confirmed = await confirmationPromise;
         if (!confirmed) return;
 
         cleanupInFlightService = serviceId;
         renderServices();
         if (selectedServiceId === serviceId && selectedServiceConfig) renderServiceConfig(selectedServiceConfig);
         const confirmServiceId = document.getElementById('cleanup-confirm-input')?.value.trim() || '';
-        const res = await ConfigMateApi.cleanup(serviceId, confirmServiceId, cleanupConfirmPlan?.backupDir || '');
+        const confirmedPlan = cleanupConfirmPlan;
+        const res = await ConfigMateApi.cleanup(serviceId, confirmServiceId, confirmedPlan?.backupDir || '');
         const data = await res.json();
         if (data.status === 'success') {
             const extra = serviceId === 'postgres' ? '。PostgreSQL 已为空库，如需业务表结构，请手动执行初始化安装。' : '';
@@ -1892,7 +1935,16 @@ async function cleanupService(serviceId) {
             showToast(`清理失败：\n${data.message || data.output || '未知错误'}`, 'error');
         }
     } catch (e) {
+        if (cleanupConfirmRequestId === requestId) {
+            renderCleanupConfirmPlan({
+                ...buildPendingCleanupPlan(serviceId),
+                status: 'error',
+                loading: false,
+                message: e.message
+            });
+        }
         showToast(`清理失败：${e.message}`, 'error');
+        await confirmationPromise;
     } finally {
         cleanupInFlightService = null;
         renderServices();
@@ -3385,6 +3437,14 @@ function renderRuntimeDiffError(title, detail) {
     if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="runtime-empty-cell">${escapeHtml(detail || '暂无可比对数据')}</td></tr>`;
 }
 
+function formatRuntimeDiffSummary(counts, { includeModified = true } = {}) {
+    const parts = [];
+    if (includeModified && counts.mod > 0) parts.push(`${counts.mod} 项已修改`);
+    if (counts.new > 0) parts.push(`${counts.new} 项仅本地`);
+    if (counts.deleted > 0) parts.push(`${counts.deleted} 项仅运行时`);
+    return parts.join(' · ');
+}
+
 function renderRuntimeDiff(data) {
     const modal = document.getElementById('runtime-diff-modal');
     const tbody = document.getElementById('runtime-diff-tbody');
@@ -3422,6 +3482,7 @@ function renderRuntimeDiff(data) {
                     <div class="cm-diff-banner-desc">所有比对项均已同步生效</div>
                 </div>`;
         } else if (needRestart) {
+            const summary = formatRuntimeDiffSummary(counts);
             banner.classList.add('is-warn');
             banner.innerHTML = `
                 <div class="cm-diff-banner-icon">
@@ -3429,9 +3490,10 @@ function renderRuntimeDiff(data) {
                 </div>
                 <div class="cm-diff-banner-body">
                     <div class="cm-diff-banner-title">检测到运行时配置漂移 · 需要重启服务才能生效</div>
-                    <div class="cm-diff-banner-desc">${counts.mod} 项已修改 · ${counts.new} 项仅本地 · ${counts.deleted} 项仅运行时</div>
+                    <div class="cm-diff-banner-desc">${escapeHtml(summary)}</div>
                 </div>`;
         } else {
+            const summary = formatRuntimeDiffSummary(counts, { includeModified: false });
             banner.classList.add('is-info');
             banner.innerHTML = `
                 <div class="cm-diff-banner-icon">
@@ -3439,7 +3501,7 @@ function renderRuntimeDiff(data) {
                 </div>
                 <div class="cm-diff-banner-body">
                     <div class="cm-diff-banner-title">${diffs.length} 个键存在差异 · 无需重启</div>
-                    <div class="cm-diff-banner-desc">${counts.new} 项仅本地 · ${counts.deleted} 项仅运行时</div>
+                    <div class="cm-diff-banner-desc">${escapeHtml(summary || `${diffs.length} 个键存在差异`)}</div>
                 </div>`;
         }
     }
