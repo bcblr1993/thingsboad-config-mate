@@ -4250,13 +4250,13 @@ async function checkEnvConfigValidation() {
 
             msgEl.innerHTML = `
                 <div class="confirm-callout confirm-callout-danger">
-                    <div class="confirm-callout-title">未找到 ThingsBoard 配置文件：</div>
-                    <div>请确保 <code>conf/thingsboard.yml</code></div>
-                    <div>或 <code>conf/tb-edge.yml</code> 存在。</div>
+                    <div class="confirm-callout-title">未找到任何配置来源：</div>
+                    <div>请确保业务服务目录下的 <code>.env</code> 存在且包含配置，</div>
+                    <div>或 <code>conf/thingsboard.yml</code> / <code>conf/tb-edge.yml</code> 存在。</div>
                 </div>
                 <div class="confirm-note-list">
-                    <div>本工具依赖配置文件来生成元数据。</div>
-                    <div>请检查 <code>conf/</code> 目录是否完整。</div>
+                    <div>新版部署包不再下发 <code>conf/*.yml</code>，配置直接预置在 <code>.env</code> 中，只有 <code>.env</code> 也缺失时才会出现本提示。</div>
+                    <div>请检查业务服务目录下的 <code>.env</code> 是否被清空或删除。</div>
                     <div><b>工具将会暂停</b>，直到问题修复。</div>
                 </div>
             `;

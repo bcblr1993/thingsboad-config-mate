@@ -159,12 +159,18 @@ function buildDeploymentDiagnostics() {
             fs.existsSync(ENV_FILE_PATH),
             fs.existsSync(ENV_FILE_PATH) ? ENV_FILE_PATH : `未找到 .env：${ENV_FILE_PATH}`
         ),
+        // YAML 模板是可选的：新版部署包不再下发 conf/*.yml，配置直接预置在 .env 里。
+        // 只有 .env 也缺失时，没有 YAML 才真的会导致首次补全不完整。
         buildDiagnosticItem(
             'yaml-config',
             'YAML 模板',
             YAML_CONFIG_PATH ? shortDiagnosticPath(YAML_CONFIG_PATH) : 'conf/*.yml',
-            !!YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH),
-            YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH) ? YAML_CONFIG_PATH : '未找到 YAML 模板，首次补全配置可能不完整。',
+            (!!YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH)) || fs.existsSync(ENV_FILE_PATH),
+            YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH)
+                ? YAML_CONFIG_PATH
+                : (fs.existsSync(ENV_FILE_PATH)
+                    ? '未下发 YAML 模板，配置来自 .env（新版部署包的正常形态）。'
+                    : '未找到 YAML 模板，且 .env 缺失，首次补全配置可能不完整。'),
             'warning'
         ),
         buildDiagnosticItem(
@@ -637,7 +643,6 @@ const yamlInitializer = createYamlInitializer({
     yamlConfigPath: YAML_CONFIG_PATH,
     appRoot: APP_ROOT,
     appDir: APP_DIR,
-    projectRoot: __dirname,
     configMeta: CONFIG_META,
     parseEnvFile,
     saveEnvFile

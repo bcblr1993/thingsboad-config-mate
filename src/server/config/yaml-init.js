@@ -124,7 +124,10 @@ function resolveSpringPlaceholder(value) {
     return val;
 }
 
-function findYamlPath({ yamlConfigPath, appDir, appRoot, projectRoot }) {
+// 只在部署包内部查找 YAML。工具自身安装目录(projectRoot)下的 conf/*.yml 是开发期夹带的样例，
+// 不是现场部署的配置：部署包不再下发 conf/*.yml 后，若继续兜底到那里，会把工具自带的
+// thingsboard.yml 当成现场配置来抽取初值，甚至给 EDGE 部署灌入 CLOUD 的模板值。
+function findYamlPath({ yamlConfigPath, appDir, appRoot }) {
     return [
         yamlConfigPath,
         path.join(appDir, 'conf', 'thingsboard.yml'),
@@ -132,9 +135,7 @@ function findYamlPath({ yamlConfigPath, appDir, appRoot, projectRoot }) {
         path.join(appDir, 'thingsboard.yml'),
         path.join(appDir, 'tb-edge.yml'),
         path.join(appRoot, 'conf', 'thingsboard.yml'),
-        path.join(appRoot, 'conf', 'tb-edge.yml'),
-        path.join(projectRoot, 'conf', 'thingsboard.yml'),
-        path.join(projectRoot, 'conf', 'tb-edge.yml')
+        path.join(appRoot, 'conf', 'tb-edge.yml')
     ].filter(Boolean).find(candidate => fs.existsSync(candidate)) || null;
 }
 
@@ -211,7 +212,6 @@ function createYamlInitializer({
     yamlConfigPath,
     appRoot,
     appDir,
-    projectRoot,
     configMeta,
     parseEnvFile,
     saveEnvFile,
@@ -233,9 +233,10 @@ function createYamlInitializer({
         if (!yaml) return;
         logger.log?.('[Info] Looking for YAML config...');
 
-        const yamlPath = findYamlPath({ yamlConfigPath, appDir, appRoot, projectRoot });
+        const yamlPath = findYamlPath({ yamlConfigPath, appDir, appRoot });
         if (!yamlPath) {
-            logger.log?.('[Info] No YAML config found in conf/ directory. Skipping.');
+            // 新版部署包不下发 conf/*.yml，配置预置在 .env 里，走到这里属于正常形态而非异常。
+            logger.log?.('[Info] No YAML config found in conf/ directory. Using .env and metadata defaults.');
             return;
         }
 
