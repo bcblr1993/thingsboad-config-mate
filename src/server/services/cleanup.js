@@ -103,7 +103,7 @@ function createCleanupService({
     function buildCleanupPlan(serviceId, actor = { operator: 'operator' }) {
         const def = getCleanupDefinition(serviceId);
         if (!def) {
-            return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra。' };
+            return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra、iotdb。' };
         }
         if (!def.exists) return { status: 'error', message: `Compose file not found: ${def.composePath}` };
 
@@ -180,7 +180,7 @@ function createCleanupService({
                 error: 'Unsupported cleanup service'
             }));
             logger.log(`[Audit] Cleanup failure operator=${actor.operator} service=${serviceId} source=n/a backup=n/a status=failure error=UNSUPPORTED_SERVICE`);
-            return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra。' };
+            return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra、iotdb。' };
         }
 
         let requestedBackupDir = '';

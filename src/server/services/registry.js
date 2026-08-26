@@ -36,6 +36,15 @@ const SERVICE_DEFINITIONS = {
         optional: true,
         tier: 'storage'
     },
+    iotdb: {
+        id: 'iotdb',
+        label: 'IoTDB',
+        composePath: 'services/iotdb/docker-compose.yml',
+        composeService: 'iotdb',
+        order: 35,
+        optional: true,
+        tier: 'storage'
+    },
     kafka: {
         id: 'kafka',
         label: 'Kafka',
@@ -93,7 +102,8 @@ const CLEANUP_SERVICE_DATA_DIRS = {
     postgres: 'services/postgres/data',
     redis: 'services/redis/data',
     kafka: 'services/kafka/kafka_0_data',
-    cassandra: 'services/cassandra/cassandra_node1_data'
+    cassandra: 'services/cassandra/cassandra_node1_data',
+    iotdb: 'services/iotdb/data'
 };
 
 const CLEANUP_SERVICE_DATA_DIR_MODES = {

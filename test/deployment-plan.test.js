@@ -8,6 +8,7 @@ function makePlanner({ config = {}, statuses = {}, actions = [] } = {}) {
         postgres: { id: 'postgres', label: 'PostgreSQL', order: 10, exists: true },
         redis: { id: 'redis', label: 'Redis', order: 20, exists: true },
         cassandra: { id: 'cassandra', label: 'Cassandra', order: 30, exists: true },
+        iotdb: { id: 'iotdb', label: 'IoTDB', order: 35, exists: true },
         kafka: { id: 'kafka', label: 'Kafka', order: 40, exists: true },
         iotcloud: { id: 'iotcloud', label: 'IoT Cloud', order: 90, exists: true }
     };
@@ -46,6 +47,39 @@ test('buildDeploymentPlan derives dependencies from config', () => {
         'redis',
         'cassandra',
         'kafka',
+        'iotcloud'
+    ]);
+});
+
+test('buildDeploymentPlan requires iotdb when history storage is iotdb', () => {
+    const planner = makePlanner({
+        config: {
+            DATABASE_TS_TYPE: 'iotdb',
+            DATABASE_TS_LATEST_TYPE: 'redis',
+            TB_QUEUE_TYPE: 'kafka'
+        }
+    });
+
+    assert.deepEqual(planner.buildDeploymentPlan().services.map(service => service.id), [
+        'postgres',
+        'redis',
+        'iotdb',
+        'kafka',
+        'iotcloud'
+    ]);
+});
+
+test('buildDeploymentPlan requires iotdb when only latest storage is iotdb', () => {
+    const planner = makePlanner({
+        config: {
+            DATABASE_TS_TYPE: 'sql',
+            DATABASE_TS_LATEST_TYPE: 'iotdb'
+        }
+    });
+
+    assert.deepEqual(planner.buildDeploymentPlan().services.map(service => service.id), [
+        'postgres',
+        'iotdb',
         'iotcloud'
     ]);
 });

@@ -14,6 +14,10 @@ function createDeploymentPlanner({
             required.add('cassandra');
         }
 
+        if (config.DATABASE_TS_TYPE === 'iotdb' || config.DATABASE_TS_LATEST_TYPE === 'iotdb') {
+            required.add('iotdb');
+        }
+
         if (config.DATABASE_TS_LATEST_TYPE === 'redis-cluster' || config.REDIS_CONNECTION_TYPE === 'cluster') {
             warnings.push('Redis Cluster 暂不自动初始化，请确认 ANNOUNCE_IP 和 REDIS_NODES 后手动执行高级流程。');
         } else if (config.DATABASE_TS_LATEST_TYPE === 'redis' || config.CACHE_TYPE === 'redis') {
