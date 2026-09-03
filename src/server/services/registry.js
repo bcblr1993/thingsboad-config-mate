@@ -39,7 +39,7 @@ const SERVICE_DEFINITIONS = {
     iotdb: {
         id: 'iotdb',
         label: 'IoTDB',
-        composePath: 'services/iotdb/docker-compose.yml',
+        composePath: 'services/apache-iotdb/docker-compose.yml',
         composeService: 'iotdb',
         order: 35,
         optional: true,
@@ -103,7 +103,7 @@ const CLEANUP_SERVICE_DATA_DIRS = {
     redis: 'services/redis/data',
     kafka: 'services/kafka/kafka_0_data',
     cassandra: 'services/cassandra/cassandra_node1_data',
-    iotdb: 'services/iotdb/data'
+    iotdb: 'services/apache-iotdb/data'
 };
 
 const CLEANUP_SERVICE_DATA_DIR_MODES = {

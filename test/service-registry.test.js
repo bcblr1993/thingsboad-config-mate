@@ -60,13 +60,13 @@ test('exposes cleanup data directory whitelist', () => {
         redis: 'services/redis/data',
         kafka: 'services/kafka/kafka_0_data',
         cassandra: 'services/cassandra/cassandra_node1_data',
-        iotdb: 'services/iotdb/data'
+        iotdb: 'services/apache-iotdb/data'
     });
 });
 
 test('registers iotdb as an optional storage service', () => {
     const root = createTempRoot();
-    const composePath = path.join(root, 'services', 'iotdb', 'docker-compose.yml');
+    const composePath = path.join(root, 'services', 'apache-iotdb', 'docker-compose.yml');
     touch(composePath);
 
     const registry = createServiceRegistry({ appRoot: root, appType: 'CLOUD' });
@@ -81,10 +81,14 @@ test('registers iotdb as an optional storage service', () => {
 
 test('iotdb is available to both cloud and edge packages', () => {
     const root = createTempRoot();
+    const composePath = path.join(root, 'services', 'apache-iotdb', 'docker-compose.yml');
+    touch(composePath);
 
     ['CLOUD', 'EDGE'].forEach(appType => {
         const registry = createServiceRegistry({ appRoot: root, appType });
-        assert.ok(registry.getServiceDefinition('iotdb'), `iotdb must exist for ${appType}`);
+        const iotdb = registry.getServiceDefinition('iotdb');
+        assert.equal(iotdb.composeAbsPath, composePath);
+        assert.equal(iotdb.exists, true, `apache-iotdb must exist for ${appType}`);
     });
 });
 
