@@ -106,6 +106,7 @@ docker compose up -d
 * [容器化部署说明](docs/config-mate-container-deployment.md)
 * [Compose 配置说明](docs/config-mate-compose-simple.md)
 * [双机热备只读纳管](docs/ha-readonly-administration.md)
+* [HA 交付包已知缺陷](docs/ha-delivery-known-issues.md)
 * [工程化重构路线](docs/engineering-refactor-roadmap.md)
 
 ## 🛠️ 技术栈
