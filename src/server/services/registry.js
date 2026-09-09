@@ -16,7 +16,8 @@ const SERVICE_DEFINITIONS = {
         composeService: 'postgres',
         order: 10,
         optional: false,
-        tier: 'storage'
+        tier: 'storage',
+        provides: 'database'
     },
     redis: {
         id: 'redis',
@@ -25,7 +26,8 @@ const SERVICE_DEFINITIONS = {
         composeService: 'redis',
         order: 20,
         optional: true,
-        tier: 'cache'
+        tier: 'cache',
+        provides: 'cache'
     },
     cassandra: {
         id: 'cassandra',
@@ -114,6 +116,7 @@ const DYNAMIC_SERVICE_DEFINITIONS = {
         order: 11,
         optional: true,
         tier: 'storage',
+        provides: 'database',
         conflicts: ['postgres', 'highgo-ha']
     },
     'highgo-ha': {
@@ -124,6 +127,7 @@ const DYNAMIC_SERVICE_DEFINITIONS = {
         order: 12,
         optional: true,
         tier: 'storage',
+        provides: 'database',
         conflicts: ['postgres', 'postgres-ha']
     },
     'redis-cluster': {
@@ -134,6 +138,7 @@ const DYNAMIC_SERVICE_DEFINITIONS = {
         order: 21,
         optional: true,
         tier: 'cache',
+        provides: 'cache',
         conflicts: ['redis']
     }
 };
@@ -206,6 +211,26 @@ function createServiceRegistry({ appRoot, appType }) {
         return [...discoveredDynamicIds];
     }
 
+    /**
+     * 列出某项能力（database / cache）当前的候选服务。
+     *
+     * 现场部署 HA 后，单机 postgres 会被停用、由 postgres-ha 或 highgo-ha
+     * 承担数据库能力。依赖检查若仍按服务 id 死盯 postgres，就会拦住业务
+     * 服务启动，因此改为按能力解析：
+     *
+     * - 发现了同能力的动态服务（PG HA / 瀚高 HA / Redis Cluster）→ 用它们
+     * - 否则回落到静态服务（postgres / redis）
+     *
+     * 返回的是候选集合而非单一 id：调用方按「任一候选处于 running 即满足」
+     * 判断，这样 PG HA、瀚高 HA、单机三种部署形态共用同一套逻辑。
+     */
+    function listCapabilityServiceIds(capability, fallbackId) {
+        const discovered = discoveredDynamicIds.filter(
+            id => DYNAMIC_SERVICE_DEFINITIONS[id]?.provides === capability
+        );
+        return discovered.length > 0 ? discovered : [fallbackId];
+    }
+
     /* 与已发现服务冲突的静态服务 id（如现场跑着 postgres-ha 时的 postgres）。
        用于在界面上提示互斥，避免误启动导致端口冲突或双写。 */
     function listConflictingServiceIds() {
@@ -222,6 +247,7 @@ function createServiceRegistry({ appRoot, appType }) {
         getPackageServiceId,
         getServiceDefinition,
         listServiceDefinitions,
+        listCapabilityServiceIds,
         listConflictingServiceIds,
         listDiscoveredDynamicServices,
         setDiscoveredDynamicServices

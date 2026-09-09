@@ -306,3 +306,193 @@ test('dynamic config builder ignores plain compose services', async () => {
     // 普通服务仍走 compose-config.js，这里必须返回 null 让路由回退。
     assert.equal(await builder.buildDynamicServiceConfig('postgres'), null);
 });
+
+/* ---- 依赖检查按能力解析（HA 替代单机数据库） -------------------------- */
+
+const { createDeploymentPlanner } = require('../src/server/services/deployment-plan');
+
+function createPlanner(registry, runningIds) {
+    return createDeploymentPlanner({
+        appType: 'EDGE',
+        getPackageServiceId: registry.getPackageServiceId,
+        getServiceDefinition: registry.getServiceDefinition,
+        getServiceStatus: async def => ({
+            ...def,
+            status: runningIds.includes(def.id) ? 'running' : 'stopped',
+            running: runningIds.includes(def.id)
+        }),
+        runComposeAction: async () => ({ status: 'success' }),
+        configProvider: () => ({ CACHE_TYPE: 'redis' }),
+        listCapabilityServiceIds: registry.listCapabilityServiceIds
+    });
+}
+
+test('capability lookup falls back to standalone services when no HA is present', () => {
+    const registry = createRegistry('EDGE');
+    assert.deepEqual(registry.listCapabilityServiceIds('database', 'postgres'), ['postgres']);
+    assert.deepEqual(registry.listCapabilityServiceIds('cache', 'redis'), ['redis']);
+});
+
+test('discovered PG HA takes over the database capability', () => {
+    const registry = createRegistry('EDGE');
+    registry.setDiscoveredDynamicServices(['postgres-ha']);
+    assert.deepEqual(registry.listCapabilityServiceIds('database', 'postgres'), ['postgres-ha']);
+    // 未部署 Redis Cluster 时缓存能力仍回落到单机 redis。
+    assert.deepEqual(registry.listCapabilityServiceIds('cache', 'redis'), ['redis']);
+});
+
+test('discovered HighGo HA takes over the database capability', () => {
+    const registry = createRegistry('EDGE');
+    registry.setDiscoveredDynamicServices(['highgo-ha']);
+    assert.deepEqual(registry.listCapabilityServiceIds('database', 'postgres'), ['highgo-ha']);
+});
+
+test('discovered Redis Cluster takes over the cache capability', () => {
+    const registry = createRegistry('EDGE');
+    registry.setDiscoveredDynamicServices(['redis-cluster']);
+    assert.deepEqual(registry.listCapabilityServiceIds('cache', 'redis'), ['redis-cluster']);
+});
+
+test('running PG HA satisfies the database dependency while standalone postgres is stopped', async () => {
+    /* 真实现场复现：部署 PG HA 后单机 postgres 容器停用，
+       依赖检查若死盯 postgres 就会拦住 IoT Edge 启动。 */
+    const registry = createRegistry('EDGE');
+    registry.setDiscoveredDynamicServices(['postgres-ha']);
+    const planner = createPlanner(registry, ['postgres-ha', 'redis', 'iotedge']);
+
+    const check = await planner.checkRequiredDependencies({ CACHE_TYPE: 'redis' });
+    assert.equal(check.ok, true, `不应有缺失依赖，实际: ${JSON.stringify(check.missingDependencies)}`);
+});
+
+test('running HighGo HA satisfies the database dependency', async () => {
+    const registry = createRegistry('EDGE');
+    registry.setDiscoveredDynamicServices(['highgo-ha']);
+    const planner = createPlanner(registry, ['highgo-ha', 'redis', 'iotedge']);
+
+    const check = await planner.checkRequiredDependencies({ CACHE_TYPE: 'redis' });
+    assert.equal(check.ok, true, `瀚高 HA 应满足数据库依赖，实际: ${JSON.stringify(check.missingDependencies)}`);
+});
+
+test('stopped HA is still reported as a missing dependency', async () => {
+    const registry = createRegistry('EDGE');
+    registry.setDiscoveredDynamicServices(['postgres-ha']);
+    const planner = createPlanner(registry, ['redis', 'iotedge']);
+
+    const check = await planner.checkRequiredDependencies({ CACHE_TYPE: 'redis' });
+    assert.equal(check.ok, false);
+    assert.deepEqual(check.missingDependencyIds, ['postgres-ha']);
+    assert.equal(check.missingDependencies[0].readOnly, true);
+});
+
+test('block message for a read-only dependency points at the delivery script', async () => {
+    const registry = createRegistry('EDGE');
+    registry.setDiscoveredDynamicServices(['postgres-ha']);
+    const planner = createPlanner(registry, ['redis', 'iotedge']);
+
+    const check = await planner.checkRequiredDependencies({ CACHE_TYPE: 'redis' });
+    const block = planner.dependencyBlockResult('启动当前业务服务', check);
+
+    assert.equal(block.code, 'DEPENDENCIES_NOT_RUNNING');
+    // 只读服务在界面上启动不了，必须引导到交付包脚本。
+    assert.match(block.message, /start\.sh/);
+    assert.match(block.message, /只读纳管/);
+});
+
+test('block message stays unchanged for ordinary dependencies', async () => {
+    const registry = createRegistry('EDGE');
+    const planner = createPlanner(registry, ['iotedge']);
+
+    const check = await planner.checkRequiredDependencies({ CACHE_TYPE: 'redis' });
+    const block = planner.dependencyBlockResult('启动当前业务服务', check);
+    assert.match(block.message, /请先启动依赖服务/);
+    assert.equal(/start\.sh/.test(block.message), false);
+});
+
+test('plan excludes standalone postgres once HA provides the database', async () => {
+    const registry = createRegistry('EDGE');
+    registry.setDiscoveredDynamicServices(['postgres-ha']);
+    const planner = createPlanner(registry, ['postgres-ha', 'redis', 'iotedge']);
+
+    const plan = planner.buildDeploymentPlan({ CACHE_TYPE: 'redis' });
+    const ids = plan.services.map(s => s.id);
+    assert.ok(ids.includes('postgres-ha'));
+    // 单机 postgres 不应再出现在依赖计划里，否则界面会显示它未启动。
+    assert.equal(ids.includes('postgres'), false);
+});
+
+/* ---- 严格模式开关 ---------------------------------------------------- */
+
+function createPlannerWithStrict(registry, runningIds, strict) {
+    return createDeploymentPlanner({
+        appType: 'EDGE',
+        getPackageServiceId: registry.getPackageServiceId,
+        getServiceDefinition: registry.getServiceDefinition,
+        getServiceStatus: async def => ({
+            ...def,
+            status: runningIds.includes(def.id) ? 'running' : 'stopped',
+            running: runningIds.includes(def.id)
+        }),
+        runComposeAction: async () => ({ status: 'success' }),
+        configProvider: () => ({ CACHE_TYPE: 'redis' }),
+        listCapabilityServiceIds: registry.listCapabilityServiceIds,
+        isStrictDependencyCheck: () => strict
+    });
+}
+
+test('strict mode blocks starting the app service when dependencies are down', async () => {
+    const registry = createRegistry('EDGE');
+    const planner = createPlannerWithStrict(registry, ['iotedge'], true);
+
+    const block = await planner.guardAppServiceDependencies('启动当前业务服务', { CACHE_TYPE: 'redis' });
+    assert.ok(block, '严格模式应阻断');
+    assert.equal(block.code, 'DEPENDENCIES_NOT_RUNNING');
+});
+
+test('non-strict mode lets the operation through when dependencies are down', async () => {
+    /* 现场会出现 Kafka 集群、Cassandra 集群等 Config Mate 白名单覆盖不到的
+       部署形态，硬校验会挡住本来正常的操作。 */
+    const registry = createRegistry('EDGE');
+    const planner = createPlannerWithStrict(registry, ['iotedge'], false);
+
+    const block = await planner.guardAppServiceDependencies('启动当前业务服务', { CACHE_TYPE: 'redis' });
+    assert.equal(block, null, '非严格模式不应阻断');
+});
+
+test('non-strict mode still blocks when the app service itself is not running', async () => {
+    /* 「保存并应用」这类操作本就要求目标服务在跑，
+       这与依赖校验无关，不受开关影响。 */
+    const registry = createRegistry('EDGE');
+    const planner = createPlannerWithStrict(registry, [], false);
+
+    const block = await planner.guardAppServiceRunning('保存并应用', { CACHE_TYPE: 'redis' });
+    assert.ok(block, '业务服务未运行时仍应阻断');
+    assert.equal(block.code, 'APP_SERVICE_NOT_RUNNING');
+});
+
+test('advisory tells the frontend whether the miss is blocking', async () => {
+    const registry = createRegistry('EDGE');
+
+    const strict = await createPlannerWithStrict(registry, ['iotedge'], true)
+        .buildDependencyAdvisory({ CACHE_TYPE: 'redis' });
+    assert.equal(strict.ok, false);
+    assert.equal(strict.strict, true);
+    assert.equal(strict.blocking, true);
+
+    const relaxed = await createPlannerWithStrict(registry, ['iotedge'], false)
+        .buildDependencyAdvisory({ CACHE_TYPE: 'redis' });
+    assert.equal(relaxed.ok, false);
+    assert.equal(relaxed.strict, false);
+    // 非严格模式下依赖仍然缺失，但不阻断，前端据此改弹警告框。
+    assert.equal(relaxed.blocking, false);
+    assert.ok(relaxed.missingDependencies.length > 0);
+});
+
+test('advisory reports ok when every dependency is satisfied', async () => {
+    const registry = createRegistry('EDGE');
+    registry.setDiscoveredDynamicServices(['postgres-ha']);
+    const planner = createPlannerWithStrict(registry, ['postgres-ha', 'redis', 'iotedge'], true);
+
+    const advisory = await planner.buildDependencyAdvisory({ CACHE_TYPE: 'redis' });
+    assert.equal(advisory.ok, true);
+    assert.equal(advisory.blocking, false);
+});

@@ -10,6 +10,7 @@ function appActionStatusCode(result) {
 function createAppRoutes({
     parseEnvFile,
     saveEnvFile,
+    buildDependencyAdvisory = null,
     buildDeploymentPlanWithStatus,
     guardAppServiceRunning,
     applyAppConfigChange,
@@ -22,11 +23,16 @@ function createAppRoutes({
 }) {
     function handle(req, res, { method, pathname, requestUrl, headers }) {
         if (pathname === '/api/plan' && method === 'POST') {
-            readRequestBody(req).then(body => {
+            readRequestBody(req).then(async body => {
                 const payload = body ? JSON.parse(body) : {};
-                return buildDeploymentPlanWithStatus(payload.config || parseEnvFile());
-            }).then(plan => {
-                writeJson(res, 200, { status: 'success', plan }, headers);
+                const config = payload.config || parseEnvFile();
+                const plan = await buildDeploymentPlanWithStatus(config);
+                /* advisory 告诉前端本次依赖缺失是否会真的阻断：
+                   严格模式弹阻断框，非严格模式弹带警告的确认框。 */
+                const advisory = buildDependencyAdvisory ? await buildDependencyAdvisory(config) : null;
+                return { plan, advisory };
+            }).then(({ plan, advisory }) => {
+                writeJson(res, 200, { status: 'success', plan, advisory }, headers);
             }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
             return true;
         }

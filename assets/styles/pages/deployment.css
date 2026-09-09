@@ -213,6 +213,54 @@
     color: var(--cm-cloud-muted);
 }
 
+/* ---- 严格依赖校验开关 ------------------------------------------------- */
+
+.cm-strict-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 11px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-md);
+    background: var(--cm-cloud-surface);
+    cursor: pointer;
+    user-select: none;
+}
+
+.cm-strict-toggle input {
+    flex: 0 0 auto;
+    margin: 0;
+    cursor: pointer;
+}
+
+.cm-strict-toggle-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+}
+
+.cm-strict-toggle-label {
+    color: var(--cm-cloud-fg);
+    font-size: var(--cm-text-xs);
+    font-weight: 700;
+}
+
+.cm-strict-toggle-hint {
+    color: var(--cm-cloud-muted);
+    font-size: 10px;
+}
+
+/* 关闭后保持持续可见的提醒，避免运维忘记自己放宽过校验。 */
+.cm-strict-toggle-hint.is-relaxed {
+    color: var(--cm-cloud-warning);
+    font-weight: 700;
+}
+
+/* 非阻断的依赖提示：与阻断态区分，避免运维误以为操作被拒绝。 */
+.dependency-check-dialog.is-advisory .dependency-check-kicker {
+    color: var(--cm-cloud-warning);
+}
+
 /* ---- Service grid (override styles.css .service-grid) ---------------- */
 
 #service-grid.cm-service-grid {

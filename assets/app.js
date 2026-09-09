@@ -20,6 +20,10 @@ let servicePollTimer = null;
 let statusPollTimer = null;
 let currentOperator = '';
 let loginContext = null;
+/* 严格依赖校验开关（默认开启）。关闭后依赖未就绪只提示不阻断，
+   用于 Kafka 集群、Cassandra 集群等 Config Mate 白名单覆盖不到的部署形态。 */
+let strictDependencyCheck = true;
+let latestDependencyAdvisory = null;
 const serviceActionBusyServices = new Set();
 const SERVICE_ACTION_SETTLE_TIMEOUT_MS = 60000;
 const SERVICE_ACTION_SETTLE_INTERVAL_MS = 1200;
@@ -1033,6 +1037,7 @@ async function refreshDeployment(options = {}) {
         setDeploymentRefreshState({ refreshing: true, label: '刷新中' });
     }
     try {
+        await loadConfigMateSettings();
         await loadDeploymentInfo();
         await updateDeploymentPlan();
         await refreshServices();
@@ -1056,6 +1061,50 @@ async function refreshDeployment(options = {}) {
             deploymentRefreshInFlight = false;
         }
     }
+}
+
+async function loadConfigMateSettings() {
+    try {
+        const res = await ConfigMateApi.settings();
+        const json = await res.json();
+        if (json.status === 'success' && json.settings) {
+            strictDependencyCheck = json.settings.strictDependencyCheck !== false;
+        }
+    } catch (e) {
+        // 读取失败时保持默认的严格校验，宁可拦住也不放行。
+        strictDependencyCheck = true;
+    }
+    renderStrictDependencyToggle();
+}
+
+function renderStrictDependencyToggle() {
+    const el = document.getElementById('strict-dependency-toggle');
+    if (!el) return;
+    el.checked = !!strictDependencyCheck;
+    const hint = document.getElementById('strict-dependency-hint');
+    if (hint) {
+        hint.textContent = strictDependencyCheck
+            ? '开启：依赖服务未就绪时阻止启动业务服务'
+            : '已关闭：依赖未就绪只提示不阻断，请自行确认集群状态';
+        hint.classList.toggle('is-relaxed', !strictDependencyCheck);
+    }
+}
+
+async function toggleStrictDependencyCheck(next) {
+    const previous = strictDependencyCheck;
+    strictDependencyCheck = next;
+    renderStrictDependencyToggle();
+    try {
+        const res = await ConfigMateApi.updateSettings({ strictDependencyCheck: next });
+        const json = await res.json();
+        if (json.status !== 'success') throw new Error(json.message || '保存失败');
+        strictDependencyCheck = json.settings.strictDependencyCheck !== false;
+        showToast(strictDependencyCheck ? '已开启严格依赖校验' : '已关闭严格依赖校验，操作前仅做提示', strictDependencyCheck ? 'success' : 'warning');
+    } catch (e) {
+        strictDependencyCheck = previous;
+        showToast('设置保存失败：' + e.message, 'error');
+    }
+    renderStrictDependencyToggle();
 }
 
 async function loadDeploymentInfo() {
@@ -1162,6 +1211,7 @@ async function updateDeploymentPlan() {
             return;
         }
         latestPlan = json.plan;
+        if (json.advisory) latestDependencyAdvisory = json.advisory;
         const warningHtml = (latestPlan.warnings || []).map(w => `<div class="overview-warning">${escapeHtml(w)}</div>`).join('');
         summaryEl.innerHTML = `
             <div class="overview-row">
@@ -1309,7 +1359,7 @@ function buildRequiredDependencyChecks(missingDependencies = []) {
     });
 }
 
-function renderDependencyCheckDialog(dependencies, actionText) {
+function renderDependencyCheckDialog(dependencies, actionText, options = {}) {
     const appName = getAppDisplayName();
     const checks = buildRequiredDependencyChecks(dependencies);
     const passedCount = checks.filter(item => item.running).length;
@@ -1333,18 +1383,32 @@ function renderDependencyCheckDialog(dependencies, actionText) {
         `;
     }).join('');
 
+    const blocking = options.blocking !== false;
+    const kicker = blocking ? '依赖检查未通过' : '依赖未就绪';
+    const title = blocking ? `暂不能${escapeHtml(actionText)}` : `确认继续${escapeHtml(actionText)}`;
+    const desc = blocking
+        ? `${escapeHtml(appName)} 启动前需要以下依赖服务全部处于 <code>running</code> 状态。`
+        : `以下依赖服务当前不处于 <code>running</code> 状态。严格校验已关闭，可以继续操作。`;
+    // 只读纳管的依赖无法在界面上启动，提示必须指向交付包脚本。
+    const hasReadOnly = checks.some(item => item.readOnly);
+    const hint = blocking
+        ? (hasReadOnly
+            ? '请先启动红色标记的服务；其中只读纳管的组件需在对应节点执行其交付包中的 ./start.sh。'
+            : '请先在服务管理中启动红色标记的服务，等待检测通过后再继续操作。')
+        : '若这些能力实际由集群形态（如 Kafka 集群、Cassandra 集群）提供，可直接继续；否则请先确认服务状态。';
+
     return `
-        <div class="dependency-check-dialog">
+        <div class="dependency-check-dialog${blocking ? '' : ' is-advisory'}">
             <div class="dependency-check-head">
                 <div>
-                    <div class="dependency-check-kicker">依赖检查未通过</div>
-                    <div class="dependency-check-title">暂不能${escapeHtml(actionText)}</div>
+                    <div class="dependency-check-kicker">${kicker}</div>
+                    <div class="dependency-check-title">${title}</div>
                 </div>
                 <div class="dependency-check-count">${passedCount} / ${totalCount}</div>
             </div>
-            <div class="dependency-check-desc">${escapeHtml(appName)} 启动前需要以下依赖服务全部处于 <code>running</code> 状态。</div>
+            <div class="dependency-check-desc">${desc}</div>
             <div class="dependency-check-list">${listHtml}</div>
-            <div class="dependency-check-hint">请先在服务管理中启动红色标记的服务，等待检测通过后再继续操作。</div>
+            <div class="dependency-check-hint">${hint}</div>
         </div>
     `;
 }
@@ -1355,20 +1419,27 @@ async function showDependencyBlock(dependencies, actionText) {
     await customConfirm(renderDependencyCheckDialog(dependencies, actionText), '知道了', 'var(--cm-warning)');
 }
 
+async function resolveDependencyGate(missingDependencies, actionText) {
+    if (strictDependencyCheck) {
+        await showDependencyBlock(missingDependencies, actionText);
+        return false;
+    }
+    // 非严格模式：只提示风险，由运维确认后继续。
+    return await showDependencyWarning(missingDependencies, actionText);
+}
+
 async function ensureRequiredDependenciesRunning(actionText) {
     await updateDeploymentPlan();
     const missingDependencies = getMissingRequiredDependencies();
     if (missingDependencies.length === 0) return true;
-    await showDependencyBlock(missingDependencies, actionText);
-    return false;
+    return await resolveDependencyGate(missingDependencies, actionText);
 }
 
 async function ensureKnownRequiredDependenciesRunning(actionText) {
     if (!latestPlan) return true;
     const missingDependencies = getMissingRequiredDependencies();
     if (missingDependencies.length === 0) return true;
-    await showDependencyBlock(missingDependencies, actionText);
-    return false;
+    return await resolveDependencyGate(missingDependencies, actionText);
 }
 
 async function handleDependencyBlockedResponse(data, actionText) {
@@ -1383,6 +1454,13 @@ async function handleDependencyBlockedResponse(data, actionText) {
     }));
     await showDependencyBlock(dependencies, actionText);
     return true;
+}
+
+/* 非严格模式下的依赖提示：列出未就绪的依赖，但允许继续。 */
+async function showDependencyWarning(dependencies, actionText) {
+    const names = formatDependencyNames(dependencies);
+    const dialog = renderDependencyCheckDialog(dependencies, actionText, { blocking: false });
+    return await customConfirm(dialog, '仍要继续', 'var(--cm-warning)');
 }
 
 function renderServiceStatus(status) {

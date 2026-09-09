@@ -6,6 +6,7 @@ const os = require('os');
 const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
 const { createAuthService } = require('./src/server/auth/session');
 const { createEnvStore } = require('./src/server/config/env-store');
+const { createSettingsStore } = require('./src/server/config/settings-store');
 const { createYamlInitializer } = require('./src/server/config/yaml-init');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { writeJson } = require('./src/server/http');
@@ -55,6 +56,7 @@ const AUDIT_LOG_FILE = path.join(CLEANUP_BACKUP_ROOT, 'audit.log');
 const DEFAULT_CONFIG_MATE_PASSWORD = '123456';
 const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || DEFAULT_CONFIG_MATE_PASSWORD;
 const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
+const settingsStore = createSettingsStore({ settingsFile: path.join(RUNTIME_DIR, 'settings.json') });
 const AUTH_REQUIRED = authService.authRequired;
 const {
     getRequestActor,
@@ -104,10 +106,14 @@ const deploymentPlanner = createDeploymentPlanner({
     getServiceDefinition,
     getServiceStatus,
     runComposeAction,
-    configProvider: parseEnvFile
+    configProvider: parseEnvFile,
+    listCapabilityServiceIds: serviceRegistry.listCapabilityServiceIds,
+    refreshDynamicServices,
+    isStrictDependencyCheck: settingsStore.isStrictDependencyCheck
 });
 const {
     applyAppConfigChange,
+    buildDependencyAdvisory,
     buildDeploymentPlan,
     buildDeploymentPlanWithStatus,
     checkRequiredDependencies,
@@ -144,7 +150,8 @@ const systemRoutes = createSystemRoutes({
     configMatePassword: CONFIG_MATE_PASSWORD,
     dockerRuntime,
     buildDeploymentDiagnostics,
-    getPackageServiceId
+    getPackageServiceId,
+    settingsStore
 });
 let serviceRoutes = null;
 let serviceComposeConfigBuilder = null;
@@ -681,6 +688,7 @@ const yamlInitializer = createYamlInitializer({
 const appRoutes = createAppRoutes({
     parseEnvFile,
     saveEnvFile,
+    buildDependencyAdvisory,
     buildDeploymentPlanWithStatus,
     guardAppServiceRunning,
     applyAppConfigChange,

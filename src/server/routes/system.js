@@ -15,7 +15,9 @@ function createSystemRoutes({
     configMatePassword,
     dockerRuntime,
     buildDeploymentDiagnostics,
-    getPackageServiceId
+    getPackageServiceId,
+    settingsStore = null,
+    logger = console
 }) {
     if (!authService) throw new Error('authService is required');
     if (!dockerRuntime) throw new Error('dockerRuntime is required');
@@ -121,6 +123,30 @@ function createSystemRoutes({
                 },
                 diagnostics: buildDeploymentDiagnostics()
             }, headers);
+            return true;
+        }
+
+        if (pathname === '/api/settings' && method === 'GET') {
+            writeJson(res, 200, {
+                status: 'success',
+                settings: settingsStore ? settingsStore.get() : { strictDependencyCheck: true }
+            }, headers);
+            return true;
+        }
+
+        if (pathname === '/api/settings' && method === 'POST') {
+            if (!settingsStore) {
+                writeJson(res, 500, { status: 'error', message: '设置存储不可用' }, headers);
+                return true;
+            }
+            readRequestBody(req).then(body => {
+                const payload = JSON.parse(body || '{}');
+                const actor = authService.getRequestActor(req);
+                const next = settingsStore.update(payload);
+                // 关闭严格校验会放行依赖不满足的操作，属于需要留痕的变更。
+                logger.log?.(`[Settings] operator=${actor.operator} ip=${actor.ip} strictDependencyCheck=${next.strictDependencyCheck}`);
+                writeJson(res, 200, { status: 'success', settings: next }, headers);
+            }).catch(e => writeJson(res, 400, { status: 'error', message: e.message }, headers));
             return true;
         }
 
