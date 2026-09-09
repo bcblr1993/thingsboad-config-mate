@@ -23,6 +23,9 @@ let loginContext = null;
 /* 严格依赖校验开关（默认开启）。关闭后依赖未就绪只提示不阻断，
    用于 Kafka 集群、Cassandra 集群等 Config Mate 白名单覆盖不到的部署形态。 */
 let strictDependencyCheck = true;
+/* 集群（Agent/Console）状态。未配置节点清单时保持 enabled=false，
+   服务列表仍走单机接口，界面与单机完全一致。 */
+let clusterState = { enabled: false, localNodeId: '', degraded: false, offlineNodeIds: [], nodes: [] };
 let latestDependencyAdvisory = null;
 const serviceActionBusyServices = new Set();
 const SERVICE_ACTION_SETTLE_TIMEOUT_MS = 60000;
@@ -1052,6 +1055,7 @@ async function refreshDeployment(options = {}) {
     }
     try {
         await loadConfigMateSettings();
+        await loadClusterState();
         await loadDeploymentInfo();
         await updateDeploymentPlan();
         await refreshServices();
@@ -1075,6 +1079,55 @@ async function refreshDeployment(options = {}) {
             deploymentRefreshInFlight = false;
         }
     }
+}
+
+/* 集群状态加载与横幅渲染。未启用集群时不渲染任何额外元素。 */
+async function loadClusterState() {
+    try {
+        const res = await ConfigMateApi.nodes();
+        const json = await res.json();
+        clusterState = {
+            enabled: !!json.enabled,
+            localNodeId: json.localNodeId || '',
+            degraded: !!json.degraded,
+            offlineNodeIds: json.offlineNodeIds || [],
+            nodes: json.nodes || []
+        };
+    } catch (e) {
+        clusterState = { enabled: false, localNodeId: '', degraded: false, offlineNodeIds: [], nodes: [] };
+    }
+    renderClusterBanner();
+}
+
+function renderClusterBanner() {
+    const el = document.getElementById('cluster-banner');
+    if (!el) return;
+    if (!clusterState.enabled) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+
+    const nodes = clusterState.nodes || [];
+    const online = nodes.filter(n => n.online).length;
+    const chips = nodes.map(n => {
+        const isLocal = n.nodeId === clusterState.localNodeId;
+        const cls = n.online ? (isLocal ? 'is-local' : 'is-online') : 'is-offline';
+        const title = n.online
+            ? `${n.endpoint || ''}${isLocal ? '（本机）' : ''}`
+            : `${n.endpoint || ''} 不可达：${n.message || '未知原因'}`;
+        return `<span class="cm-node-chip ${cls}" title="${escapeHtml(title)}">
+            <span class="cm-node-dot"></span>${escapeHtml(n.nodeLabel || n.nodeId)}${isLocal ? '·本机' : ''}
+        </span>`;
+    }).join('');
+
+    el.hidden = false;
+    el.innerHTML = `
+        <span class="cm-cluster-label">集群</span>
+        <span class="cm-cluster-count">${online} / ${nodes.length} 在线</span>
+        <span class="cm-node-chips">${chips}</span>
+        ${clusterState.degraded ? '<span class="cm-cluster-warn">部分节点不可达，其服务状态暂不可见</span>' : ''}
+    `;
 }
 
 async function loadConfigMateSettings() {
@@ -1491,9 +1544,18 @@ function setHeaderStatus(state, label) {
 
 async function refreshServices() {
     try {
-        const res = await ConfigMateApi.services();
+        /* 集群启用时用聚合接口，一次拿到所有节点的服务；
+           未启用时沿用单机接口，避免多一次无谓请求。 */
+        const useCluster = clusterState.enabled;
+        const res = useCluster ? await ConfigMateApi.nodeServices() : await ConfigMateApi.services();
         const json = await res.json();
         if (json.status !== 'success') return;
+        if (useCluster) {
+            clusterState.degraded = !!json.degraded;
+            clusterState.offlineNodeIds = json.offlineNodeIds || [];
+            clusterState.nodes = json.nodes || [];
+            renderClusterBanner();
+        }
         latestServices = json.services || [];
         window.__CM__?.stateBridge.pushServices(latestServices);
         renderServices();

@@ -40,6 +40,16 @@
         standby: { text: 'STANDBY', title: '本机是备节点，数据库只读' },
     };
 
+    /* 集群模式下标注服务所属节点；远端服务额外提示不可在此操作。 */
+    function renderNodeBadge(service) {
+        if (!service || !service.nodeId) return '';
+        const label = service.nodeLabel || service.nodeId;
+        if (service.remote) {
+            return `<span class="cm-svc-node-badge is-remote" title="该服务运行在 ${escapeHtml(label)}，请登录该节点进行操作">${escapeHtml(label)}</span>`;
+        }
+        return `<span class="cm-svc-node-badge" title="本机节点 ${escapeHtml(label)}">${escapeHtml(label)}</span>`;
+    }
+
     function renderHaBadges(service) {
         if (!service || service.kind !== 'ha-cluster' || !service.running) return '';
 
@@ -293,6 +303,7 @@
                 readOnly
             });
             const haBadgesHtml = renderHaBadges(service);
+            const nodeBadgeHtml = renderNodeBadge(service);
             const messageHtml = service.message
                 ? `<div class="cm-svc-message">${escapeHtml(service.message)}</div>`
                 : '';
@@ -318,6 +329,7 @@
                                 <div class="cm-svc-name-row">
                                     <span class="cm-svc-name" title="${escapeHtml(service.label || service.id)}">${escapeHtml(service.id || service.label)}</span>
                                     ${dependencyBadgeHtml}
+                                    ${nodeBadgeHtml}
                                     ${haBadgesHtml}
                                 </div>
                                 <span class="cm-svc-image" title="${escapeHtml(image || service.label || '')}">${escapeHtml(image || service.label || '')}</span>
@@ -576,6 +588,7 @@
         isCleanupSupportedService,
         isDisabledStatus,
         renderHaBadges,
+        renderNodeBadge,
         renderDependencyStatusChips,
         renderServiceStatus,
         renderServiceCards,

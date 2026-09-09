@@ -623,6 +623,90 @@ test.describe('Config Mate UI consistency', () => {
         await expect(badge).toHaveText('License 5天');
     });
 
+    async function openDeploymentWithCluster(page: Page, payload: Record<string, unknown>) {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/nodes') return mockJson(payload);
+                if (pathname === '/api/nodes/services') return mockJson(payload);
+                return undefined;
+            }
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+    }
+
+    const CLUSTER_PAYLOAD = {
+        status: 'success',
+        enabled: true,
+        localNodeId: 'node-a',
+        degraded: false,
+        offlineNodeIds: [],
+        nodes: [
+            { nodeId: 'node-a', nodeLabel: '业务机', endpoint: 'http://10.0.0.1:3300', online: true },
+            { nodeId: 'node-b', nodeLabel: '数据机', endpoint: 'http://10.0.0.2:3300', online: true }
+        ],
+        services: [
+            { id: 'iotcloud', label: 'IoT Cloud', tier: 'business', status: 'running', running: true, nodeId: 'node-a', nodeLabel: '业务机', remote: false },
+            { id: 'postgres', label: 'PostgreSQL', tier: 'storage', status: 'running', running: true, nodeId: 'node-b', nodeLabel: '数据机', remote: true, readOnly: true }
+        ]
+    };
+
+    test('cluster banner shows node online status', async ({ page }) => {
+        await openDeploymentWithCluster(page, CLUSTER_PAYLOAD);
+        const banner = page.locator('#cluster-banner');
+        await expect(banner).toBeVisible();
+        await expect(banner).toContainText('2 / 2 在线');
+        await expect(banner.locator('.cm-node-chip.is-local')).toContainText('业务机');
+        await expect(banner.locator('.cm-node-chip.is-online')).toContainText('数据机');
+    });
+
+    test('remote services are labelled with their node and hide start/stop', async ({ page }) => {
+        await openDeploymentWithCluster(page, CLUSTER_PAYLOAD);
+        const remote = page.locator('.service-card[data-service-id="postgres"]');
+        await expect(remote.locator('.cm-svc-node-badge.is-remote')).toContainText('数据机');
+        // 远端服务不能在本节点操作。
+        await expect(remote.locator('.cm-svc-action-start')).toHaveCount(0);
+        await expect(remote.locator('.cm-svc-action-stop')).toHaveCount(0);
+
+        const local = page.locator('.service-card[data-service-id="iotcloud"]');
+        await expect(local.locator('.cm-svc-node-badge')).toContainText('业务机');
+        await expect(local.locator('.cm-svc-node-badge.is-remote')).toHaveCount(0);
+    });
+
+    test('an offline node is called out so its services are not read as stopped', async ({ page }) => {
+        await openDeploymentWithCluster(page, {
+            ...CLUSTER_PAYLOAD,
+            degraded: true,
+            offlineNodeIds: ['node-b'],
+            nodes: [
+                { nodeId: 'node-a', nodeLabel: '业务机', endpoint: 'http://10.0.0.1:3300', online: true },
+                { nodeId: 'node-b', nodeLabel: '数据机', endpoint: 'http://10.0.0.2:3300', online: false, message: 'ECONNREFUSED' }
+            ],
+            services: [CLUSTER_PAYLOAD.services[0]]
+        });
+        const banner = page.locator('#cluster-banner');
+        await expect(banner).toContainText('1 / 2 在线');
+        await expect(banner.locator('.cm-node-chip.is-offline')).toContainText('数据机');
+        await expect(banner).toContainText('部分节点不可达');
+    });
+
+    test('a single-node site renders no cluster banner', async ({ page }) => {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => (
+                pathname === '/api/nodes'
+                    ? mockJson({ status: 'success', enabled: false, nodes: [] })
+                    : undefined
+            )
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        // 单机现场界面必须与改造前完全一致。
+        await expect(page.locator('#cluster-banner')).toBeHidden();
+        await expect(page.locator('.cm-svc-node-badge')).toHaveCount(0);
+    });
+
     test('a site without HA renders no HA badges', async ({ page }) => {
         await openRoute(page, 'deployment', '#service-grid .service-card');
         // 未发现 HA 时界面必须与改造前完全一致。

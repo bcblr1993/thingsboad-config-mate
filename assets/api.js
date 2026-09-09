@@ -92,6 +92,8 @@
         restoreHistory: filename => postJson('/api/history/restore', { filename }),
         version: () => request('/api/version'),
         settings: () => request('/api/settings'),
+        nodes: () => request('/api/nodes'),
+        nodeServices: () => request('/api/nodes/services'),
         updateSettings: patch => postJson('/api/settings', patch),
         runtimeDiff: () => request('/api/diff-runtime'),
         diskUsage: () => request('/api/disk-usage'),

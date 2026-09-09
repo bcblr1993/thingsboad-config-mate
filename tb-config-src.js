@@ -908,6 +908,17 @@ function startServer() {
             console.warn('[Warn] Failed to write PID:', e);
         }
 
+        /* 会话与登录失败计数都存在内存里，过期项原本只在被访问时惰性清理。
+           长期运行（现场一开就是几个月）时会缓慢堆积，这里定期回收。 */
+        const pruneTimer = setInterval(() => {
+            try {
+                authService.pruneExpiredSessions();
+            } catch (e) {
+                console.warn('[Warn] 清理过期会话失败:', e.message);
+            }
+        }, 5 * 60 * 1000);
+        pruneTimer.unref?.();
+
         console.log(`[Info] Service running at http://localhost:${PORT}`);
         console.log(`[Info] APP_ROOT=${APP_ROOT}`);
         console.log(`[Info] APP_TYPE=${APP_TYPE}, APP_DIR=${APP_DIR}`);

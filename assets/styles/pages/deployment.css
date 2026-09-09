@@ -1000,3 +1000,103 @@ body.cm-service-detail-open {
 @media (max-width: 640px) {
     #service-grid.cm-service-grid { grid-template-columns: 1fr; }
 }
+
+/* ---- 集群（Agent/Console）横幅与节点徽章 ------------------------------ */
+
+.cm-cluster-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 8px 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-md);
+    background: var(--cm-cloud-surface);
+    font-size: var(--cm-text-xs);
+}
+
+.cm-cluster-banner[hidden] { display: none; }
+
+.cm-cluster-label {
+    color: var(--cm-cloud-muted);
+    font-weight: 700;
+}
+
+.cm-cluster-count {
+    color: var(--cm-cloud-fg);
+    font-weight: 700;
+}
+
+.cm-node-chips {
+    display: inline-flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.cm-node-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-full);
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-muted);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.cm-node-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.cm-node-chip.is-local {
+    border-color: var(--cm-cloud-success-border);
+    background: var(--cm-cloud-success-soft);
+    color: var(--cm-cloud-success);
+}
+
+.cm-node-chip.is-online {
+    border-color: var(--cm-cloud-info-border);
+    background: var(--cm-cloud-info-soft);
+    color: var(--cm-cloud-info);
+}
+
+/* 节点不可达时其服务状态不可见，必须显著区分，避免误判为「服务已停止」。 */
+.cm-node-chip.is-offline {
+    border-color: var(--cm-cloud-danger-border);
+    background: var(--cm-cloud-danger-soft);
+    color: var(--cm-cloud-danger);
+}
+
+.cm-cluster-warn {
+    color: var(--cm-cloud-warning);
+    font-weight: 600;
+}
+
+.cm-svc-node-badge {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-full);
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-muted);
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* 远端服务只读，用与本机不同的语义色提示「不在这台机器上操作」。 */
+.cm-svc-node-badge.is-remote {
+    border-color: var(--cm-cloud-info-border);
+    background: var(--cm-cloud-info-soft);
+    color: var(--cm-cloud-info);
+}
