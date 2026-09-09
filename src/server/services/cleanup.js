@@ -58,6 +58,10 @@ function createCleanupService({
         const def = getServiceDefinition(serviceId);
         const dataDir = cleanupServiceDataDirs[serviceId];
         if (!def || !dataDir) return null;
+        /* 只读纳管的服务（HA / redis-cluster）不走这里：它们的数据在
+           docker named volume 或动态生成的目录里，清理白名单的 bind mount
+           路径对它们无效，执行下去只会归档出一个空目录，给出虚假的安全感。 */
+        if (def.readOnly) return null;
 
         const dataAbsPath = toAppRootPath(dataDir);
         const root = path.resolve(appRoot);
@@ -100,7 +104,22 @@ function createCleanupService({
         return resolved;
     }
 
+    /* 只读纳管服务的清理引导：给出该走的运维路径，而不是一句「不支持」。 */
+    function readOnlyCleanupNotice(serviceId) {
+        const def = getServiceDefinition(serviceId);
+        if (!def?.readOnly) return null;
+
+        const message = def.kind === 'ha-cluster'
+            ? `${def.label}的数据由 HA 集群自身管理，不能通过 Config Mate 清理。如需重建备节点，请在目标节点执行该 HA 交付包的 ./ops.sh 并选择「强制销毁本地数据并重建为 Standby」。`
+            : `${def.label}为只读纳管，请使用 services/redis-cluster/redis-cluster.sh 管理其数据。`;
+
+        return { status: 'error', code: 'SERVICE_READ_ONLY', message };
+    }
+
     function buildCleanupPlan(serviceId, actor = { operator: 'operator' }) {
+        const readOnlyNotice = readOnlyCleanupNotice(serviceId);
+        if (readOnlyNotice) return readOnlyNotice;
+
         const def = getCleanupDefinition(serviceId);
         if (!def) {
             return { status: 'error', message: '该服务不支持一键清理。仅支持 postgres、redis、kafka、cassandra。' };
@@ -173,6 +192,16 @@ function createCleanupService({
     }
 
     async function runCleanupService(serviceId, confirmServiceId, actor, options = {}) {
+        const readOnlyNotice = readOnlyCleanupNotice(serviceId);
+        if (readOnlyNotice) {
+            appendAuditLog(buildAuditEntry('blocked', serviceId, actor, {
+                reason: 'SERVICE_READ_ONLY',
+                error: readOnlyNotice.message
+            }));
+            logger.log(`[Audit] Cleanup blocked operator=${actor.operator} service=${serviceId} source=n/a backup=n/a status=blocked reason=SERVICE_READ_ONLY`);
+            return readOnlyNotice;
+        }
+
         const def = getCleanupDefinition(serviceId);
         if (!def) {
             appendAuditLog(buildAuditEntry('failure', serviceId, actor, {

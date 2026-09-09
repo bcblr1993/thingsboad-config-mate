@@ -31,7 +31,41 @@
         unknown: '未知',
         'missing-image': '镜像缺失',
         unsupported: '不支持',
+        degraded: '部分运行',
     };
+
+    /* 双机热备角色徽章。只读纳管，角色由 HA 集群自身决定。 */
+    const HA_ROLE_BADGE = {
+        primary: { text: 'PRIMARY', title: '本机是当前主节点，数据库可写' },
+        standby: { text: 'STANDBY', title: '本机是备节点，数据库只读' },
+    };
+
+    function renderHaBadges(service) {
+        if (!service || service.kind !== 'ha-cluster' || !service.running) return '';
+
+        const badges = [];
+        const role = HA_ROLE_BADGE[service.role];
+        if (role) {
+            badges.push(`<span class="cm-svc-ha-badge is-${escapeHtml(service.role)}" title="${escapeHtml(role.title)}">${role.text}</span>`);
+        }
+        if (service.vipHeld) {
+            const iface = service.vipIface ? `（网卡 ${service.vipIface}）` : '';
+            badges.push(`<span class="cm-svc-ha-badge is-vip" title="虚拟 IP ${escapeHtml(service.vip || '')} 当前在本机${escapeHtml(iface)}">VIP</span>`);
+        }
+
+        // License 到期是静默故障，必须在卡片上直接可见。
+        const license = service.license;
+        if (license && ['expired', 'critical', 'warning'].includes(license.level)) {
+            const days = license.daysRemaining;
+            const text = license.level === 'expired' ? 'License 已过期' : `License ${days}天`;
+            const title = license.level === 'expired'
+                ? `瀚高 License 已于 ${license.expiry} 过期，请尽快续期`
+                : `瀚高 License 将于 ${license.expiry} 到期，剩余 ${days} 天`;
+            badges.push(`<span class="cm-svc-ha-badge is-license-${escapeHtml(license.level)}" title="${escapeHtml(title)}">${escapeHtml(text)}</span>`);
+        }
+
+        return badges.join('');
+    }
 
     function jsArg(value) {
         return escapeHtml(JSON.stringify(String(value || '')));
@@ -154,8 +188,19 @@
         canOperateRunning,
         cleanupSupported,
         cleanupDisabled,
-        cleanupBusy
+        cleanupBusy,
+        readOnly
     }) {
+        /* 只读纳管服务（HA 集群 / Redis Cluster）不提供启停：
+           HA 的启停有严格的先主后备顺序，Redis Cluster 的启停需要节点数参数，
+           两者都必须走各自交付包的脚本。 */
+        if (readOnly) {
+            return `
+                <span class="cm-svc-readonly-hint" title="只读纳管：请使用该组件交付包中的脚本执行启停与切换">只读纳管</span>
+                <button type="button" class="cm-svc-action-detail btn-action-view" onclick="event.stopPropagation(); selectService(${idArg})">详情</button>
+            `;
+        }
+
         const logDisabled = isDisabledStatus(status) ? 'disabled' : '';
         if (isDisabledStatus(status)) {
             return `
@@ -236,6 +281,7 @@
             const statusLabel = STATUS_LABEL[status] || status;
             const image = service.image || service.composeService || '';
             const tierIcon = getTierIcon(tier);
+            const readOnly = !!service.readOnly;
             const actionsHtml = renderServiceActionButtons({
                 idArg,
                 status,
@@ -243,8 +289,10 @@
                 canOperateRunning,
                 cleanupSupported,
                 cleanupDisabled,
-                cleanupBusy
+                cleanupBusy,
+                readOnly
             });
+            const haBadgesHtml = renderHaBadges(service);
             const messageHtml = service.message
                 ? `<div class="cm-svc-message">${escapeHtml(service.message)}</div>`
                 : '';
@@ -259,6 +307,7 @@
                 startupDependency ? 'is-startup-dependency' : '',
                 selected ? 'selected' : '',
                 running ? 'is-running' : 'is-stopped',
+                readOnly ? 'is-readonly' : '',
             ].filter(Boolean).join(' ');
             return `
                 <div class="${classes}" data-service-id="${escapeHtml(service.id)}" data-tier="${escapeHtml(tier)}">
@@ -269,6 +318,7 @@
                                 <div class="cm-svc-name-row">
                                     <span class="cm-svc-name" title="${escapeHtml(service.label || service.id)}">${escapeHtml(service.id || service.label)}</span>
                                     ${dependencyBadgeHtml}
+                                    ${haBadgesHtml}
                                 </div>
                                 <span class="cm-svc-image" title="${escapeHtml(image || service.label || '')}">${escapeHtml(image || service.label || '')}</span>
                             </div>
@@ -525,6 +575,7 @@
     window.ConfigMateServicesUi = {
         isCleanupSupportedService,
         isDisabledStatus,
+        renderHaBadges,
         renderDependencyStatusChips,
         renderServiceStatus,
         renderServiceCards,

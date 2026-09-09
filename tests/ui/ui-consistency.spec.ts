@@ -528,4 +528,105 @@ test.describe('Config Mate UI consistency', () => {
         await expect(startButton).toBeEnabled({ timeout: 5000 });
         expect(stopRequests).toBe(1);
     });
+
+    async function openDeploymentWithHaServices(page: Page, haServices: unknown[]) {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/services') {
+                    return mockJson({
+                        status: 'success',
+                        conflicts: ['postgres'],
+                        services: [
+                            {
+                                id: 'iotcloud',
+                                label: 'IoT Cloud',
+                                tier: 'business',
+                                status: 'running',
+                                running: true,
+                                image: 'sprixin/iotcloud:4.1'
+                            },
+                            ...haServices
+                        ]
+                    });
+                }
+                return undefined;
+            }
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+    }
+
+    test('HA primary card shows role and VIP badges and hides start/stop', async ({ page }) => {
+        await openDeploymentWithHaServices(page, [{
+            id: 'postgres-ha',
+            label: 'PostgreSQL 双机热备',
+            kind: 'ha-cluster',
+            readOnly: true,
+            tier: 'storage',
+            status: 'running',
+            running: true,
+            role: 'primary',
+            vip: '192.168.1.100',
+            vipHeld: true,
+            vipIface: 'ens192'
+        }]);
+
+        const card = page.locator('.service-card[data-service-id="postgres-ha"]');
+        await expect(card).toHaveCount(1);
+        await expect(card.locator('.cm-svc-ha-badge.is-primary')).toHaveText('PRIMARY');
+        await expect(card.locator('.cm-svc-ha-badge.is-vip')).toHaveText('VIP');
+
+        // 只读纳管：HA 启停有严格的先主后备顺序，不能从界面触发。
+        await expect(card.locator('.cm-svc-readonly-hint')).toBeVisible();
+        await expect(card.locator('.cm-svc-action-start')).toHaveCount(0);
+        await expect(card.locator('.cm-svc-action-stop')).toHaveCount(0);
+        await expect(card.locator('.cm-svc-action-restart')).toHaveCount(0);
+    });
+
+    test('HA standby card shows standby role without VIP badge', async ({ page }) => {
+        await openDeploymentWithHaServices(page, [{
+            id: 'postgres-ha',
+            label: 'PostgreSQL 双机热备',
+            kind: 'ha-cluster',
+            readOnly: true,
+            tier: 'storage',
+            status: 'running',
+            running: true,
+            role: 'standby',
+            vip: '192.168.1.100',
+            vipHeld: false
+        }]);
+
+        const card = page.locator('.service-card[data-service-id="postgres-ha"]');
+        await expect(card.locator('.cm-svc-ha-badge.is-standby')).toHaveText('STANDBY');
+        await expect(card.locator('.cm-svc-ha-badge.is-vip')).toHaveCount(0);
+    });
+
+    test('expiring highgo license surfaces a badge on the card', async ({ page }) => {
+        await openDeploymentWithHaServices(page, [{
+            id: 'highgo-ha',
+            label: '瀚高双机热备',
+            kind: 'ha-cluster',
+            readOnly: true,
+            tier: 'storage',
+            status: 'running',
+            running: true,
+            role: 'primary',
+            vip: '10.8.8.250',
+            vipHeld: true,
+            license: { status: 'normal', mode: 'trial', expiry: '2026-10-01', daysRemaining: 5, level: 'critical', products: [] }
+        }]);
+
+        // License 到期是静默故障，必须在卡片层面直接可见。
+        const badge = page.locator('.service-card[data-service-id="highgo-ha"] .cm-svc-ha-badge.is-license-critical');
+        await expect(badge).toHaveText('License 5天');
+    });
+
+    test('a site without HA renders no HA badges', async ({ page }) => {
+        await openRoute(page, 'deployment', '#service-grid .service-card');
+        // 未发现 HA 时界面必须与改造前完全一致。
+        await expect(page.locator('.cm-svc-ha-badge')).toHaveCount(0);
+        await expect(page.locator('.cm-svc-readonly-hint')).toHaveCount(0);
+    });
 });

@@ -12,6 +12,11 @@ function cleanupStatusCode(result) {
     return 400;
 }
 
+function serviceActionCodeToStatus(result) {
+    // 只读纳管服务收到启停请求属于客户端错误，不是服务端故障。
+    return result.code === 'SERVICE_READ_ONLY' ? 400 : serviceActionStatusCode(result);
+}
+
 function createServiceRoutes({
     listServiceDefinitions,
     getServiceDefinition,
@@ -19,23 +24,46 @@ function createServiceRoutes({
     getServiceStatus,
     runComposeAction,
     buildServiceComposeConfig,
+    buildDynamicServiceConfig = null,
     buildCleanupPlan,
     runCleanupService,
     getRequestActor,
     guardAppServiceDependencies,
-    guardAppServiceRunning
+    guardAppServiceRunning,
+    refreshDynamicServices = null,
+    listConflictingServiceIds = () => []
 }) {
     function handle(req, res, { method, pathname, headers }) {
         if (pathname === '/api/services' && method === 'GET') {
-            Promise.all(listServiceDefinitions().map(getServiceStatus))
-                .then(services => writeJson(res, 200, { status: 'success', services }, headers))
+            // 先刷新动态服务发现（HA / redis-cluster 按容器名探测），
+            // 再列出服务，保证现场部署或移除后界面能自动跟随。
+            Promise.resolve(refreshDynamicServices ? refreshDynamicServices() : null)
+                .then(() => Promise.all(listServiceDefinitions().map(getServiceStatus)))
+                .then(services => writeJson(res, 200, {
+                    status: 'success',
+                    services,
+                    conflicts: listConflictingServiceIds()
+                }, headers))
                 .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
             return true;
         }
 
         const serviceConfigMatch = pathname.match(/^\/api\/services\/([^/]+)\/config$/);
         if (serviceConfigMatch && method === 'GET') {
-            const result = buildServiceComposeConfig(serviceConfigMatch[1]);
+            const serviceId = serviceConfigMatch[1];
+            const def = getServiceDefinition(serviceId);
+
+            if (def && def.kind && def.kind !== 'compose' && buildDynamicServiceConfig) {
+                buildDynamicServiceConfig(serviceId)
+                    .then(result => writeJson(res, result?.status === 'success' ? 200 : 404, result || {
+                        status: 'error',
+                        message: 'Unknown service'
+                    }, headers))
+                    .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+                return true;
+            }
+
+            const result = buildServiceComposeConfig(serviceId);
             writeJson(res, result.status === 'success' ? 200 : 404, result, headers);
             return true;
         }
@@ -90,7 +118,7 @@ function createServiceRoutes({
                 return runComposeAction(serviceId, action);
             };
             guardedAction()
-                .then(result => writeJson(res, serviceActionStatusCode(result), result, headers))
+                .then(result => writeJson(res, serviceActionCodeToStatus(result), result, headers))
                 .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
             return true;
         }
@@ -106,5 +134,6 @@ function createServiceRoutes({
 module.exports = {
     cleanupStatusCode,
     createServiceRoutes,
+    serviceActionCodeToStatus,
     serviceActionStatusCode
 };

@@ -363,6 +363,66 @@
     font-weight: 950;
 }
 
+/* 双机热备角色徽章：复用依赖徽章的尺寸与语义色，不引入新的体系。 */
+.cm-svc-ha-badge {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    border: 1px solid var(--cm-cloud-info-border);
+    border-radius: var(--cm-radius-full);
+    background: var(--cm-cloud-info-soft);
+    color: var(--cm-cloud-info);
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.cm-svc-ha-badge.is-primary {
+    border-color: var(--cm-cloud-success-border);
+    background: var(--cm-cloud-success-soft);
+    color: var(--cm-cloud-success);
+}
+
+.cm-svc-ha-badge.is-standby {
+    border-color: var(--cm-cloud-border);
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-muted);
+}
+
+.cm-svc-ha-badge.is-vip {
+    border-color: var(--cm-cloud-info-border);
+    background: var(--cm-cloud-info-soft);
+    color: var(--cm-cloud-info);
+}
+
+.cm-svc-ha-badge.is-license-warning {
+    border-color: var(--cm-cloud-warning-border);
+    background: var(--cm-cloud-warning-soft);
+    color: var(--cm-cloud-warning);
+}
+
+.cm-svc-ha-badge.is-license-critical,
+.cm-svc-ha-badge.is-license-expired {
+    border-color: var(--cm-cloud-danger-border);
+    background: var(--cm-cloud-danger-soft);
+    color: var(--cm-cloud-danger);
+}
+
+/* 只读纳管服务：用静态说明占位，替代启停按钮组。 */
+.cm-svc-readonly-hint {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    border: 1px dashed var(--cm-cloud-border);
+    border-radius: var(--cm-radius-md);
+    color: var(--cm-cloud-muted);
+    font-size: var(--cm-text-xs);
+    line-height: 28px;
+    white-space: nowrap;
+}
+
 .cm-svc-image {
     font-family: var(--cm-font-mono);
     font-size: 12px;

@@ -1,3 +1,18 @@
+## [未发布]
+
+### ✨ 新增 (Added)
+- 新增双机热备只读纳管：自动发现 `postgres-ha` / `highgo-ha` 容器，在服务卡片上展示 PRIMARY/STANDBY 角色、VIP 归属，详情页展示 repmgr 集群拓扑、流复制延迟和容器生效配置。
+- 新增瀚高 License 到期监控：剩余 30 天内在服务卡片提示，7 天内升级为红色告警。
+- 新增 Redis Cluster 只读纳管：按容器名发现动态生成的集群，展示节点列表与 `cluster info` 健康状态。
+- 服务列表接口新增 `conflicts` 字段，标识与已发现 HA 互斥的单机服务。
+
+### 🛡️ 安全 (Security)
+- 只读纳管服务禁止通过界面启停：HA 启动有严格的先主后备顺序，错序会触发备库全量 clone。
+- 只读纳管服务禁用一键清理：HA 数据在 docker named volume 中，清理白名单的 bind mount 路径对其无效，放行只会归档出空目录并给出虚假的安全感。
+
+### 🧹 维护 (Chore)
+- 移除像素级视觉回归（BackstopJS 与 Playwright `toHaveScreenshot`），保留全部 17 个功能用例与 59 处功能断言；验证门禁改为 `npm run check` + `npm run test:ui`。
+
 ## [2.0.6] - 2026-06-25
 
 ### 🐛 修复 (Fixed)

@@ -12,7 +12,10 @@ const { writeJson } = require('./src/server/http');
 const { createCleanupService } = require('./src/server/services/cleanup');
 const { createServiceComposeConfigBuilder } = require('./src/server/services/compose-config');
 const { createDeploymentPlanner } = require('./src/server/services/deployment-plan');
+const { createDynamicServiceConfigBuilder } = require('./src/server/services/dynamic-service-config');
+const { createHaProbe } = require('./src/server/services/ha-probe');
 const { createLogStreamService } = require('./src/server/services/log-stream');
+const { createRedisClusterProbe } = require('./src/server/services/redis-cluster-probe');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
 const { createAppRoutes } = require('./src/server/routes/app');
@@ -60,8 +63,34 @@ const {
 const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
 const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
 const dockerRuntime = createDockerComposeRuntime({ appRoot: APP_ROOT });
-const serviceRuntime = createServiceRuntime({ docker: dockerRuntime, getServiceDefinition });
+const haProbe = createHaProbe({ docker: dockerRuntime });
+const redisClusterProbe = createRedisClusterProbe({ docker: dockerRuntime });
+const serviceRuntime = createServiceRuntime({
+    docker: dockerRuntime,
+    getServiceDefinition,
+    haProbe,
+    redisClusterProbe
+});
 const { getServiceStatus, runComposeAction } = serviceRuntime;
+
+/**
+ * 刷新动态服务发现（HA 集群、Redis Cluster）。
+ * 这些服务没有可知的 compose 路径，只能按容器名在运行时发现；
+ * Docker 不可用时保持上一次结果，避免界面上的服务卡片来回闪烁。
+ */
+async function refreshDynamicServices() {
+    if (dockerRuntime.readyMessage()) return serviceRegistry.listDiscoveredDynamicServices();
+    try {
+        const [haIds, redisIds] = await Promise.all([
+            haProbe.discover(),
+            redisClusterProbe.discover()
+        ]);
+        return serviceRegistry.setDiscoveredDynamicServices([...haIds, ...redisIds]);
+    } catch (e) {
+        console.error('[Error] Failed to discover dynamic services:', e.message);
+        return serviceRegistry.listDiscoveredDynamicServices();
+    }
+}
 const envStore = createEnvStore({
     envFilePath: ENV_FILE_PATH,
     historyDir: HISTORY_DIR,
@@ -618,6 +647,10 @@ const installRoutes = createInstallRoutes({
     getPackageServiceId,
     guardAppServiceDependencies
 });
+const dynamicServiceConfigBuilder = createDynamicServiceConfigBuilder({
+    getServiceDefinition,
+    getServiceStatus
+});
 serviceRoutes = createServiceRoutes({
     listServiceDefinitions,
     getServiceDefinition,
@@ -625,11 +658,14 @@ serviceRoutes = createServiceRoutes({
     getServiceStatus,
     runComposeAction,
     buildServiceComposeConfig,
+    buildDynamicServiceConfig: dynamicServiceConfigBuilder.buildDynamicServiceConfig,
     buildCleanupPlan,
     runCleanupService,
     getRequestActor,
     guardAppServiceDependencies,
-    guardAppServiceRunning
+    guardAppServiceRunning,
+    refreshDynamicServices,
+    listConflictingServiceIds: serviceRegistry.listConflictingServiceIds
 });
 const yamlInitializer = createYamlInitializer({
     yaml,
