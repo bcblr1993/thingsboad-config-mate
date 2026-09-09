@@ -73,8 +73,10 @@ function parseRepmgrClusterShow(stdout) {
             name: cells[1] || '',
             role: (cells[2] || '').toLowerCase(),
             status: rawStatus.replace(/^\*\s*/, '').trim(),
-            // repmgr 用前导 * 标记「本次查询所连接的节点」。
-            current: rawStatus.startsWith('*'),
+            /* repmgr 用前导 * 标记「本次查询所连接的节点」，而不是「本机」。
+               在备节点上执行 cluster show 时 repmgr 连接的仍是主库，* 会落在
+               主节点上，因此判断本机必须用容器的 NODE_NAME 比对节点名。 */
+            connected: rawStatus.startsWith('*'),
             upstream: cells[4] || ''
         });
     });

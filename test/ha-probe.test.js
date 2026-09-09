@@ -56,7 +56,7 @@ function inspectPayload(overrides = {}) {
     }]);
 }
 
-test('parseRepmgrClusterShow extracts nodes and marks the queried one', () => {
+test('parseRepmgrClusterShow extracts nodes and marks the connected one', () => {
     const nodes = parseRepmgrClusterShow(CLUSTER_SHOW_OUTPUT);
     assert.equal(nodes.length, 2);
     assert.deepEqual(nodes[0], {
@@ -64,12 +64,29 @@ test('parseRepmgrClusterShow extracts nodes and marks the queried one', () => {
         name: 'pg-node1',
         role: 'primary',
         status: 'running',
-        current: true,
+        connected: true,
         upstream: ''
     });
     assert.equal(nodes[1].role, 'standby');
     assert.equal(nodes[1].upstream, 'pg-node1');
-    assert.equal(nodes[1].current, false);
+    assert.equal(nodes[1].connected, false);
+});
+
+test('parseRepmgrClusterShow handles the real-world left-aligned ID column', () => {
+    /* 取自 10.8.8.157 真实环境：ID 列左对齐，且多出 Location/Priority/
+       Timeline/Connection string 四列。 */
+    const realOutput = ' ID | Name     | Role    | Status    | Upstream | Location | Priority | Timeline | Connection string\n'
+        + '----+----------+---------+-----------+----------+----------+----------+----------+------------------\n'
+        + ' 1  | pg-node1 | primary | * running |          | default  | 100      | 1        | host=10.8.8.157 user=repmgr dbname=repmgr connect_timeout=2 port=5432 application_name=pg-node1\n'
+        + ' 2  | pg-node2 | standby |   running | pg-node1 | default  | 100      | 1        | host=10.8.8.235 user=repmgr dbname=repmgr connect_timeout=2 port=5432 application_name=pg-node2';
+
+    const nodes = parseRepmgrClusterShow(realOutput);
+    assert.equal(nodes.length, 2);
+    assert.equal(nodes[0].name, 'pg-node1');
+    assert.equal(nodes[0].role, 'primary');
+    assert.equal(nodes[0].status, 'running');
+    assert.equal(nodes[1].name, 'pg-node2');
+    assert.equal(nodes[1].upstream, 'pg-node1');
 });
 
 test('parseRepmgrClusterShow ignores header and separator rows', () => {

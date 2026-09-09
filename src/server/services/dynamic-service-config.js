@@ -60,8 +60,12 @@ function buildHaTopologySection(status) {
         };
     }
 
+    /* 判断「本机」必须用容器自己的 NODE_NAME，不能用 repmgr 的 * 标记：
+       * 标记的是本次查询所连接的节点，在备节点上执行 cluster show 时，
+       repmgr 连接的仍然是主库，* 会落在主节点上。 */
+    const localName = status.nodeName || '';
     const items = nodes.map(node => configItem(
-        `${node.name}${node.current ? '（本机）' : ''}`,
+        `${node.name}${localName && node.name === localName ? '（本机）' : ''}`,
         [
             node.role === 'primary' ? 'primary' : node.role,
             node.status,

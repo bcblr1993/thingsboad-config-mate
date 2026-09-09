@@ -223,7 +223,7 @@ test('HA detail is built from probe output without reading any compose file', as
             database: 'tb_edge',
             nodeName: 'hg-node1',
             env: { NODE_VIP: '10.8.8.250', POSTGRES_PASSWORD: 'secret', PATH: '/usr/bin' },
-            topology: { nodes: [{ name: 'hg-node1', role: 'primary', status: 'running', current: true, upstream: '' }], degraded: false, message: '' },
+            topology: { nodes: [{ name: 'hg-node1', role: 'primary', status: 'running', connected: true, upstream: '' }], degraded: false, message: '' },
             replication: [{ applicationName: 'hg-node2', state: 'streaming', syncState: 'async', lagBytes: 2048 }],
             license: { status: 'normal', mode: 'trial', expiry: '2027-01-01', daysRemaining: 100, level: 'ok', products: [] }
         })
@@ -243,6 +243,43 @@ test('HA detail is built from probe output without reading any compose file', as
     assert.equal(envKeys.includes('PATH'), false);
     // 密码类字段必须标记为敏感，由前端脱敏。
     assert.equal(envSection.items.find(item => item.key === 'POSTGRES_PASSWORD').sensitive, true);
+});
+
+test('topology marks the local node by NODE_NAME, not by the repmgr asterisk', async () => {
+    /* 回归：在备节点上执行 repmgr cluster show 时，repmgr 连接的仍然是主库，
+       * 标记会落在主节点上。用它判断「本机」会在备节点上标错。
+       真实环境（10.8.8.235 备节点）复现过这个问题。 */
+    const registry = createRegistry();
+    registry.setDiscoveredDynamicServices(['postgres-ha']);
+
+    const builder = createDynamicServiceConfigBuilder({
+        getServiceDefinition: registry.getServiceDefinition,
+        getServiceStatus: async def => ({
+            ...def,
+            status: 'running',
+            running: true,
+            role: 'standby',
+            nodeName: 'pg-node2',
+            topology: {
+                nodes: [
+                    { name: 'pg-node1', role: 'primary', status: 'running', connected: true, upstream: '' },
+                    { name: 'pg-node2', role: 'standby', status: 'running', connected: false, upstream: 'pg-node1' }
+                ],
+                degraded: false,
+                message: ''
+            },
+            replication: [],
+            env: {}
+        })
+    });
+
+    const detail = await builder.buildDynamicServiceConfig('postgres-ha');
+    const topology = detail.sections.find(section => section.title === '集群拓扑');
+    const keys = topology.items.map(item => item.key);
+
+    assert.ok(keys.includes('pg-node2（本机）'), `本机应标在 pg-node2，实际: ${keys.join(' / ')}`);
+    assert.ok(keys.includes('pg-node1'), 'pg-node1 不应被标为本机');
+    assert.equal(keys.includes('pg-node1（本机）'), false);
 });
 
 test('HA detail degrades gracefully when the container is stopped', async () => {
