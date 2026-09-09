@@ -20,35 +20,42 @@ Config Mate 是现场部署控制台，界面服务于高频运维操作：清�
 - 不允许随意修改全局样式入口。确需修改时，必须说明影响范围，并优先证明局部样式无法满足需求。
 - 修改 UI 时不得改变接口、鉴权、Docker 操作、清理逻辑、安装逻辑等业务行为。
 
-## 基准截图规则
+## 关于视觉回归
 
-- 非明确 UI 改版需求，不允许自动更新 Playwright 或 BackstopJS 基准截图。
-- UI 测试失败时，不允许直接执行 `npm run test:ui:update`、`npm run test:visual:init` 或 `npm run test:visual:approve` 来掩盖问题。
-- 只有当用户明确要求 UI 改版、视觉调整、更新基准图，或确认当前视觉差异为预期结果时，才允许更新或批准基准截图。
+本项目**不再使用**像素级视觉回归（BackstopJS 与 Playwright `toHaveScreenshot` 已于 2026-09 移除）。
 
-## 强制验证门禁
+原因：像素基准图对 UI 迭代的阻力远大于它捕获的缺陷。UI 一致性依靠上面的设计系统约定和 code review 保证，不依靠截图比对。
+
+不要重新引入 BackstopJS，也不要新增 `toHaveScreenshot` 断言。
+
+## 验证门禁
 
 每次开发完成后，AI 必须自动执行以下命令，不得只给出“建议执行”：
 
 ```bash
-npm run lint:style
-npm run test:ui
-npm run test:visual
+npm run check      # 语法检查 + 后端单元测试
+npm run test:ui    # Playwright 功能断言
+```
+
+涉及构建产物或依赖变更时，追加：
+
+```bash
 npm run build
 ```
 
-`npm run test:visual` 需要本地服务可访问时，先启动项目服务，例如：
+`npm run test:ui` 会自行拉起测试服务；如需手工启动：
 
 ```bash
 NO_BROWSER=1 PORT=3311 CONFIG_MATE_PASSWORD=123456 node tb-config-src.js --dev
 ```
 
+`npm run lint:style` 为可选项。它当前只产生 warning、不影响退出码，可在专门整理样式时执行。
+
 ## 失败处理
 
-- 如果 UI 测试失败，必须自动分析失败截图、BackstopJS 差异报告、失败选择器和最近改动。
-- 必须优先修复导致差异的代码或测试稳定性问题。
+- 测试失败时，必须分析失败选择器、报错堆栈和最近改动，优先修复代码或测试稳定性问题。
 - 修复后必须重新执行失败命令，直到通过或明确说明环境阻塞。
-- 不允许通过删除测试、放宽阈值、跳过页面、更新基准图来绕过失败，除非用户明确授权。
+- 不允许通过删除测试、跳过用例来绕过失败，除非用户明确授权。
 
 ## 最终输出要求
 
@@ -56,6 +63,4 @@ NO_BROWSER=1 PORT=3311 CONFIG_MATE_PASSWORD=123456 node tb-config-src.js --dev
 
 - 已执行的命令。
 - 每条命令的通过/失败结果。
-- UI 差异是否存在。
 - 如果存在失败，说明根因、修复动作和复测结果。
-- 是否更新了基准截图；如更新，必须说明用户授权来源。

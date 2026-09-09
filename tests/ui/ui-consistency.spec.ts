@@ -44,7 +44,8 @@ test.describe('Config Mate UI consistency', () => {
         await page.goto('/');
         await page.locator('#login-overlay').waitFor({ state: 'visible' });
         await stabilizeVisuals(page);
-        await expect(page).toHaveScreenshot('login-page.png', { fullPage: true });
+        await expect(page.locator('#login-overlay')).toBeVisible();
+        await expect(page.locator('#login-password')).toBeVisible();
     });
 
     test('unauthenticated refresh skips startup-only checks', async ({ page }) => {
@@ -66,12 +67,14 @@ test.describe('Config Mate UI consistency', () => {
 
     test('deployment page', async ({ page }) => {
         await openRoute(page, 'deployment', '#service-grid .service-card');
-        await expect(page).toHaveScreenshot('deployment-page.png', { fullPage: true });
+        await expect(page.locator('#deployment-panel')).toBeVisible();
+        expect(await page.locator('#service-grid .service-card').count()).toBeGreaterThan(0);
     });
 
     test('overview page', async ({ page }) => {
         await openRoute(page, 'overview', '#overview-kpi-row .cm-kpi');
-        await expect(page).toHaveScreenshot('overview-page.png', { fullPage: true });
+        await expect(page.locator('#overview-page')).toBeVisible();
+        expect(await page.locator('#overview-kpi-row .cm-kpi').count()).toBeGreaterThan(0);
     });
 
     test('overview keeps async metrics after route round trip', async ({ page }) => {
@@ -103,7 +106,8 @@ test.describe('Config Mate UI consistency', () => {
 
     test('config page', async ({ page }) => {
         await openRoute(page, 'config', '#form-container .cm-cfg-field');
-        await expect(page).toHaveScreenshot('config-page.png', { fullPage: true });
+        await expect(page.locator('#cm-config-tabs')).toBeVisible();
+        expect(await page.locator('#form-container .cm-cfg-field').count()).toBeGreaterThan(0);
     });
 
     test('config group header count matches dependency-filtered tab count', async ({ page }) => {
@@ -162,7 +166,6 @@ test.describe('Config Mate UI consistency', () => {
         await stabilizeVisuals(page);
         await expect(page.locator('button', { hasText: '复制日志' })).toHaveCount(0);
         await expect(page.locator('.cm-install-log-actions button', { hasText: '复制' })).toHaveCount(1);
-        await expect(page).toHaveScreenshot('install-route.png', { fullPage: true });
     });
 
     test('install run locks navigation and keeps progress visible', async ({ page }) => {
@@ -464,7 +467,8 @@ test.describe('Config Mate UI consistency', () => {
         });
         await page.locator('#history-modal.active #history-list .timeline-item').first().waitFor({ state: 'visible' });
         await stabilizeVisuals(page);
-        await expect(page).toHaveScreenshot('history-modal.png', { fullPage: true });
+        await expect(page.locator('#history-modal.active')).toBeVisible();
+        expect(await page.locator('#history-list .timeline-item').count()).toBeGreaterThan(0);
     });
 
     test('service action buttons stay locked until service status settles', async ({ page }) => {

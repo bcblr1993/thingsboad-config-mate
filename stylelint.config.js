@@ -5,10 +5,7 @@ module.exports = {
         'dist/**',
         'build/**',
         'coverage/**',
-        'tests/ui/report/**',
-        'tests/backstop/test/**',
-        'tests/backstop/report/**',
-        'tests/backstop/ci-report/**'
+        'tests/ui/report/**'
     ],
     overrides: [
         {
