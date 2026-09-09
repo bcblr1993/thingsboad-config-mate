@@ -65,6 +65,7 @@ test('parseRepmgrClusterShow extracts nodes and marks the connected one', () => 
         role: 'primary',
         status: 'running',
         connected: true,
+        reachable: true,
         upstream: ''
     });
     assert.equal(nodes[1].role, 'standby');
@@ -281,4 +282,21 @@ test('discover only reports HA variants whose container exists', async () => {
 test('discover returns empty on a site without any HA deployment', async () => {
     const docker = createDockerMock(() => ({ stdout: '', stderr: '', error: new Error('not found') }));
     assert.deepEqual(await createHaProbe({ docker }).discover(), []);
+});
+
+test('parseRepmgrClusterShow strips the unreachable marker from a failed node', () => {
+    /* 主备切换演练中真实出现过的输出：旧主停止后 Status 列为「- failed」。
+       前导 - 表示不可达，必须剥离，否则界面显示「- failed」。 */
+    const output = ' ID | Name     | Role    | Status    | Upstream | Location\n'
+        + '----+----------+---------+-----------+----------+----------\n'
+        + ' 1  | pg-node1 | primary | - failed  | ?        | default\n'
+        + ' 2  | pg-node2 | primary | * running |          | default';
+
+    const nodes = parseRepmgrClusterShow(output);
+    assert.equal(nodes[0].status, 'failed');
+    assert.equal(nodes[0].reachable, false);
+    assert.equal(nodes[0].connected, false);
+    assert.equal(nodes[1].status, 'running');
+    assert.equal(nodes[1].reachable, true);
+    assert.equal(nodes[1].connected, true);
 });

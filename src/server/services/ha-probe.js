@@ -67,16 +67,22 @@ function parseRepmgrClusterShow(stdout) {
         // 表头（ID）与分隔行（----）都不是有效数据行。
         if (!Number.isInteger(id)) return;
 
+        /* Status 列带前导标记：
+             *  本次查询所连接的节点
+             -  该节点当前不可达（故障或已停止）
+             ?  状态未知
+           展示时需要剥离，否则界面上会出现「- failed」这种带符号的状态。 */
         const rawStatus = cells[3] || '';
         nodes.push({
             id,
             name: cells[1] || '',
             role: (cells[2] || '').toLowerCase(),
-            status: rawStatus.replace(/^\*\s*/, '').trim(),
-            /* repmgr 用前导 * 标记「本次查询所连接的节点」，而不是「本机」。
+            status: rawStatus.replace(/^[*?-]\s*/, '').trim(),
+            /* connected 表示 repmgr 本次连上了该节点，而不是「本机」。
                在备节点上执行 cluster show 时 repmgr 连接的仍是主库，* 会落在
                主节点上，因此判断本机必须用容器的 NODE_NAME 比对节点名。 */
             connected: rawStatus.startsWith('*'),
+            reachable: !rawStatus.startsWith('-'),
             upstream: cells[4] || ''
         });
     });

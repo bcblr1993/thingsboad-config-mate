@@ -69,6 +69,7 @@ function buildHaTopologySection(status) {
         [
             node.role === 'primary' ? 'primary' : node.role,
             node.status,
+            node.reachable === false ? '不可达' : '',
             node.upstream ? `upstream=${node.upstream}` : ''
         ].filter(Boolean).join(' · ')
     ));
