@@ -1,12 +1,35 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const {
     buildReverseMapping,
     extractConfigFromYaml,
     extractEnvPlaceholders,
+    findYamlPath,
     flattenYaml,
     resolveSpringPlaceholder
 } = require('../src/server/config/yaml-init');
+
+test('findYamlPath only looks inside the deployment package', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'config-mate-yaml-scope-'));
+    const appDir = path.join(root, 'services', 'iotedge');
+    const toolDir = path.join(root, 'opt', 'tb-config-mate');
+    fs.mkdirSync(path.join(appDir, 'conf'), { recursive: true });
+    fs.mkdirSync(path.join(toolDir, 'conf'), { recursive: true });
+
+    // 工具自身安装目录下夹带的样例配置不能被当成现场配置
+    fs.writeFileSync(path.join(toolDir, 'conf', 'thingsboard.yml'), 'spring: {}\n');
+
+    assert.equal(findYamlPath({ yamlConfigPath: null, appDir, appRoot: root }), null);
+
+    const packaged = path.join(appDir, 'conf', 'tb-edge.yml');
+    fs.writeFileSync(packaged, 'spring: {}\n');
+    assert.equal(findYamlPath({ yamlConfigPath: null, appDir, appRoot: root }), packaged);
+
+    fs.rmSync(root, { recursive: true, force: true });
+});
 
 test('flattenYaml converts nested keys to upper underscore paths', () => {
     assert.deepEqual(flattenYaml({

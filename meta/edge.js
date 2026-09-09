@@ -1,3 +1,5 @@
+const IOTDB_CONFIG = require('./iotdb');
+
 module.exports = {
     // === 全局配置 ===
     "APPTYPE": {
@@ -195,17 +197,17 @@ module.exports = {
     // === 核心存储 ===
     "DATABASE_TS_TYPE": {
         label: "历史数据存储类型",
-        comment: "选择时序数据的存储引擎 (sql 或 cassandra) 注意: sql 方式只能在 2.6w/s 点的项目使用，超过 2.6w/s 点的项目请使用 cassandra",
+        comment: "选择时序数据的存储引擎 (sql、cassandra 或 iotdb) 注意: sql 方式只能在 2.6w/s 点的项目使用，超过 2.6w/s 点的项目请使用 cassandra 或 iotdb",
         type: "select",
-        options: ["sql", "cassandra"],
+        options: ["sql", "cassandra", "iotdb"],
         group: "核心存储",
         required: true
     },
     "DATABASE_TS_LATEST_TYPE": {
         label: "最新数据存储类型",
-        comment: "最新数据的存储引擎，注意: pg 方式只能在 2.6w/s 点的项目使用，redis 方式只能在 6w/s 项目使用，超过以上请使用 redis-cluster , 注意: cassandra 目前不推荐",
+        comment: "最新数据的存储引擎，注意: pg 方式只能在 2.6w/s 点的项目使用，redis 方式只能在 6w/s 项目使用，超过以上请使用 redis-cluster 或 iotdb , 注意: cassandra 目前不推荐。选择 iotdb 时 EDQS 会被强制关闭",
         type: "select",
-        options: ["sql", "cassandra", "redis", "redis-cluster"],
+        options: ["sql", "cassandra", "redis", "redis-cluster", "iotdb"],
         group: "核心存储",
         required: true
     },
@@ -278,6 +280,9 @@ module.exports = {
         group: "Cassandra",
         dependsOn: { key: ["DATABASE_TS_TYPE"], value: "cassandra" }
     },
+
+    // === IoTDB 配置 (云边共用定义，见 meta/iotdb.js) ===
+    ...IOTDB_CONFIG,
 
     // === 缓存 (Redis) ===
     "CACHE_TYPE": {

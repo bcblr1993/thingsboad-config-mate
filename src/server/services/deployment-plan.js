@@ -23,8 +23,15 @@ function createDeploymentPlanner({
 
         groups.push({ capability: 'database', candidates: listCapabilityServiceIds('database', 'postgres') });
 
-        if (config.DATABASE_TS_TYPE === 'cassandra' || config.DATABASE_TS_LATEST_TYPE === 'cassandra') {
+        /* 时序存储由配置显式指定，且历史数据与最新数据可以分别选用不同引擎
+           （例如历史走 Cassandra、最新走 IoTDB），因此各自成组、都必须就绪，
+           而不是「任选其一即可」。 */
+        const timeseriesTypes = [config.DATABASE_TS_TYPE, config.DATABASE_TS_LATEST_TYPE];
+        if (timeseriesTypes.includes('cassandra')) {
             groups.push({ capability: 'timeseries', candidates: ['cassandra'] });
+        }
+        if (timeseriesTypes.includes('iotdb')) {
+            groups.push({ capability: 'timeseries', candidates: ['iotdb'] });
         }
 
         if (config.DATABASE_TS_LATEST_TYPE === 'redis-cluster' || config.REDIS_CONNECTION_TYPE === 'cluster') {

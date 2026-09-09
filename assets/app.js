@@ -417,6 +417,19 @@ async function runAuthenticatedStartupChecks() {
     await checkEnvConfigValidation();
 }
 
+// .env 里缺失的配置项用元数据默认值补齐（例如平台新增了 IoTDB 分组，而现场 .env 还是旧版本）。
+// 不补齐的话表单会把这些项渲染成空值，保存后写出 "KEY=" 空串并注入容器；数字类配置拿到空串
+// 会让平台启动直接失败。在生成 initialConfigValues 快照之前补齐，因此不会产生"未保存"状态。
+function applyMetaDefaults(values, meta) {
+    const filled = { ...(values || {}) };
+    Object.keys(meta || {}).forEach(key => {
+        if (filled[key] === undefined && meta[key].default !== undefined) {
+            filled[key] = String(meta[key].default);
+        }
+    });
+    return filled;
+}
+
 async function init() {
     try {
         stopPollingTimers();
@@ -428,7 +441,7 @@ async function init() {
         }
         const data = await res.json();
         configMeta = data.meta;
-        configValues = data.values;
+        configValues = applyMetaDefaults(data.values, configMeta);
         window.__CM__?.stateBridge.pushConfigMeta(configMeta);
         window.__CM__?.stateBridge.pushConfigValues(configValues, { markClean: true });
 
@@ -684,6 +697,7 @@ function getConfigGroupDescription(groupName) {
         'SQL 数据库': '业务数据库连接和凭据。',
         '核心存储': '决定时序数据存储类型和保留策略。',
         'Cassandra': 'Cassandra 连接、keyspace 和过期策略。',
+        'IoTDB': 'IoTDB 连接、数据保留、读写通道和背压参数。',
         '缓存配置': 'Redis 地址、端口、密码和缓存行为。',
         '消息队列': 'Kafka broker、队列类型和消费配置。',
         'MQTT 传输': '设备 MQTT 接入端口和消息限制。',
@@ -703,7 +717,7 @@ function renderAll() {
     });
 
     // Custom Sort Order
-    const sortOrder = ['SQL 数据库', '核心设置', 'Edge 连接配置', '云边通信状态检查', '离线恢复策略', 'Edge 遥测分离', '核心存储', 'Cassandra', '缓存配置', '消息队列', 'MQTT 传输', '规则引擎脚本', '高级设置'];
+    const sortOrder = ['SQL 数据库', '核心设置', 'Edge 连接配置', '云边通信状态检查', '离线恢复策略', 'Edge 遥测分离', '核心存储', 'Cassandra', 'IoTDB', '缓存配置', '消息队列', 'MQTT 传输', '规则引擎脚本', '高级设置'];
     const groupNames = Object.keys(groups).sort((a, b) => {
         const idxA = sortOrder.indexOf(a);
         const idxB = sortOrder.indexOf(b);
@@ -2236,6 +2250,19 @@ function applyBusinessLogic(key, val) {
             showToast('当最新数据存储为 Redis 时，必须使用 Redis 缓存', 'warning');
             updateFieldProgrammatically('CACHE_TYPE', 'redis');
         }
+    }
+
+    // 5. If Latest Storage is IoTDB -> EDQS MUST be off.
+    //    平台在 latest=iotdb 且 EDQS 开启时会直接拒绝启动，这里提前锁死，避免现场配出起不来的服务。
+    if (key === 'DATABASE_TS_LATEST_TYPE' && val === 'iotdb') {
+        updateFieldProgrammatically('TB_EDQS_SYNC_ENABLED', 'false');
+        updateFieldProgrammatically('TB_EDQS_API_SUPPORTED', 'false');
+    }
+
+    // 6. 历史走 IoTDB、最新仍留在别的引擎是官方支持的组合(例如最新值继续用 Redis)，
+    //    这里不强制联动，只在"历史切走但最新还是 iotdb"时提示，避免遗漏 IoTDB 连接配置。
+    if (key === 'DATABASE_TS_TYPE' && val !== 'iotdb' && configValues['DATABASE_TS_LATEST_TYPE'] === 'iotdb') {
+        showToast('最新数据存储仍为 IoTDB，IoTDB 连接配置依然生效', 'warning');
     }
 }
 
@@ -4301,13 +4328,13 @@ async function checkEnvConfigValidation() {
 
             msgEl.innerHTML = `
                 <div class="confirm-callout confirm-callout-danger">
-                    <div class="confirm-callout-title">未找到 ThingsBoard 配置文件：</div>
-                    <div>请确保 <code>conf/thingsboard.yml</code></div>
-                    <div>或 <code>conf/tb-edge.yml</code> 存在。</div>
+                    <div class="confirm-callout-title">未找到任何配置来源：</div>
+                    <div>请确保业务服务目录下的 <code>.env</code> 存在且包含配置，</div>
+                    <div>或 <code>conf/thingsboard.yml</code> / <code>conf/tb-edge.yml</code> 存在。</div>
                 </div>
                 <div class="confirm-note-list">
-                    <div>本工具依赖配置文件来生成元数据。</div>
-                    <div>请检查 <code>conf/</code> 目录是否完整。</div>
+                    <div>新版部署包不再下发 <code>conf/*.yml</code>，配置直接预置在 <code>.env</code> 中，只有 <code>.env</code> 也缺失时才会出现本提示。</div>
+                    <div>请检查业务服务目录下的 <code>.env</code> 是否被清空或删除。</div>
                     <div><b>工具将会暂停</b>，直到问题修复。</div>
                 </div>
             `;

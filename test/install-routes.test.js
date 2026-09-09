@@ -31,7 +31,22 @@ test('checkComposeFileContent ignores commented compose keys', () => {
     assert.equal(checkComposeFileContent(compose, 'env_file'), true);
 });
 
-test('validateComposeFiles reports missing ThingsBoard yaml before compose checks', () => {
+function appDefFor(root) {
+    return {
+        composePath: 'docker-compose.yml',
+        composeAbsPath: path.join(root, 'docker-compose.yml'),
+        installComposePath: 'docker-compose-install.yml',
+        installComposeAbsPath: path.join(root, 'docker-compose-install.yml')
+    };
+}
+
+function writeValidComposeFiles(root) {
+    const compose = 'services:\n  app:\n    env_file:\n      - ./.env\n';
+    fs.writeFileSync(path.join(root, 'docker-compose.yml'), compose);
+    fs.writeFileSync(path.join(root, 'docker-compose-install.yml'), compose);
+}
+
+test('validateComposeFiles reports missing config source before compose checks', () => {
     const root = tempRoot();
     const result = validateComposeFiles({
         appDir: root,
@@ -43,9 +58,37 @@ test('validateComposeFiles reports missing ThingsBoard yaml before compose check
 
     assert.deepEqual(result, {
         status: 'config_missing',
-        msg: 'Missing ThingsBoard configuration files',
-        files: ['conf/thingsboard.yml', 'conf/tb-edge.yml']
+        msg: 'Missing ThingsBoard configuration source',
+        files: ['.env', 'conf/thingsboard.yml', 'conf/tb-edge.yml']
     });
+});
+
+test('validateComposeFiles accepts a package that ships .env without conf yaml', () => {
+    // 新版部署包形态: 常用配置预置在 .env 中，不再下发 conf/*.yml
+    const root = tempRoot();
+    fs.mkdirSync(path.join(root, 'conf'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.env'), 'APPTYPE=CLOUD\nDATABASE_TS_TYPE=iotdb\n');
+    writeValidComposeFiles(root);
+
+    assert.deepEqual(validateComposeFiles({ appDir: root, appDef: appDefFor(root) }), { status: 'success' });
+});
+
+test('validateComposeFiles still blocks when .env carries no real entries', () => {
+    // .env 文件存在但只有注释和空行，等同于没有配置来源，必须继续阻断
+    const root = tempRoot();
+    fs.writeFileSync(path.join(root, '.env'), '# 平台配置\n\n#DATABASE_TS_TYPE=sql\n');
+    writeValidComposeFiles(root);
+
+    assert.equal(validateComposeFiles({ appDir: root, appDef: appDefFor(root) }).status, 'config_missing');
+});
+
+test('validateComposeFiles accepts legacy packages that ship conf yaml without .env', () => {
+    const root = tempRoot();
+    fs.mkdirSync(path.join(root, 'conf'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'conf', 'tb-edge.yml'), 'spring: {}\n');
+    writeValidComposeFiles(root);
+
+    assert.deepEqual(validateComposeFiles({ appDir: root, appDef: appDefFor(root) }), { status: 'success' });
 });
 
 test('validateComposeFiles validates compose files and env_file declarations', () => {
