@@ -1,4 +1,4 @@
-const { readRequestBody, writeJson } = require('../http');
+const { readRequestBody, respondError, writeJson } = require('../http');
 
 function appActionStatusCode(result) {
     if (result.status === 'success') return 200;
@@ -33,7 +33,7 @@ function createAppRoutes({
                 return { plan, advisory };
             }).then(({ plan, advisory }) => {
                 writeJson(res, 200, { status: 'success', plan, advisory }, headers);
-            }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+            }).catch(e => respondError(res, e, headers));
             return true;
         }
 
@@ -56,7 +56,7 @@ function createAppRoutes({
                 return applyAppConfigChange(config);
             }).then(result => {
                 writeJson(res, appActionStatusCode(result), result, headers);
-            }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+            }).catch(e => respondError(res, e, headers));
             return true;
         }
 
@@ -64,14 +64,14 @@ function createAppRoutes({
             guardAppServiceRunning('重启当前业务服务')
                 .then(block => block || runComposeAction(getPackageServiceId(), 'restart'))
                 .then(result => writeJson(res, appActionStatusCode(result), result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+                .catch(e => respondError(res, e, headers));
             return true;
         }
 
         if (pathname === '/api/stop' && method === 'POST') {
             runComposeAction(getPackageServiceId(), 'down')
                 .then(result => writeJson(res, result.status === 'success' ? 200 : 500, result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+                .catch(e => respondError(res, e, headers));
             return true;
         }
 
@@ -96,7 +96,7 @@ function createAppRoutes({
                         message: status.message
                     }, headers);
                 })
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+                .catch(e => respondError(res, e, headers));
             return true;
         }
 

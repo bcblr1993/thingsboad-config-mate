@@ -298,3 +298,84 @@ test('capability groups expose both trimmed and full candidate lists', () => {
     assert.ok(group.clusterCandidates.includes('postgres'), '集群候选应保留单机服务');
     assert.ok(group.clusterCandidates.includes('postgres-ha'));
 });
+
+/* ---- 聚合缓存 -------------------------------------------------------- */
+
+test('remote results are cached to absorb polling bursts', async () => {
+    let calls = 0;
+    let clock = 1_000;
+    const registry = registryWithNodes();
+    const aggregator = createClusterAggregator({
+        nodeRegistry: registry,
+        localServicesProvider: async () => ({ services: [], conflicts: [] }),
+        fetchImpl: async () => {
+            calls += 1;
+            return { ok: true, json: async () => ({ services: [{ id: 'postgres', running: true }] }) };
+        },
+        remoteCacheTtlMs: 2000,
+        now: () => clock
+    });
+
+    await aggregator.collectAll();
+    await aggregator.collectAll();
+    await aggregator.collectAll();
+    assert.equal(calls, 1, '缓存期内应只请求一次远端');
+
+    clock += 2500;
+    await aggregator.collectAll();
+    assert.equal(calls, 2, '缓存过期后应重新请求');
+});
+
+test('concurrent requests to the same node are coalesced', async () => {
+    let calls = 0;
+    const registry = registryWithNodes();
+    const aggregator = createClusterAggregator({
+        nodeRegistry: registry,
+        localServicesProvider: async () => ({ services: [], conflicts: [] }),
+        fetchImpl: async () => {
+            calls += 1;
+            await new Promise(resolve => setTimeout(resolve, 20));
+            return { ok: true, json: async () => ({ services: [] }) };
+        },
+        remoteCacheTtlMs: 2000
+    });
+
+    // 并发峰值不应放大成 N 倍远端调用。
+    await Promise.all([aggregator.collectAll(), aggregator.collectAll(), aggregator.collectAll()]);
+    assert.equal(calls, 1);
+});
+
+test('cache can be invalidated explicitly', async () => {
+    let calls = 0;
+    const registry = registryWithNodes();
+    const aggregator = createClusterAggregator({
+        nodeRegistry: registry,
+        localServicesProvider: async () => ({ services: [], conflicts: [] }),
+        fetchImpl: async () => { calls += 1; return { ok: true, json: async () => ({ services: [] }) }; },
+        remoteCacheTtlMs: 60_000
+    });
+
+    await aggregator.collectAll();
+    aggregator.invalidateCache();
+    await aggregator.collectAll();
+    assert.equal(calls, 2, '显式失效后应重新拉取');
+});
+
+test('local data is never served from the remote cache', async () => {
+    let localCalls = 0;
+    const registry = registryWithNodes();
+    const aggregator = createClusterAggregator({
+        nodeRegistry: registry,
+        localServicesProvider: async () => {
+            localCalls += 1;
+            return { services: [{ id: 'iotcloud', running: true }], conflicts: [] };
+        },
+        fetchImpl: async () => ({ ok: true, json: async () => ({ services: [] }) }),
+        remoteCacheTtlMs: 60_000
+    });
+
+    await aggregator.collectAll();
+    await aggregator.collectAll();
+    // 本机状态必须实时，否则操作完看不到变化。
+    assert.equal(localCalls, 2);
+});

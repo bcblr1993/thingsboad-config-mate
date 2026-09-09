@@ -1,6 +1,6 @@
 const fs = require('fs');
 const os = require('os');
-const { readRequestBody, writeJson } = require('../http');
+const { readRequestBody, respondError, writeJson } = require('../http');
 const { getDiskUsageForPath } = require('../services/disk-usage');
 
 const ADMIN_OPERATOR = 'admin';
@@ -91,8 +91,24 @@ function createSystemRoutes({
                         : payload.password === configMatePassword;
 
                     if (!passed) {
-                        authService.recordLoginFailure(req);
-                        writeJson(res, 401, { status: 'error', message: '密码错误' }, headers);
+                        const failure = authService.recordLoginFailure(req);
+                        /* 若本次失败恰好触发锁定，直接告知运维，
+                           否则他要等到下一次尝试才知道自己被锁了。 */
+                        const lockedNow = authService.checkLoginAllowed(req);
+                        if (lockedNow) {
+                            writeJson(res, 429, {
+                                status: 'error',
+                                code: 'LOGIN_LOCKED',
+                                message: `密码错误次数过多，已锁定 ${lockedNow.retryAfterSeconds} 秒。`,
+                                retryAfterSeconds: lockedNow.retryAfterSeconds
+                            }, { ...headers, 'Retry-After': String(lockedNow.retryAfterSeconds) });
+                            return;
+                        }
+                        writeJson(res, 401, {
+                            status: 'error',
+                            message: '密码错误',
+                            remainingAttempts: Math.max(0, (failure.maxFailures || 5) - (failure.count || 0))
+                        }, headers);
                         return;
                     }
 
@@ -179,7 +195,7 @@ function createSystemRoutes({
 
                 logger.log?.(`[Auth] 管理员密码已更新 operator=${actor.operator} ip=${actor.ip}`);
                 writeJson(res, 200, { status: 'success', message: '密码已更新，请牢记新密码。' }, headers);
-            }).catch(e => writeJson(res, 400, { status: 'error', message: e.message }, headers));
+            }).catch(e => respondError(res, e, headers));
             return true;
         }
 
@@ -203,7 +219,7 @@ function createSystemRoutes({
                 // 关闭严格校验会放行依赖不满足的操作，属于需要留痕的变更。
                 logger.log?.(`[Settings] operator=${actor.operator} ip=${actor.ip} strictDependencyCheck=${next.strictDependencyCheck}`);
                 writeJson(res, 200, { status: 'success', settings: next }, headers);
-            }).catch(e => writeJson(res, 400, { status: 'error', message: e.message }, headers));
+            }).catch(e => respondError(res, e, headers));
             return true;
         }
 

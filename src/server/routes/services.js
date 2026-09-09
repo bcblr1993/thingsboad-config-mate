@@ -1,4 +1,4 @@
-const { readRequestBody, writeJson } = require('../http');
+const { readRequestBody, respondError, writeJson } = require('../http');
 
 function serviceActionStatusCode(result) {
     if (result.status === 'success') return 200;
@@ -31,20 +31,31 @@ function createServiceRoutes({
     guardAppServiceDependencies,
     guardAppServiceRunning,
     refreshDynamicServices = null,
-    listConflictingServiceIds = () => []
+    listConflictingServiceIds = () => [],
+    /* 注入后 /api/services 走统一的本机快照缓存；未注入时保持原有的直接探测。 */
+    localServicesProvider = null,
+    invalidateServiceSnapshot = () => {}
 }) {
     function handle(req, res, { method, pathname, headers }) {
         if (pathname === '/api/services' && method === 'GET') {
-            // 先刷新动态服务发现（HA / redis-cluster 按容器名探测），
-            // 再列出服务，保证现场部署或移除后界面能自动跟随。
-            Promise.resolve(refreshDynamicServices ? refreshDynamicServices() : null)
-                .then(() => Promise.all(listServiceDefinitions().map(getServiceStatus)))
-                .then(services => writeJson(res, 200, {
+            /* 动态服务发现（HA / redis-cluster 按容器名探测）与状态探测都在
+               快照里完成，保证现场部署或移除后界面能自动跟随。 */
+            const load = localServicesProvider
+                ? localServicesProvider().then(local => ({
+                    services: local.services,
+                    conflicts: local.conflicts
+                }))
+                : Promise.resolve(refreshDynamicServices ? refreshDynamicServices() : null)
+                    .then(() => Promise.all(listServiceDefinitions().map(getServiceStatus)))
+                    .then(services => ({ services, conflicts: listConflictingServiceIds() }));
+
+            load
+                .then(({ services, conflicts }) => writeJson(res, 200, {
                     status: 'success',
                     services,
-                    conflicts: listConflictingServiceIds()
+                    conflicts
                 }, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+                .catch(e => respondError(res, e, headers));
             return true;
         }
 
@@ -59,7 +70,7 @@ function createServiceRoutes({
                         status: 'error',
                         message: 'Unknown service'
                     }, headers))
-                    .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+                    .catch(e => respondError(res, e, headers));
                 return true;
             }
 
@@ -84,7 +95,7 @@ function createServiceRoutes({
                         result.targetServiceStatus = targetStatus.status || 'unknown';
                         writeJson(res, 200, result, headers);
                     })
-                    .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+                    .catch(e => respondError(res, e, headers));
             } else {
                 writeJson(res, 404, result, headers);
             }
@@ -99,8 +110,9 @@ function createServiceRoutes({
                     backupDir: payload.backupDir
                 });
             }).then(result => {
+                invalidateServiceSnapshot();
                 writeJson(res, cleanupStatusCode(result), result, headers);
-            }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+            }).catch(e => respondError(res, e, headers));
             return true;
         }
 
@@ -118,8 +130,12 @@ function createServiceRoutes({
                 return runComposeAction(serviceId, action);
             };
             guardedAction()
-                .then(result => writeJson(res, serviceActionCodeToStatus(result), result, headers))
-                .catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+                .then(result => {
+                    // 状态已改变，立即失效快照，避免下一次读取拿到旧值。
+                    invalidateServiceSnapshot();
+                    return writeJson(res, serviceActionCodeToStatus(result), result, headers);
+                })
+                .catch(e => respondError(res, e, headers));
             return true;
         }
 

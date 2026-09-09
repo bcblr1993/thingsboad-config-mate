@@ -22,6 +22,7 @@ const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createRedisClusterProbe } = require('./src/server/services/redis-cluster-probe');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
+const { createServiceSnapshot } = require('./src/server/services/service-snapshot');
 const { createAppRoutes } = require('./src/server/routes/app');
 const { createConfigRoutes, validateConfigValues } = require('./src/server/routes/config');
 const { createInstallRoutes } = require('./src/server/routes/install');
@@ -59,7 +60,12 @@ const CLEANUP_BACKUP_ROOT = path.join(CONFIG_MATE_SERVICE_DIR, 'backups');
 const AUDIT_LOG_FILE = path.join(CLEANUP_BACKUP_ROOT, 'audit.log');
 const DEFAULT_CONFIG_MATE_PASSWORD = '123456';
 const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || DEFAULT_CONFIG_MATE_PASSWORD;
-const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
+const authService = createAuthService({
+    password: CONFIG_MATE_PASSWORD,
+    /* X-Forwarded-For 可被客户端伪造，只有确实部署在反向代理之后才应开启，
+       否则攻击者每次换一个伪造 IP 即可绕过登录锁定。 */
+    trustProxy: ['1', 'true', 'yes', 'on'].includes(String(process.env.CONFIG_MATE_TRUST_PROXY || '').toLowerCase())
+});
 const settingsStore = createSettingsStore({ settingsFile: path.join(RUNTIME_DIR, 'settings.json') });
 const credentialStore = createCredentialStore({
     credentialFile: path.join(RUNTIME_DIR, 'auth.json'),
@@ -693,10 +699,16 @@ serviceRoutes = createServiceRoutes({
     guardAppServiceDependencies,
     guardAppServiceRunning,
     refreshDynamicServices,
-    listConflictingServiceIds: serviceRegistry.listConflictingServiceIds
+    listConflictingServiceIds: serviceRegistry.listConflictingServiceIds,
+    localServicesProvider: collectLocalServices,
+    invalidateServiceSnapshot: () => {
+        localServiceSnapshot.invalidate();
+        clusterAggregator?.invalidateCache();
+    }
 });
-/* 本机服务快照：Agent 侧对外提供、Console 侧聚合本机数据，共用同一份实现。 */
-async function collectLocalServices() {
+/* 本机服务快照：/api/services、Agent 侧对外接口、Console 侧聚合共用同一份
+   实现与同一层缓存，避免同一时刻重复执行几十次 docker 调用。 */
+async function probeLocalServices() {
     await refreshDynamicServices();
     const services = await Promise.all(listServiceDefinitions().map(getServiceStatus));
     return {
@@ -705,6 +717,12 @@ async function collectLocalServices() {
         services,
         conflicts: serviceRegistry.listConflictingServiceIds()
     };
+}
+
+const localServiceSnapshot = createServiceSnapshot({ collect: probeLocalServices });
+
+function collectLocalServices(options = {}) {
+    return localServiceSnapshot.get(options);
 }
 
 const nodeRegistry = createNodeRegistry({

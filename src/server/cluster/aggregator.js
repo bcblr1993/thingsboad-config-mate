@@ -38,9 +38,17 @@ function createClusterAggregator({
     nodeRegistry,
     localServicesProvider,
     fetchImpl = null,
+    /* 远端节点结果的缓存时长。前端按秒级轮询，多开几个页面就会对每个节点
+       重复发起聚合请求；缓存只作用于跨节点的 HTTP 结果，本机状态始终实时，
+       因此不会出现「操作完看不到变化」。 */
+    remoteCacheTtlMs = 2000,
+    now = () => Date.now(),
     logger = console
 }) {
     const doFetch = fetchImpl || globalThis.fetch;
+    const remoteCache = new Map();
+    // 同一节点的并发请求合并为一次，避免瞬时并发放大成 N 倍远端调用。
+    const inflight = new Map();
 
     async function fetchNodeServices(node) {
         if (!doFetch) return nodeOfflineEntry(node, '当前运行环境不支持 HTTP 客户端');
@@ -77,6 +85,25 @@ function createClusterAggregator({
         }
     }
 
+    /** 带缓存与并发合并的远端拉取。 */
+    async function fetchNodeServicesCached(node) {
+        const cached = remoteCache.get(node.id);
+        if (cached && now() - cached.at < remoteCacheTtlMs) return cached.value;
+
+        const pending = inflight.get(node.id);
+        if (pending) return pending;
+
+        const task = fetchNodeServices(node)
+            .then(value => {
+                remoteCache.set(node.id, { at: now(), value });
+                return value;
+            })
+            .finally(() => inflight.delete(node.id));
+
+        inflight.set(node.id, task);
+        return task;
+    }
+
     async function collectLocal(node) {
         const local = await localServicesProvider();
         return {
@@ -100,7 +127,7 @@ function createClusterAggregator({
         const localId = nodeRegistry.getLocalNodeId();
 
         const results = await Promise.all(nodes.map(node => (
-            node.id === localId ? collectLocal(node) : fetchNodeServices(node)
+            node.id === localId ? collectLocal(node) : fetchNodeServicesCached(node)
         )));
 
         // 清单里没有标注本机时，仍要把本机数据并进来，否则会漏掉本地服务。
@@ -128,10 +155,17 @@ function createClusterAggregator({
         return services.filter(service => service.running).map(service => service.id);
     }
 
+    /* 节点状态刚被改变时（如刚启动某个服务）可主动失效，避免读到旧缓存。 */
+    function invalidateCache(nodeId = null) {
+        if (nodeId) remoteCache.delete(nodeId);
+        else remoteCache.clear();
+    }
+
     return {
         collectAll,
         collectRunningServiceIds,
-        fetchNodeServices
+        fetchNodeServices,
+        invalidateCache
     };
 }
 

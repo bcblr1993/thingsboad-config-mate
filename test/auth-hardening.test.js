@@ -195,3 +195,86 @@ test('expired sessions are pruned instead of accumulating', () => {
     clock += 5000;
     assert.equal(auth.pruneExpiredSessions(), 0, '过期会话应被清理');
 });
+
+test('the failure that triggers the lockout is itself reported as locked', () => {
+    /* 否则运维要等到下一次尝试才知道自己被锁了。 */
+    let clock = 1_000_000;
+    const auth = createAuthService({
+        password: 'secret',
+        loginLimit: { maxFailures: 3, lockoutMs: 60_000, windowMs: 600_000 },
+        now: () => clock
+    });
+    const req = fakeReq('10.0.0.7');
+
+    auth.recordLoginFailure(req);
+    auth.recordLoginFailure(req);
+    assert.equal(auth.checkLoginAllowed(req), null);
+
+    const third = auth.recordLoginFailure(req);
+    assert.equal(third.maxFailures, 3, '应返回阈值供提示剩余次数');
+    // 触发锁定的那一次，立即就能查到锁定状态。
+    assert.ok(auth.checkLoginAllowed(req), '触发锁定后应立即可见');
+});
+
+test('remaining attempts can be derived before lockout', () => {
+    let clock = 1_000_000;
+    const auth = createAuthService({
+        password: 'secret',
+        loginLimit: { maxFailures: 5, lockoutMs: 60_000, windowMs: 600_000 },
+        now: () => clock
+    });
+    const req = fakeReq('10.0.0.8');
+
+    const first = auth.recordLoginFailure(req);
+    assert.equal(first.maxFailures - first.count, 4);
+    const second = auth.recordLoginFailure(req);
+    assert.equal(second.maxFailures - second.count, 3);
+});
+
+/* ---- 来源 IP 伪造防护 ------------------------------------------------ */
+
+function fakeReqWithHeader(ip, forwardedFor) {
+    return { headers: { 'x-forwarded-for': forwardedFor }, socket: { remoteAddress: ip } };
+}
+
+test('X-Forwarded-For is ignored by default so lockout cannot be bypassed', () => {
+    /* 该请求头可被客户端任意伪造：若无条件采信，攻击者每次换一个假 IP
+       就能完全绕过登录锁定。默认必须只认 TCP 对端地址。 */
+    let clock = 1_000_000;
+    const auth = createAuthService({
+        password: 'secret',
+        loginLimit: { maxFailures: 2, lockoutMs: 60_000, windowMs: 600_000 },
+        now: () => clock
+    });
+
+    // 同一个真实来源，但每次伪造不同的 XFF
+    auth.recordLoginFailure(fakeReqWithHeader('10.0.0.50', '1.1.1.1'));
+    auth.recordLoginFailure(fakeReqWithHeader('10.0.0.50', '2.2.2.2'));
+
+    const locked = auth.checkLoginAllowed(fakeReqWithHeader('10.0.0.50', '3.3.3.3'));
+    assert.ok(locked, '伪造 XFF 不应绕过锁定');
+});
+
+test('X-Forwarded-For is honoured when trustProxy is enabled', () => {
+    let clock = 1_000_000;
+    const auth = createAuthService({
+        password: 'secret',
+        loginLimit: { maxFailures: 2, lockoutMs: 60_000, windowMs: 600_000 },
+        trustProxy: true,
+        now: () => clock
+    });
+
+    // 反向代理场景：真实来源由 XFF 提供，不同 XFF 视为不同来源。
+    auth.recordLoginFailure(fakeReqWithHeader('10.0.0.50', '1.1.1.1'));
+    auth.recordLoginFailure(fakeReqWithHeader('10.0.0.50', '1.1.1.1'));
+    assert.ok(auth.checkLoginAllowed(fakeReqWithHeader('10.0.0.50', '1.1.1.1')), '同一真实来源应被锁定');
+    assert.equal(auth.checkLoginAllowed(fakeReqWithHeader('10.0.0.50', '9.9.9.9')), null, '其他来源不受影响');
+});
+
+test('session actor records the resolved client ip', () => {
+    const auth = createAuthService({ password: 'secret' });
+    auth.createSession(fakeReqWithHeader('10.0.0.60', '8.8.8.8'), 'admin');
+    // 默认不信任 XFF，审计里记录的应是真实对端地址。
+    const req = fakeReqWithHeader('10.0.0.60', '8.8.8.8');
+    assert.equal(auth.getRequestActor(req).ip, '10.0.0.60');
+});
