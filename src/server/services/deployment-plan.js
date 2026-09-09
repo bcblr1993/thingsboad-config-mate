@@ -7,9 +7,15 @@ function createDeploymentPlanner({
     configProvider = () => ({}),
     // 未注入时退化为原有的固定 id 行为，保证非 HA 现场完全不变。
     listCapabilityServiceIds = (capability, fallbackId) => [fallbackId],
+    /* 集群判定用的全量候选：不做「动态优先」裁剪，因为别的节点可能用的是
+       被裁掉的那个静态服务。未注入时退化为与本机候选一致。 */
+    listAllCapabilityServiceIds = null,
     refreshDynamicServices = null,
     // 关闭严格模式后依赖不满足只提示不阻断；未注入时保持原有的严格行为。
-    isStrictDependencyCheck = () => true
+    isStrictDependencyCheck = () => true,
+    /* 集群模式下，依赖可能由其他节点提供（如数据库单独部署在一台机器上）。
+       返回全集群处于 running 的服务 id 列表；单机时不注入，行为不变。 */
+    collectClusterRunningServiceIds = null
 }) {
     /**
      * 构建依赖分组。每组代表一项能力，组内任一服务 running 即视为满足。
@@ -17,11 +23,24 @@ function createDeploymentPlanner({
      * 数据库能力可能由 postgres、postgres-ha 或 highgo-ha 提供，
      * 缓存能力可能由 redis 或 redis-cluster 提供，因此不能按固定服务 id 判断。
      */
+    /* 构建一个能力组：candidates 用于本机判定与界面展示，
+       clusterCandidates 用于跨节点判定（不做裁剪）。 */
+    function capabilityGroup(capability, fallbackId) {
+        const candidates = listCapabilityServiceIds(capability, fallbackId);
+        return {
+            capability,
+            candidates,
+            clusterCandidates: listAllCapabilityServiceIds
+                ? listAllCapabilityServiceIds(capability, fallbackId)
+                : candidates
+        };
+    }
+
     function buildDependencyGroups(config) {
         const groups = [];
         const warnings = [];
 
-        groups.push({ capability: 'database', candidates: listCapabilityServiceIds('database', 'postgres') });
+        groups.push(capabilityGroup('database', 'postgres'));
 
         /* 时序存储由配置显式指定，且历史数据与最新数据可以分别选用不同引擎
            （例如历史走 Cassandra、最新走 IoTDB），因此各自成组、都必须就绪，
@@ -38,12 +57,12 @@ function createDeploymentPlanner({
             // 现场已部署 Redis Cluster 时按能力纳入依赖，否则维持原有的手动提示。
             const cacheCandidates = listCapabilityServiceIds('cache', 'redis');
             if (cacheCandidates.includes('redis-cluster')) {
-                groups.push({ capability: 'cache', candidates: cacheCandidates });
+                groups.push(capabilityGroup('cache', 'redis'));
             } else {
                 warnings.push('Redis Cluster 暂不自动初始化，请确认 ANNOUNCE_IP 和 REDIS_NODES 后手动执行高级流程。');
             }
         } else if (config.DATABASE_TS_LATEST_TYPE === 'redis' || config.CACHE_TYPE === 'redis') {
-            groups.push({ capability: 'cache', candidates: listCapabilityServiceIds('cache', 'redis') });
+            groups.push(capabilityGroup('cache', 'redis'));
         }
 
         if (config.TB_QUEUE_TYPE === 'kafka') {
@@ -128,11 +147,27 @@ function createDeploymentPlanner({
             return acc;
         }, {});
 
+        /* 集群模式下先取全集群运行中的服务，避免把「依赖部署在另一台机器上」
+           误判为未启动——这是跨机部署最容易被卡住的地方。 */
+        let clusterRunningIds = [];
+        if (collectClusterRunningServiceIds) {
+            try {
+                clusterRunningIds = await collectClusterRunningServiceIds() || [];
+            } catch (e) {
+                // 聚合失败时退化为只看本机，不阻断检查。
+                clusterRunningIds = [];
+            }
+        }
+
         /* 按能力分组判断：只要组内任一候选处于 running，该能力即满足。
            现场把单机 postgres 换成 postgres-ha / highgo-ha 后，
            不应再因为「postgres 未启动」而拦住业务服务。 */
         const missingDependencies = [];
         (plan.dependencyGroups || []).forEach(group => {
+            // 该能力在集群任一节点上被满足即可（用未裁剪的全量候选匹配）。
+            const clusterCandidates = group.clusterCandidates || group.candidates;
+            if (clusterCandidates.some(id => clusterRunningIds.includes(id))) return;
+
             const candidates = group.candidates
                 .map(id => statusById[id])
                 .filter(Boolean);

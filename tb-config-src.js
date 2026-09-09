@@ -5,6 +5,9 @@ const { exec, spawn } = require('child_process');
 const os = require('os');
 const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
 const { createAuthService } = require('./src/server/auth/session');
+const { createCredentialStore } = require('./src/server/auth/credential-store');
+const { createClusterAggregator } = require('./src/server/cluster/aggregator');
+const { createNodeRegistry } = require('./src/server/cluster/node-registry');
 const { createEnvStore } = require('./src/server/config/env-store');
 const { createSettingsStore } = require('./src/server/config/settings-store');
 const { createYamlInitializer } = require('./src/server/config/yaml-init');
@@ -23,6 +26,7 @@ const { createAppRoutes } = require('./src/server/routes/app');
 const { createConfigRoutes, validateConfigValues } = require('./src/server/routes/config');
 const { createInstallRoutes } = require('./src/server/routes/install');
 const { createServiceRoutes } = require('./src/server/routes/services');
+const { createClusterRoutes } = require('./src/server/routes/cluster');
 const { createSystemRoutes } = require('./src/server/routes/system');
 const CONFIG_META = require('./config-meta');
 
@@ -57,6 +61,10 @@ const DEFAULT_CONFIG_MATE_PASSWORD = '123456';
 const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || DEFAULT_CONFIG_MATE_PASSWORD;
 const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
 const settingsStore = createSettingsStore({ settingsFile: path.join(RUNTIME_DIR, 'settings.json') });
+const credentialStore = createCredentialStore({
+    credentialFile: path.join(RUNTIME_DIR, 'auth.json'),
+    envPassword: CONFIG_MATE_PASSWORD
+});
 const AUTH_REQUIRED = authService.authRequired;
 const {
     getRequestActor,
@@ -108,8 +116,14 @@ const deploymentPlanner = createDeploymentPlanner({
     runComposeAction,
     configProvider: parseEnvFile,
     listCapabilityServiceIds: serviceRegistry.listCapabilityServiceIds,
+    listAllCapabilityServiceIds: serviceRegistry.listAllCapabilityServiceIds,
     refreshDynamicServices,
-    isStrictDependencyCheck: settingsStore.isStrictDependencyCheck
+    isStrictDependencyCheck: settingsStore.isStrictDependencyCheck,
+    /* 惰性引用：clusterAggregator 在本行之后才创建。单机（未配置 nodes.yml）
+       时返回 null，依赖检查退回只看本机，行为与改造前一致。 */
+    collectClusterRunningServiceIds: () => (
+        nodeRegistry?.isEnabled() ? clusterAggregator.collectRunningServiceIds() : null
+    )
 });
 const {
     applyAppConfigChange,
@@ -151,7 +165,8 @@ const systemRoutes = createSystemRoutes({
     dockerRuntime,
     buildDeploymentDiagnostics,
     getPackageServiceId,
-    settingsStore
+    settingsStore,
+    credentialStore
 });
 let serviceRoutes = null;
 let serviceComposeConfigBuilder = null;
@@ -680,6 +695,35 @@ serviceRoutes = createServiceRoutes({
     refreshDynamicServices,
     listConflictingServiceIds: serviceRegistry.listConflictingServiceIds
 });
+/* 本机服务快照：Agent 侧对外提供、Console 侧聚合本机数据，共用同一份实现。 */
+async function collectLocalServices() {
+    await refreshDynamicServices();
+    const services = await Promise.all(listServiceDefinitions().map(getServiceStatus));
+    return {
+        appType: APP_TYPE,
+        appService: getPackageServiceId(),
+        services,
+        conflicts: serviceRegistry.listConflictingServiceIds()
+    };
+}
+
+const nodeRegistry = createNodeRegistry({
+    nodesFile: path.join(RUNTIME_DIR, 'nodes.yml'),
+    yaml
+});
+const clusterAggregator = createClusterAggregator({
+    nodeRegistry,
+    localServicesProvider: collectLocalServices
+});
+const clusterRoutes = createClusterRoutes({
+    nodeRegistry,
+    aggregator: clusterAggregator,
+    localServicesProvider: collectLocalServices,
+    appType: APP_TYPE,
+    getPackageServiceId,
+    version: require('./package.json').version
+});
+
 const yamlInitializer = createYamlInitializer({
     yaml,
     envFilePath: ENV_FILE_PATH,
@@ -785,12 +829,21 @@ function startServer() {
             return;
         }
 
+        // 集群内部接口用 cluster token 鉴权，需在 admin 会话校验之前处理。
+        if (clusterRoutes.handleAgent(req, res, { method, pathname, requestUrl, headers })) {
+            return;
+        }
+
         if (!isAuthenticated(req)) {
             writeJson(res, 401, { status: 'unauthorized', message: '请先登录 Config Mate' }, headers);
             return;
         }
 
         if (systemRoutes.handleAuthenticated(req, res, { method, pathname, requestUrl, headers })) {
+            return;
+        }
+
+        if (clusterRoutes.handleConsole(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 

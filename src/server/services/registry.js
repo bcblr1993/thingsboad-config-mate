@@ -241,6 +241,25 @@ function createServiceRegistry({ appRoot, appType }) {
         return discovered.length > 0 ? discovered : [fallbackId];
     }
 
+    /**
+     * 列出某能力的**全部**可能提供者（静态 + 动态），不做「动态优先」裁剪。
+     *
+     * 上面的裁剪只适用于单机：本机部署了 HA 就不该再要求单机 postgres。
+     * 但集群里另一台机器完全可能用的就是单机 postgres——若沿用裁剪后的候选，
+     * 会把「依赖部署在别的节点上」误判成未启动。真机验证时踩到过这个坑。
+     */
+    function listAllCapabilityServiceIds(capability, fallbackId) {
+        const ids = new Set();
+        Object.keys(SERVICE_DEFINITIONS).forEach(id => {
+            if (SERVICE_DEFINITIONS[id].provides === capability) ids.add(id);
+        });
+        Object.keys(DYNAMIC_SERVICE_DEFINITIONS).forEach(id => {
+            if (DYNAMIC_SERVICE_DEFINITIONS[id].provides === capability) ids.add(id);
+        });
+        if (ids.size === 0 && fallbackId) ids.add(fallbackId);
+        return [...ids];
+    }
+
     /* 与已发现服务冲突的静态服务 id（如现场跑着 postgres-ha 时的 postgres）。
        用于在界面上提示互斥，避免误启动导致端口冲突或双写。 */
     function listConflictingServiceIds() {
@@ -257,6 +276,7 @@ function createServiceRegistry({ appRoot, appType }) {
         getPackageServiceId,
         getServiceDefinition,
         listServiceDefinitions,
+        listAllCapabilityServiceIds,
         listCapabilityServiceIds,
         listConflictingServiceIds,
         listDiscoveredDynamicServices,
