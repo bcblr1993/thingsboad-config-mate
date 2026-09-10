@@ -486,13 +486,17 @@
     font-weight: 600;
 }
 
+/* 状态徽标不能从词中间断开。「状态」列很窄，ONLY RUNTIME 原本被折成
+   「ONLY RUNTI / ME」——读起来像乱码。改为不换行，列宽不够时整体溢出而不是断词。 */
 .cm-diff-route .diff-tag {
+    display: inline-block;
     font-family: var(--cm-font-mono);
     font-size: var(--cm-text-2xs);
     font-weight: 800;
     padding: 2px 8px;
     border-radius: var(--cm-radius-xs);
     letter-spacing: 0.06em;
+    white-space: nowrap;
 }
 
 .cm-diff-route .diff-tag-mod {

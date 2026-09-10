@@ -3574,7 +3574,10 @@ function setEditMode(enabled) {
 
 async function cancelEdit() {
     if (isDirty) {
-        if (!await customConfirm('当前有未保存的修改，取消将丢失这些修改并重置配置。确定吗？', '确认取消', 'var(--danger)')) return;
+        /* 按钮文案点明动作而不是「确认取消」——那样弹窗里两个按钮都带「取消」
+           二字（取消 / 确认取消），运维很容易点反。同文件另两处用的是
+           「退出登录」「丢弃并切换」，这里对齐同一写法。 */
+        if (!await customConfirm('当前有未保存的修改，取消将丢失这些修改并重置配置。确定吗？', '丢弃修改', 'var(--danger)')) return;
     }
 
     if (isSourceMode) {

@@ -1176,7 +1176,7 @@ body[data-workbench-page="config-workspace"] .content {
 
 .header-target-label {
     color: var(--cm-muted-foreground);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0;
@@ -1610,7 +1610,7 @@ body {
 }
 
 .section-kicker {
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-muted);
     letter-spacing: 0.08em;
 }
@@ -2254,7 +2254,7 @@ body {
 .field-desc {
     margin-top: 4px;
     color: #7B8797;
-    font-size: 10.5px;
+    font-size: var(--cm-text-2xs);
     line-height: 1.36;
 }
 
@@ -2502,7 +2502,7 @@ body {
 }
 
 .workbench-nav-desc {
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 650;
     color: var(--cm-muted);
     line-height: 1.2;
@@ -2579,7 +2579,7 @@ body {
     border-radius: 999px;
     background: #FFF7F7;
     color: var(--cm-danger-hover);
-    font-size: 10.5px;
+    font-size: var(--cm-text-2xs);
     line-height: 1;
     font-weight: 800;
     cursor: pointer;
@@ -2820,7 +2820,7 @@ body {
 
 .deployment-target-label {
     color: var(--cm-muted-foreground);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     line-height: 1.1;
     font-weight: 800;
     text-transform: uppercase;
@@ -2882,7 +2882,7 @@ body {
 .deployment-context .deployment-target-label {
     margin-bottom: 2px;
     color: #8292A8;
-    font-size: 9px;
+    font-size: var(--cm-text-2xs);
     line-height: 1.05;
     font-weight: 800;
 }
@@ -3240,7 +3240,7 @@ body {
 .diagnostic-chip-target {
     max-width: 190px;
     color: currentColor;
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     opacity: 0.72;
     overflow: hidden;
@@ -3332,7 +3332,7 @@ body {
 }
 
 .deployment-overview .dependency-status-text {
-    font-size: 10.5px;
+    font-size: var(--cm-text-2xs);
 }
 
 .overview-warning {
@@ -3987,7 +3987,7 @@ body[data-workbench-page="config-workspace"] .var-code {
     background: var(--cm-surface-muted);
     color: var(--cm-muted);
     font-family: var(--cm-font-mono);
-    font-size: 10.5px;
+    font-size: var(--cm-text-2xs);
 }
 
 body[data-workbench-page="config-workspace"] .field-input {

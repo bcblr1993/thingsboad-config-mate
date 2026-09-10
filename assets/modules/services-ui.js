@@ -248,6 +248,16 @@
         `;
     }
 
+    /* 服务分类的中文名。筛选栏上早就是「业务 / 存储 / 缓存 / 队列 / 监控」，
+       只有详情弹窗还在显示 tier=storage 这种内部写法。 */
+    const TIER_LABEL = {
+        business: '业务',
+        storage: '存储',
+        cache: '缓存',
+        queue: '队列',
+        monitor: '监控'
+    };
+
     const CAPABILITY_LABEL = {
         database: '数据库',
         cache: '缓存',
@@ -480,17 +490,24 @@
             renderServiceConfigSection(section, sectionIndex, serviceId)
         ).join('');
 
+        /* 主标题用可读名称，与服务卡片、总览磁贴一致——此前详情弹窗主标题是
+           服务 id、副标题才是名称，层级和其余界面正好相反。容器名与分类下沉到
+           副标题，分类用中文而不是 tier=storage。 */
+        const detailSubtitle = [serviceId, TIER_LABEL[tier] || tier]
+            .filter(Boolean)
+            .join(' · ');
+
         return `
             <div class="cm-detail-header">
                 <div class="cm-detail-header-titles">
                     <div class="cm-detail-title">
-                        <span class="cm-detail-title-name">${escapeHtml(serviceId || data.service?.label || '')}</span>
+                        <span class="cm-detail-title-name">${escapeHtml(data.service?.label || serviceId || '')}</span>
                         <span class="cm-detail-title-status cm-svc-status ${escapeHtml(status)}">
                             <span class="cm-svc-status-dot"></span>${escapeHtml(statusLabel)}
                         </span>
                         <code class="cm-detail-title-path">${escapeHtml(data.composePath || '')}</code>
                     </div>
-                    <div class="cm-detail-subtitle">${escapeHtml(data.service?.label || serviceId)} · tier=${escapeHtml(tier)}</div>
+                    <div class="cm-detail-subtitle">${escapeHtml(detailSubtitle)}</div>
                 </div>
                 <div class="cm-detail-actions">
                     <button class="cm-icon-close cm-detail-close-btn btn-action-close" type="button" onclick="closeServiceDetail()" aria-label="关闭详细信息">×</button>

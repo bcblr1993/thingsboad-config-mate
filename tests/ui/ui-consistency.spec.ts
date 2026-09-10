@@ -1156,22 +1156,30 @@ test.describe('卡片正面只留服务名', () => {
 });
 
 test.describe('版式与布局约束', () => {
-    test('no text is smaller than the readable floor', async ({ page }) => {
-        /* 此前徽章、指标名这类微型文字散落着 9px 和 10px 共 24 处，
-           现场笔记本与远程桌面上基本读不清。11px 是下限。 */
-        await openRoute(page, 'overview', '#overview-page');
-        const tooSmall = await page.evaluate(() => {
-            const out: string[] = [];
-            document.querySelectorAll('*').forEach(el => {
-                const e = el as HTMLElement;
-                if (!e.getClientRects().length || e.children.length || !e.textContent?.trim()) return;
-                const size = parseFloat(getComputedStyle(e).fontSize);
-                if (size < 11) out.push(`${size}px «${e.textContent!.trim().slice(0, 16)}»`);
+    /* 只查总览页是不够的：第一版就是这么写的，结果服务管理页的部署元信息
+       （10px 的路径）、清理弹窗、校验弹窗里的 10.5px 变量名全都漏了。
+       这里逐个路由检查，弹窗另有专门用例。 */
+    for (const [route, ready] of [
+        ['overview', '#overview-page'],
+        ['deployment', '#deployment-panel'],
+        ['config', '#config-workspace'],
+        ['install', '#install-modal']
+    ] as const) {
+        test(`no text is smaller than the readable floor on ${route}`, async ({ page }) => {
+            await openRoute(page, route, ready);
+            const tooSmall = await page.evaluate(() => {
+                const out: string[] = [];
+                document.querySelectorAll('*').forEach(el => {
+                    const e = el as HTMLElement;
+                    if (!e.getClientRects().length || e.children.length || !e.textContent?.trim()) return;
+                    const size = parseFloat(getComputedStyle(e).fontSize);
+                    if (size < 11) out.push(`${size}px «${e.textContent!.trim().slice(0, 16)}»`);
+                });
+                return [...new Set(out)];
             });
-            return [...new Set(out)];
+            expect(tooSmall, `以下文字小于 11px：${tooSmall.join(', ')}`).toEqual([]);
         });
-        expect(tooSmall, `以下文字小于 11px：${tooSmall.join(', ')}`).toEqual([]);
-    });
+    }
 
     test('the page title does not compete with the KPI numbers', async ({ page }) => {
         // 原来两者同为 26px/800，进页面时先被大数字抓走，分不出主次。
@@ -1252,5 +1260,52 @@ test.describe('版式与布局约束', () => {
         expect(gap).not.toBeNull();
         expect(gap!.gap, `标签与输入框相距 ${gap!.gap}px`).toBeLessThan(320);
         expect(gap!.height, `配置行高 ${gap!.height}px`).toBeLessThan(90);
+    });
+});
+
+test.describe('配置校验弹窗', () => {
+    test('status tags never break mid-word', async ({ page }) => {
+        /* 「状态」列很窄，ONLY RUNTIME 原本被折成「ONLY RUNTI / ME」，读起来像乱码。
+           真机 10.8.8.235 上截图确认过。 */
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/diff-runtime') {
+                    return mockJson({
+                        status: 'success',
+                        service: 'iotcloud',
+                        diffs: [
+                            /* 真机上这一行的本地值是被写坏的长串，把「状态」列挤窄，
+                               ONLY RUNTIME 才被折断。短值复现不出来。 */
+                            { key: 'TB_EDQS_SYNC_ENABLED', state: 'MODIFIED', runtimeVal: 'false', localVal: 'falseCASSANDRA_QUERY_CONCURRENT_LIMIT=10' },
+                            /* 后端用 DELETED 表示「只在运行时存在」，前端渲染成
+                               ONLY RUNTIME——最长的那个状态词，正是会被折断的那个。
+                               先前这里误写成 ONLY_RUNTIME，前端不认，状态格是空的，
+                               用例因此永远通过、抓不到任何问题。 */
+                            { key: 'CASSANDRA_QUERY_BUFFER_SIZE', state: 'DELETED', runtimeVal: '50', localVal: '' },
+                            { key: 'TB_KAFKA_SERVERS', state: 'NEW', runtimeVal: '', localVal: 'kafka:9092' }
+                        ]
+                    });
+                }
+                return undefined;
+            }
+        });
+        await page.goto('/#/config');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await page.evaluate(() => (window as unknown as { openConfigRuntimeDiffModal: () => void }).openConfigRuntimeDiffModal());
+
+        const tags = page.locator('#runtime-diff-modal .diff-tag');
+        // 断言数量，避免状态值写错时用例空跑
+        await expect(tags).toHaveCount(3);
+        await expect(tags.filter({ hasText: 'ONLY RUNTIME' })).toHaveCount(1);
+
+        /* 是否真的折行取决于弹窗宽度：真机上「状态」列约 110px、ONLY RUNTIME 要
+           105px 加内边距刚好放不下才断的，测试环境里那格有 137px，塞得下。
+           与其把用例拧成勉强复现某个宽度，不如直接锁住这条样式契约——
+           状态徽标在任何列宽下都不许从词中间断开。 */
+        const wrapping = await tags.evaluateAll(nodes => nodes
+            .filter(n => getComputedStyle(n).whiteSpace !== 'nowrap')
+            .map(n => n.textContent!.trim()));
+        expect(wrapping, `以下状态徽标允许折行：${wrapping.join(', ')}`).toEqual([]);
     });
 });
