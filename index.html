@@ -254,7 +254,8 @@
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="9 18 15 12 9 6"></polyline>
                     </svg>
-                    <span class="cm-breadcrumb-current" id="deployment-breadcrumb-third">Cloud · -- 服务</span>
+                    <!-- 初值不能写 Cloud：边缘端在 JS 更新前会显示错误的部署类型。 -->
+                    <span class="cm-breadcrumb-current" id="deployment-breadcrumb-third">读取中…</span>
                 </div>
                 <div class="cm-page-header">
                     <div class="cm-page-header-titles">

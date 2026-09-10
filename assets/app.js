@@ -334,8 +334,9 @@ function fillLoginMeta() {
     if (hostBrand) hostBrand.textContent = (window.location && window.location.host) || '--';
     if (hostInline) hostInline.textContent = (window.location && window.location.host) || '--';
     if (apptypeEl) {
-        const appType = (context.appType || '').toUpperCase() || 'CLOUD';
-        apptypeEl.textContent = appType.charAt(0) + appType.slice(1).toLowerCase();
+        // 登录页拿不到部署类型时显示占位，不要按 Cloud 兜底。
+        const appType = (context.appType || '').toUpperCase();
+        apptypeEl.textContent = appType ? appType.charAt(0) + appType.slice(1).toLowerCase() : '--';
     }
     if (serviceEl) {
         const appType = (context.appType || '').toUpperCase();
@@ -841,10 +842,13 @@ function renderAll() {
     }).join('');
 
     // Update Header Info
-    const appType = configValues['APPTYPE'] || 'CLOUD';
+    // 以 deploymentInfo 为准；两者都没有时不显示徽标，而不是标成 CLOUD。
+    const appType = (deploymentInfo?.appType || configValues['APPTYPE'] || '').toUpperCase();
     const badgeClass = appType === 'EDGE' ? 'badge-edge' : 'badge-cloud';
     const headerAppTypeEl = document.getElementById('header-app-type');
-    if (headerAppTypeEl) headerAppTypeEl.innerHTML = `<span class="${badgeClass}">${appType} 模式</span>`;
+    if (headerAppTypeEl) {
+        headerAppTypeEl.innerHTML = appType ? `<span class="${badgeClass}">${appType} 模式</span>` : '';
+    }
     updateAppLayoutLabels();
 
     // Apply Key Highlights
@@ -1270,8 +1274,8 @@ function getAppDisplayName() {
 }
 
 function updateAppLayoutLabels() {
-    const appType = (deploymentInfo?.appType || configValues?.APPTYPE || 'CLOUD').toUpperCase();
-    const appService = deploymentInfo?.appService || (appType === 'EDGE' ? 'iotedge' : 'iotcloud');
+    const appType = getAppTypeOrNull();
+    const appService = getCurrentAppServiceId();
     const appLabel = getAppDisplayName();
     const packageNameEl = document.getElementById('header-package-name');
     const workspaceTitleEl = document.getElementById('config-workspace-title');
@@ -1280,18 +1284,24 @@ function updateAppLayoutLabels() {
     const actionSubtitleEl = document.getElementById('action-subtitle');
     const sourcePanelMetaEl = document.getElementById('source-panel-meta');
 
+    // 部署类型未知时留占位；这几处此前会写出具体但可能不对的部署类型和路径。
+    const envPath = deploymentInfo?.envPath ? shortPath(deploymentInfo.envPath)
+        : (appService ? `${appService}/.env` : '');
+
     if (packageNameEl) {
-        packageNameEl.textContent = `${appType} / ${appService}`;
+        packageNameEl.textContent = appType && appService ? `${appType} / ${appService}` : '读取中…';
         if (deploymentInfo?.appRoot) packageNameEl.title = deploymentInfo.appRoot;
     }
     if (workspaceTitleEl) workspaceTitleEl.textContent = `${appLabel} 平台配置管理`;
     if (workspaceMetaEl) {
-        const envPath = deploymentInfo?.envPath ? shortPath(deploymentInfo.envPath) : `${appService}/.env`;
-        workspaceMetaEl.textContent = `维护 ${envPath}；服务启停、日志和依赖状态在上方服务管理中处理。`;
+        workspaceMetaEl.textContent = envPath
+            ? `维护 ${envPath}；服务启停、日志和依赖状态在上方服务管理中处理。`
+            : '服务启停、日志和依赖状态在上方服务管理中处理。';
     }
     if (sourcePanelMetaEl) {
-        const envPath = deploymentInfo?.envPath ? shortPath(deploymentInfo.envPath) : `${appService}/.env`;
-        sourcePanelMetaEl.textContent = `当前文件：${envPath}。修改前请先开启编辑，保存按钮仍在页面底部。`;
+        sourcePanelMetaEl.textContent = envPath
+            ? `当前文件：${envPath}。修改前请先开启编辑，保存按钮仍在页面底部。`
+            : '修改前请先开启编辑，保存按钮仍在页面底部。';
     }
     if (actionTitleEl) actionTitleEl.textContent = `${appLabel} 平台配置动作`;
     if (actionSubtitleEl) actionSubtitleEl.textContent = '修改平台配置前先开启编辑；保存并应用只会处理当前业务服务，依赖服务请在服务管理手动处理。';
@@ -1352,7 +1362,12 @@ function getServiceDisplayNameById(id) {
 }
 
 function getCurrentAppServiceId() {
-    return deploymentInfo?.appService || ((deploymentInfo?.appType || configValues?.APPTYPE || 'CLOUD').toUpperCase() === 'EDGE' ? 'iotedge' : 'iotcloud');
+    if (deploymentInfo?.appService) return deploymentInfo.appService;
+    /* 部署类型未知时返回空串，而不是兜底成 iotcloud。这个值参与「这是不是
+       当前业务服务」的判定，猜错会把边缘端的操作按云端服务处理。 */
+    const appType = getAppTypeOrNull();
+    if (!appType) return '';
+    return appType === 'EDGE' ? 'iotedge' : 'iotcloud';
 }
 
 function getCurrentAppServiceStatus() {
@@ -1684,10 +1699,14 @@ const deploymentPortsCache = Object.create(null);
 function updateDeploymentBreadcrumb() {
     const el = document.getElementById('deployment-breadcrumb-third');
     if (!el) return;
-    const appType = deploymentInfo?.appType || configValues?.APPTYPE || 'Cloud';
+    /* 部署类型未知时不要按 Cloud 兜底：边缘端会先显示「Cloud · -- 服务」。 */
+    const appType = getAppTypeOrNull();
     const total = (latestServices || []).length;
-    const label = `${appType.charAt(0) + appType.slice(1).toLowerCase()} · ${total || '--'} 服务`;
-    el.textContent = label;
+    if (!appType) {
+        el.textContent = total ? `${total} 服务` : '读取中…';
+        return;
+    }
+    el.textContent = `${appType.charAt(0) + appType.slice(1).toLowerCase()} · ${total || '--'} 服务`;
 }
 
 async function restartAllServices() {

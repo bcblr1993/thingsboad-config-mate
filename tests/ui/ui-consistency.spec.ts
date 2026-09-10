@@ -1007,4 +1007,88 @@ test.describe('部署类型未知时不猜', () => {
         await expect(subtitle).toContainText('IoT Edge');
         await expect(composeLabel).toContainText('iotedge/docker-compose-install.yml');
     });
+
+    test('the services breadcrumb never claims Cloud on an edge deployment', async ({ page }) => {
+        // 面包屑的静态初值原本写死 Cloud · -- 服务，边缘端首屏即是错的。
+        let releaseDeployment: (() => void) | null = null;
+        const deploymentGate = new Promise<void>(resolve => { releaseDeployment = resolve; });
+
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/deployment') {
+                    await deploymentGate;
+                    return mockJson({
+                        status: 'success', appRoot: '/root/sprixin-iotedge',
+                        appDir: '/root/sprixin-iotedge/services/iotedge',
+                        appType: 'EDGE', appService: 'iotedge',
+                        envPath: '/root/sprixin-iotedge/services/iotedge/.env',
+                        yamlPath: '', authRequired: true,
+                        docker: { available: true, message: '' }, diagnostics: []
+                    });
+                }
+                return undefined;
+            }
+        });
+
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+
+        const crumb = page.locator('#deployment-breadcrumb-third');
+        await expect(crumb).not.toContainText('Cloud');
+
+        releaseDeployment!();
+        await expect(crumb).toContainText('Edge');
+    });
+});
+
+test.describe('集群模式下的卡片标题', () => {
+    test('service names stay readable when node and HA badges are present', async ({ page }) => {
+        /* 卡片标题行原为 nowrap，徽章都是 flex:0 0 auto 不收缩，唯一能收缩的
+           服务名被挤掉：集群模式叠加节点徽章后 PostgreSQL 只剩「P...」，
+           瀚高双机热备的标题宽度直接是 0px。真机 10.8.8.157 上截图确认过。 */
+        const NODES = [
+            { nodeId: 'node-a', nodeLabel: '业务机(157)', endpoint: 'http://a:3301', online: true, local: true },
+            { nodeId: 'node-b', nodeLabel: '数据机(235)', endpoint: 'http://b:3301', online: true }
+        ];
+        const services = [
+            { id: 'postgres-ha', label: 'PostgreSQL 双机热备', tier: 'storage', status: 'stopped', running: false, readOnly: true, kind: 'ha-cluster', nodeId: 'node-a', nodeLabel: '业务机(157)' },
+            { id: 'highgo-ha', label: '瀚高双机热备', tier: 'storage', status: 'running', running: true, readOnly: true, kind: 'ha-cluster', nodeId: 'node-a', nodeLabel: '业务机(157)', ha: { role: 'primary', vipHeld: true, vip: '10.8.8.200' } },
+            { id: 'redis', label: 'Redis', tier: 'cache', status: 'running', running: true, nodeId: 'node-b', nodeLabel: '数据机(235)' }
+        ];
+
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/nodes') {
+                    return mockJson({ status: 'success', enabled: true, clusterId: 'lab', localNodeId: 'node-a', degraded: false, offlineNodeIds: [], nodes: NODES });
+                }
+                if (pathname === '/api/nodes/services') {
+                    return mockJson({ status: 'success', degraded: false, offlineNodeIds: [], nodes: NODES, services });
+                }
+                if (pathname === '/api/services') return mockJson({ status: 'success', services });
+                return undefined;
+            }
+        });
+
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await expect(page.locator('#service-grid [data-service-id]').first()).toBeVisible();
+
+        const names = page.locator('#service-grid .cm-svc-name');
+        const count = await names.count();
+        expect(count).toBeGreaterThan(0);
+        for (let i = 0; i < count; i += 1) {
+            const box = await names.nth(i).boundingBox();
+            const text = (await names.nth(i).textContent())?.trim() || '';
+            // 标题不能被挤成 0 宽或窄到放不下一个字。
+            expect(box, `「${text}」没有布局盒`).not.toBeNull();
+            expect(box!.width, `「${text}」的标题宽度被挤没了`).toBeGreaterThan(24);
+        }
+
+        // 最长的那个名字必须完整可见——被截掉的正好是区分它的部分。
+        const haName = page.locator('#service-grid [data-service-id="postgres-ha"] .cm-svc-name');
+        const clipped = await haName.evaluate(el => el.scrollHeight > el.clientHeight + 1);
+        expect(clipped, '「PostgreSQL 双机热备」仍被截断').toBe(false);
+    });
 });
