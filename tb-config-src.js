@@ -5,20 +5,29 @@ const { exec, spawn } = require('child_process');
 const os = require('os');
 const { resolveAppContext, resolveAppRoot } = require('./src/server/app-context');
 const { createAuthService } = require('./src/server/auth/session');
+const { createCredentialStore } = require('./src/server/auth/credential-store');
+const { createClusterAggregator } = require('./src/server/cluster/aggregator');
+const { createNodeRegistry } = require('./src/server/cluster/node-registry');
 const { createEnvStore } = require('./src/server/config/env-store');
+const { createSettingsStore } = require('./src/server/config/settings-store');
 const { createYamlInitializer } = require('./src/server/config/yaml-init');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { writeJson } = require('./src/server/http');
 const { createCleanupService } = require('./src/server/services/cleanup');
 const { createServiceComposeConfigBuilder } = require('./src/server/services/compose-config');
 const { createDeploymentPlanner } = require('./src/server/services/deployment-plan');
+const { createDynamicServiceConfigBuilder } = require('./src/server/services/dynamic-service-config');
+const { createHaProbe } = require('./src/server/services/ha-probe');
 const { createLogStreamService } = require('./src/server/services/log-stream');
+const { createRedisClusterProbe } = require('./src/server/services/redis-cluster-probe');
 const { createServiceRegistry } = require('./src/server/services/registry');
 const { createServiceRuntime } = require('./src/server/services/runtime');
+const { createServiceSnapshot } = require('./src/server/services/service-snapshot');
 const { createAppRoutes } = require('./src/server/routes/app');
 const { createConfigRoutes, validateConfigValues } = require('./src/server/routes/config');
 const { createInstallRoutes } = require('./src/server/routes/install');
 const { createServiceRoutes } = require('./src/server/routes/services');
+const { createClusterRoutes } = require('./src/server/routes/cluster');
 const { createSystemRoutes } = require('./src/server/routes/system');
 const CONFIG_META = require('./config-meta');
 
@@ -40,6 +49,24 @@ const HISTORY_DIR = path.join(APP_DIR, '.env_history');
 process.env.APP_ROOT = APP_ROOT;
 process.env.APP_TYPE = APP_TYPE;
 
+/* 前端资源缓存版本。
+   index.html 里原本是手写的 ?v=20260521-xxx 版本串：改了 JS/CSS 却忘了同步
+   版本串，浏览器就会继续用旧缓存——容器都重建了界面还是旧逻辑，这个坑
+   在 2.0.3 已经出过一次事故。改为按入口文件的修改时间自动生成，
+   代码一变版本串就变，不再依赖人工维护。 */
+const ASSET_VERSION = (() => {
+    const entries = ['index.html', 'assets/app.js', 'assets/api.js', 'assets/modules', 'assets/styles', 'assets/src'];
+    let newest = 0;
+    entries.forEach(entry => {
+        try {
+            newest = Math.max(newest, fs.statSync(path.join(__dirname, entry)).mtimeMs);
+        } catch (e) {
+            // 缺失的入口不参与计算。
+        }
+    });
+    return newest > 0 ? String(Math.floor(newest / 1000)) : String(Date.now());
+})();
+
 const RUNTIME_DIR = path.join(APP_ROOT, '.config-mate');
 if (!fs.existsSync(RUNTIME_DIR)) {
     try { fs.mkdirSync(RUNTIME_DIR, { recursive: true }); } catch (e) { }
@@ -51,7 +78,17 @@ const CLEANUP_BACKUP_ROOT = path.join(CONFIG_MATE_SERVICE_DIR, 'backups');
 const AUDIT_LOG_FILE = path.join(CLEANUP_BACKUP_ROOT, 'audit.log');
 const DEFAULT_CONFIG_MATE_PASSWORD = '123456';
 const CONFIG_MATE_PASSWORD = process.env.CONFIG_MATE_PASSWORD || DEFAULT_CONFIG_MATE_PASSWORD;
-const authService = createAuthService({ password: CONFIG_MATE_PASSWORD });
+const authService = createAuthService({
+    password: CONFIG_MATE_PASSWORD,
+    /* X-Forwarded-For 可被客户端伪造，只有确实部署在反向代理之后才应开启，
+       否则攻击者每次换一个伪造 IP 即可绕过登录锁定。 */
+    trustProxy: ['1', 'true', 'yes', 'on'].includes(String(process.env.CONFIG_MATE_TRUST_PROXY || '').toLowerCase())
+});
+const settingsStore = createSettingsStore({ settingsFile: path.join(RUNTIME_DIR, 'settings.json') });
+const credentialStore = createCredentialStore({
+    credentialFile: path.join(RUNTIME_DIR, 'auth.json'),
+    envPassword: CONFIG_MATE_PASSWORD
+});
 const AUTH_REQUIRED = authService.authRequired;
 const {
     getRequestActor,
@@ -60,8 +97,34 @@ const {
 const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
 const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
 const dockerRuntime = createDockerComposeRuntime({ appRoot: APP_ROOT });
-const serviceRuntime = createServiceRuntime({ docker: dockerRuntime, getServiceDefinition });
+const haProbe = createHaProbe({ docker: dockerRuntime });
+const redisClusterProbe = createRedisClusterProbe({ docker: dockerRuntime });
+const serviceRuntime = createServiceRuntime({
+    docker: dockerRuntime,
+    getServiceDefinition,
+    haProbe,
+    redisClusterProbe
+});
 const { getServiceStatus, runComposeAction } = serviceRuntime;
+
+/**
+ * 刷新动态服务发现（HA 集群、Redis Cluster）。
+ * 这些服务没有可知的 compose 路径，只能按容器名在运行时发现；
+ * Docker 不可用时保持上一次结果，避免界面上的服务卡片来回闪烁。
+ */
+async function refreshDynamicServices() {
+    if (dockerRuntime.readyMessage()) return serviceRegistry.listDiscoveredDynamicServices();
+    try {
+        const [haIds, redisIds] = await Promise.all([
+            haProbe.discover(),
+            redisClusterProbe.discover()
+        ]);
+        return serviceRegistry.setDiscoveredDynamicServices([...haIds, ...redisIds]);
+    } catch (e) {
+        console.error('[Error] Failed to discover dynamic services:', e.message);
+        return serviceRegistry.listDiscoveredDynamicServices();
+    }
+}
 const envStore = createEnvStore({
     envFilePath: ENV_FILE_PATH,
     historyDir: HISTORY_DIR,
@@ -75,10 +138,20 @@ const deploymentPlanner = createDeploymentPlanner({
     getServiceDefinition,
     getServiceStatus,
     runComposeAction,
-    configProvider: parseEnvFile
+    configProvider: parseEnvFile,
+    listCapabilityServiceIds: serviceRegistry.listCapabilityServiceIds,
+    listAllCapabilityServiceIds: serviceRegistry.listAllCapabilityServiceIds,
+    refreshDynamicServices,
+    isStrictDependencyCheck: settingsStore.isStrictDependencyCheck,
+    /* 惰性引用：clusterAggregator 在本行之后才创建。单机（未配置 nodes.yml）
+       时返回 null，依赖检查退回只看本机，行为与改造前一致。 */
+    collectClusterRunningServiceIds: () => (
+        nodeRegistry?.isEnabled() ? clusterAggregator.collectRunningServiceIds() : null
+    )
 });
 const {
     applyAppConfigChange,
+    buildDependencyAdvisory,
     buildDeploymentPlan,
     buildDeploymentPlanWithStatus,
     checkRequiredDependencies,
@@ -115,7 +188,9 @@ const systemRoutes = createSystemRoutes({
     configMatePassword: CONFIG_MATE_PASSWORD,
     dockerRuntime,
     buildDeploymentDiagnostics,
-    getPackageServiceId
+    getPackageServiceId,
+    settingsStore,
+    credentialStore
 });
 let serviceRoutes = null;
 let serviceComposeConfigBuilder = null;
@@ -159,12 +234,18 @@ function buildDeploymentDiagnostics() {
             fs.existsSync(ENV_FILE_PATH),
             fs.existsSync(ENV_FILE_PATH) ? ENV_FILE_PATH : `未找到 .env：${ENV_FILE_PATH}`
         ),
+        // YAML 模板是可选的：新版部署包不再下发 conf/*.yml，配置直接预置在 .env 里。
+        // 只有 .env 也缺失时，没有 YAML 才真的会导致首次补全不完整。
         buildDiagnosticItem(
             'yaml-config',
             'YAML 模板',
             YAML_CONFIG_PATH ? shortDiagnosticPath(YAML_CONFIG_PATH) : 'conf/*.yml',
-            !!YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH),
-            YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH) ? YAML_CONFIG_PATH : '未找到 YAML 模板，首次补全配置可能不完整。',
+            (!!YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH)) || fs.existsSync(ENV_FILE_PATH),
+            YAML_CONFIG_PATH && fs.existsSync(YAML_CONFIG_PATH)
+                ? YAML_CONFIG_PATH
+                : (fs.existsSync(ENV_FILE_PATH)
+                    ? '未下发 YAML 模板，配置来自 .env（新版部署包的正常形态）。'
+                    : '未找到 YAML 模板，且 .env 缺失，首次补全配置可能不完整。'),
             'warning'
         ),
         buildDiagnosticItem(
@@ -618,6 +699,10 @@ const installRoutes = createInstallRoutes({
     getPackageServiceId,
     guardAppServiceDependencies
 });
+const dynamicServiceConfigBuilder = createDynamicServiceConfigBuilder({
+    getServiceDefinition,
+    getServiceStatus
+});
 serviceRoutes = createServiceRoutes({
     listServiceDefinitions,
     getServiceDefinition,
@@ -625,19 +710,62 @@ serviceRoutes = createServiceRoutes({
     getServiceStatus,
     runComposeAction,
     buildServiceComposeConfig,
+    buildDynamicServiceConfig: dynamicServiceConfigBuilder.buildDynamicServiceConfig,
     buildCleanupPlan,
     runCleanupService,
     getRequestActor,
     guardAppServiceDependencies,
-    guardAppServiceRunning
+    guardAppServiceRunning,
+    refreshDynamicServices,
+    listConflictingServiceIds: serviceRegistry.listConflictingServiceIds,
+    localServicesProvider: collectLocalServices,
+    invalidateServiceSnapshot: () => {
+        localServiceSnapshot.invalidate();
+        clusterAggregator?.invalidateCache();
+    }
 });
+/* 本机服务快照：/api/services、Agent 侧对外接口、Console 侧聚合共用同一份
+   实现与同一层缓存，避免同一时刻重复执行几十次 docker 调用。 */
+async function probeLocalServices() {
+    await refreshDynamicServices();
+    const services = await Promise.all(listServiceDefinitions().map(getServiceStatus));
+    return {
+        appType: APP_TYPE,
+        appService: getPackageServiceId(),
+        services,
+        conflicts: serviceRegistry.listConflictingServiceIds()
+    };
+}
+
+const localServiceSnapshot = createServiceSnapshot({ collect: probeLocalServices });
+
+function collectLocalServices(options = {}) {
+    return localServiceSnapshot.get(options);
+}
+
+const nodeRegistry = createNodeRegistry({
+    nodesFile: path.join(RUNTIME_DIR, 'nodes.yml'),
+    yaml
+});
+const clusterAggregator = createClusterAggregator({
+    nodeRegistry,
+    localServicesProvider: collectLocalServices
+});
+const clusterRoutes = createClusterRoutes({
+    nodeRegistry,
+    aggregator: clusterAggregator,
+    localServicesProvider: collectLocalServices,
+    appType: APP_TYPE,
+    getPackageServiceId,
+    version: require('./package.json').version
+});
+
 const yamlInitializer = createYamlInitializer({
     yaml,
     envFilePath: ENV_FILE_PATH,
     yamlConfigPath: YAML_CONFIG_PATH,
     appRoot: APP_ROOT,
     appDir: APP_DIR,
-    projectRoot: __dirname,
     configMeta: CONFIG_META,
     parseEnvFile,
     saveEnvFile
@@ -645,6 +773,7 @@ const yamlInitializer = createYamlInitializer({
 const appRoutes = createAppRoutes({
     parseEnvFile,
     saveEnvFile,
+    buildDependencyAdvisory,
     buildDeploymentPlanWithStatus,
     guardAppServiceRunning,
     applyAppConfigChange,
@@ -715,7 +844,10 @@ function startServer() {
         if (pathname === '/' || pathname === '/index.html') {
             const htmlPath = path.join(__dirname, 'index.html');
             console.log(`[Debug] Loading HTML from: ${htmlPath}`);
-            const html = fs.readFileSync(htmlPath, 'utf-8');
+            /* 统一改写为自动版本，避免遗漏某个 ?v= 导致新旧脚本混用。 */
+            const html = fs.readFileSync(htmlPath, 'utf-8')
+                .replace(/(\.(?:js|css))\?v=[^"']*/g, `$1?v=${ASSET_VERSION}`)
+                .replace(/(<(?:script|link)[^>]*(?:src|href)="assets\/[^"?]+\.(?:js|css))"/g, `$1?v=${ASSET_VERSION}"`);
             res.writeHead(200, {
                 ...headers,
                 'Content-Type': 'text/html; charset=utf-8',
@@ -736,12 +868,21 @@ function startServer() {
             return;
         }
 
+        // 集群内部接口用 cluster token 鉴权，需在 admin 会话校验之前处理。
+        if (clusterRoutes.handleAgent(req, res, { method, pathname, requestUrl, headers })) {
+            return;
+        }
+
         if (!isAuthenticated(req)) {
             writeJson(res, 401, { status: 'unauthorized', message: '请先登录 Config Mate' }, headers);
             return;
         }
 
         if (systemRoutes.handleAuthenticated(req, res, { method, pathname, requestUrl, headers })) {
+            return;
+        }
+
+        if (clusterRoutes.handleConsole(req, res, { method, pathname, requestUrl, headers })) {
             return;
         }
 
@@ -787,6 +928,17 @@ function startServer() {
         } catch (e) {
             console.warn('[Warn] Failed to write PID:', e);
         }
+
+        /* 会话与登录失败计数都存在内存里，过期项原本只在被访问时惰性清理。
+           长期运行（现场一开就是几个月）时会缓慢堆积，这里定期回收。 */
+        const pruneTimer = setInterval(() => {
+            try {
+                authService.pruneExpiredSessions();
+            } catch (e) {
+                console.warn('[Warn] 清理过期会话失败:', e.message);
+            }
+        }, 5 * 60 * 1000);
+        pruneTimer.unref?.();
 
         console.log(`[Info] Service running at http://localhost:${PORT}`);
         console.log(`[Info] APP_ROOT=${APP_ROOT}`);

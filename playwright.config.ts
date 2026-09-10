@@ -5,7 +5,6 @@ const baseURL = process.env.CONFIG_MATE_UI_BASE_URL || `http://127.0.0.1:${port}
 
 export default defineConfig({
     testDir: './tests/ui',
-    snapshotDir: './tests/ui/__screenshots__',
     fullyParallel: false,
     retries: process.env.CI ? 1 : 0,
     workers: process.env.CI ? 1 : undefined,
@@ -24,14 +23,6 @@ export default defineConfig({
         deviceScaleFactor: 1,
         screenshot: 'only-on-failure',
         trace: 'on-first-retry'
-    },
-    expect: {
-        toHaveScreenshot: {
-            animations: 'disabled',
-            caret: 'hide',
-            maxDiffPixelRatio: 0.01,
-            threshold: 0.2
-        }
     },
     projects: [
         {

@@ -91,7 +91,24 @@ function parseDockerStatsPayload(stdout) {
     };
 }
 
-function createServiceRuntime({ docker, getServiceDefinition }) {
+function createServiceRuntime({ docker, getServiceDefinition, haProbe = null, redisClusterProbe = null }) {
+    /* 动态服务（HA / redis-cluster）没有可用的 compose 文件路径，
+       状态改由各自的只读探测器提供。 */
+    async function getDynamicServiceStatus(def) {
+        if (def.kind === 'ha-cluster' && haProbe) {
+            const probed = await haProbe.probe(def.id);
+            if (!probed) return { ...def, status: 'missing', running: false, containerId: '' };
+            return { ...def, ...probed };
+        }
+
+        if (def.kind === 'redis-cluster' && redisClusterProbe) {
+            const probed = await redisClusterProbe.probe();
+            return { ...def, ...probed };
+        }
+
+        return { ...def, status: 'unknown', running: false, containerId: '', message: '该服务没有可用的状态探测器' };
+    }
+
     async function getContainerStats(containerId) {
         if (!containerId) return {};
         const stats = await docker.exec(
@@ -107,6 +124,15 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
         if (!def) {
             return { id: 'unknown', label: 'Unknown', status: 'missing', running: false, containerId: '', message: 'service definition missing' };
         }
+
+        if (def.kind && def.kind !== 'compose') {
+            const dockerIssue = docker.readyMessage();
+            if (dockerIssue) {
+                return { ...def, status: 'unknown', running: false, containerId: '', message: dockerIssue };
+            }
+            return getDynamicServiceStatus(def);
+        }
+
         if (!def.exists) {
             return { ...def, status: 'missing', running: false, containerId: '', message: 'compose file missing' };
         }
@@ -164,6 +190,18 @@ function createServiceRuntime({ docker, getServiceDefinition }) {
     async function runComposeAction(id, action) {
         const def = getServiceDefinition(id);
         if (!def) return { status: 'error', message: 'Unknown service' };
+
+        /* HA 集群与 redis-cluster 只做只读纳管。
+           HA 的启停有严格的先主后备顺序（错序会触发备库全量 clone），
+           redis-cluster 的启停需要节点数参数，两者都必须走各自交付包的脚本。 */
+        if (def.readOnly) {
+            return {
+                status: 'error',
+                code: 'SERVICE_READ_ONLY',
+                message: `${def.label}为只读纳管，请使用其交付包中的 ./start.sh 与 ./ops.sh 执行启停与切换。`
+            };
+        }
+
         if (!def.exists) return { status: 'error', message: `Compose file not found: ${def.composePath}` };
 
         const dockerIssue = docker.readyMessage();

@@ -213,6 +213,54 @@
     color: var(--cm-cloud-muted);
 }
 
+/* ---- 严格依赖校验开关 ------------------------------------------------- */
+
+.cm-strict-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 11px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-md);
+    background: var(--cm-cloud-surface);
+    cursor: pointer;
+    user-select: none;
+}
+
+.cm-strict-toggle input {
+    flex: 0 0 auto;
+    margin: 0;
+    cursor: pointer;
+}
+
+.cm-strict-toggle-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.3;
+}
+
+.cm-strict-toggle-label {
+    color: var(--cm-cloud-fg);
+    font-size: var(--cm-text-xs);
+    font-weight: 700;
+}
+
+.cm-strict-toggle-hint {
+    color: var(--cm-cloud-muted);
+    font-size: 10px;
+}
+
+/* 关闭后保持持续可见的提醒，避免运维忘记自己放宽过校验。 */
+.cm-strict-toggle-hint.is-relaxed {
+    color: var(--cm-cloud-warning);
+    font-weight: 700;
+}
+
+/* 非阻断的依赖提示：与阻断态区分，避免运维误以为操作被拒绝。 */
+.dependency-check-dialog.is-advisory .dependency-check-kicker {
+    color: var(--cm-cloud-warning);
+}
+
 /* ---- Service grid (override styles.css .service-grid) ---------------- */
 
 #service-grid.cm-service-grid {
@@ -271,13 +319,8 @@
     content: none;
 }
 
-#service-grid.cm-service-grid .service-card.is-startup-dependency .cm-svc-name::before {
-    content: "*";
-    display: inline-block;
-    margin-right: 3px;
-    color: var(--cm-cloud-danger);
-    font-weight: 950;
-}
+/* 启动依赖已由卡片上的「启动依赖」标签表达，不再叠加符号前缀：
+   同一信息重复三次（符号 + 标签内符号 + 文字）会让卡片显得杂乱。 */
 
 .cm-svc-head {
     display: flex;
@@ -340,27 +383,81 @@
     white-space: nowrap;
 }
 
+/* 「启动依赖」标记的是「这是必需依赖」，属于说明而非故障，
+   因此用中性描边而不是危险色——红色留给真正未就绪并阻断操作的场景。 */
 .cm-svc-dependency-badge {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
     flex: 0 0 auto;
-    max-width: 86px;
     padding: 2px 7px;
-    border: 1px solid var(--cm-cloud-danger-border);
+    border: 1px solid var(--cm-cloud-border);
     border-radius: var(--cm-radius-full);
-    background: var(--cm-cloud-danger-soft);
-    color: var(--cm-cloud-danger);
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-muted);
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* 双机热备角色徽章：复用依赖徽章的尺寸与语义色，不引入新的体系。 */
+.cm-svc-ha-badge {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    border: 1px solid var(--cm-cloud-info-border);
+    border-radius: var(--cm-radius-full);
+    background: var(--cm-cloud-info-soft);
+    color: var(--cm-cloud-info);
     font-size: 10px;
     line-height: 1.2;
     font-weight: 850;
     white-space: nowrap;
 }
 
-.cm-svc-dependency-star {
-    font-size: 12px;
-    line-height: 1;
-    font-weight: 950;
+.cm-svc-ha-badge.is-primary {
+    border-color: var(--cm-cloud-success-border);
+    background: var(--cm-cloud-success-soft);
+    color: var(--cm-cloud-success);
+}
+
+.cm-svc-ha-badge.is-standby {
+    border-color: var(--cm-cloud-border);
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-muted);
+}
+
+.cm-svc-ha-badge.is-vip {
+    border-color: var(--cm-cloud-info-border);
+    background: var(--cm-cloud-info-soft);
+    color: var(--cm-cloud-info);
+}
+
+.cm-svc-ha-badge.is-license-warning {
+    border-color: var(--cm-cloud-warning-border);
+    background: var(--cm-cloud-warning-soft);
+    color: var(--cm-cloud-warning);
+}
+
+.cm-svc-ha-badge.is-license-critical,
+.cm-svc-ha-badge.is-license-expired {
+    border-color: var(--cm-cloud-danger-border);
+    background: var(--cm-cloud-danger-soft);
+    color: var(--cm-cloud-danger);
+}
+
+/* 只读纳管服务：用静态说明占位，替代启停按钮组。 */
+.cm-svc-readonly-hint {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    border: 1px dashed var(--cm-cloud-border);
+    border-radius: var(--cm-radius-md);
+    color: var(--cm-cloud-muted);
+    font-size: var(--cm-text-xs);
+    line-height: 28px;
+    white-space: nowrap;
 }
 
 .cm-svc-image {
@@ -891,4 +988,146 @@ body.cm-service-detail-open {
 
 @media (max-width: 640px) {
     #service-grid.cm-service-grid { grid-template-columns: 1fr; }
+}
+
+/* ---- 集群（Agent/Console）横幅与节点徽章 ------------------------------ */
+
+.cm-cluster-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 8px 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-md);
+    background: var(--cm-cloud-surface);
+    font-size: var(--cm-text-xs);
+}
+
+.cm-cluster-banner[hidden] { display: none; }
+
+.cm-cluster-label {
+    color: var(--cm-cloud-muted);
+    font-weight: 700;
+}
+
+.cm-cluster-count {
+    color: var(--cm-cloud-fg);
+    font-weight: 700;
+}
+
+.cm-node-chips {
+    display: inline-flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.cm-node-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-full);
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-muted);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.cm-node-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.cm-node-chip.is-local {
+    border-color: var(--cm-cloud-success-border);
+    background: var(--cm-cloud-success-soft);
+    color: var(--cm-cloud-success);
+}
+
+.cm-node-chip.is-online {
+    border-color: var(--cm-cloud-info-border);
+    background: var(--cm-cloud-info-soft);
+    color: var(--cm-cloud-info);
+}
+
+/* 节点不可达时其服务状态不可见，必须显著区分，避免误判为「服务已停止」。 */
+.cm-node-chip.is-offline {
+    border-color: var(--cm-cloud-danger-border);
+    background: var(--cm-cloud-danger-soft);
+    color: var(--cm-cloud-danger);
+}
+
+.cm-cluster-warn {
+    color: var(--cm-cloud-warning);
+    font-weight: 600;
+}
+
+.cm-svc-node-badge {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    border: 1px solid var(--cm-cloud-border);
+    border-radius: var(--cm-radius-full);
+    background: var(--cm-cloud-surface-muted);
+    color: var(--cm-cloud-muted);
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* 远端服务只读，用与本机不同的语义色提示「不在这台机器上操作」。 */
+.cm-svc-node-badge.is-remote {
+    border-color: var(--cm-cloud-info-border);
+    background: var(--cm-cloud-info-soft);
+    color: var(--cm-cloud-info);
+}
+
+
+/* ---- 卡片高度对齐与只读标识 ------------------------------------------- */
+
+/* 带诊断消息的卡片原本会被撑高，导致整行网格错位。
+   让消息区占据弹性空间、动作区贴底，各卡片高度即可对齐。 */
+#service-grid.cm-service-grid .service-card .cm-svc-message {
+    flex: 1 1 auto;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--cm-cloud-muted);
+    font-size: var(--cm-text-xs);
+    line-height: 1.45;
+}
+
+#service-grid.cm-service-grid .service-card .cm-svc-actions {
+    margin-top: auto;
+}
+
+/* 「只读纳管」原本是虚线描边的方框，与旁边的「详情」按钮并排时
+   容易被当成一个点不动的按钮。改为无边框的说明文字。 */
+.cm-svc-readonly-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 4px;
+    border: none;
+    color: var(--cm-cloud-muted);
+    font-size: var(--cm-text-xs);
+    line-height: 28px;
+    white-space: nowrap;
+}
+
+.cm-svc-readonly-hint::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cm-cloud-border);
 }

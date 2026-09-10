@@ -20,6 +20,13 @@ let servicePollTimer = null;
 let statusPollTimer = null;
 let currentOperator = '';
 let loginContext = null;
+/* 严格依赖校验开关（默认开启）。关闭后依赖未就绪只提示不阻断，
+   用于 Kafka 集群、Cassandra 集群等 Config Mate 白名单覆盖不到的部署形态。 */
+let strictDependencyCheck = true;
+/* 集群（Agent/Console）状态。未配置节点清单时保持 enabled=false，
+   服务列表仍走单机接口，界面与单机完全一致。 */
+let clusterState = { enabled: false, localNodeId: '', degraded: false, offlineNodeIds: [], nodes: [] };
+let latestDependencyAdvisory = null;
 const serviceActionBusyServices = new Set();
 const SERVICE_ACTION_SETTLE_TIMEOUT_MS = 60000;
 const SERVICE_ACTION_SETTLE_INTERVAL_MS = 1200;
@@ -413,6 +420,19 @@ async function runAuthenticatedStartupChecks() {
     await checkEnvConfigValidation();
 }
 
+// .env 里缺失的配置项用元数据默认值补齐（例如平台新增了 IoTDB 分组，而现场 .env 还是旧版本）。
+// 不补齐的话表单会把这些项渲染成空值，保存后写出 "KEY=" 空串并注入容器；数字类配置拿到空串
+// 会让平台启动直接失败。在生成 initialConfigValues 快照之前补齐，因此不会产生"未保存"状态。
+function applyMetaDefaults(values, meta) {
+    const filled = { ...(values || {}) };
+    Object.keys(meta || {}).forEach(key => {
+        if (filled[key] === undefined && meta[key].default !== undefined) {
+            filled[key] = String(meta[key].default);
+        }
+    });
+    return filled;
+}
+
 async function init() {
     try {
         stopPollingTimers();
@@ -424,7 +444,7 @@ async function init() {
         }
         const data = await res.json();
         configMeta = data.meta;
-        configValues = data.values;
+        configValues = applyMetaDefaults(data.values, configMeta);
         window.__CM__?.stateBridge.pushConfigMeta(configMeta);
         window.__CM__?.stateBridge.pushConfigValues(configValues, { markClean: true });
 
@@ -680,6 +700,7 @@ function getConfigGroupDescription(groupName) {
         'SQL 数据库': '业务数据库连接和凭据。',
         '核心存储': '决定时序数据存储类型和保留策略。',
         'Cassandra': 'Cassandra 连接、keyspace 和过期策略。',
+        'IoTDB': 'IoTDB 连接、数据保留、读写通道和背压参数。',
         '缓存配置': 'Redis 地址、端口、密码和缓存行为。',
         '消息队列': 'Kafka broker、队列类型和消费配置。',
         'MQTT 传输': '设备 MQTT 接入端口和消息限制。',
@@ -699,7 +720,7 @@ function renderAll() {
     });
 
     // Custom Sort Order
-    const sortOrder = ['SQL 数据库', '核心设置', 'Edge 连接配置', '云边通信状态检查', '离线恢复策略', 'Edge 遥测分离', '核心存储', 'Cassandra', '缓存配置', '消息队列', 'MQTT 传输', '规则引擎脚本', '高级设置'];
+    const sortOrder = ['SQL 数据库', '核心设置', 'Edge 连接配置', '云边通信状态检查', '离线恢复策略', 'Edge 遥测分离', '核心存储', 'Cassandra', 'IoTDB', '缓存配置', '消息队列', 'MQTT 传输', '规则引擎脚本', '高级设置'];
     const groupNames = Object.keys(groups).sort((a, b) => {
         const idxA = sortOrder.indexOf(a);
         const idxB = sortOrder.indexOf(b);
@@ -1033,6 +1054,8 @@ async function refreshDeployment(options = {}) {
         setDeploymentRefreshState({ refreshing: true, label: '刷新中' });
     }
     try {
+        await loadConfigMateSettings();
+        await loadClusterState();
         await loadDeploymentInfo();
         await updateDeploymentPlan();
         await refreshServices();
@@ -1056,6 +1079,99 @@ async function refreshDeployment(options = {}) {
             deploymentRefreshInFlight = false;
         }
     }
+}
+
+/* 集群状态加载与横幅渲染。未启用集群时不渲染任何额外元素。 */
+async function loadClusterState() {
+    try {
+        const res = await ConfigMateApi.nodes();
+        const json = await res.json();
+        clusterState = {
+            enabled: !!json.enabled,
+            localNodeId: json.localNodeId || '',
+            degraded: !!json.degraded,
+            offlineNodeIds: json.offlineNodeIds || [],
+            nodes: json.nodes || []
+        };
+    } catch (e) {
+        clusterState = { enabled: false, localNodeId: '', degraded: false, offlineNodeIds: [], nodes: [] };
+    }
+    renderClusterBanner();
+}
+
+function renderClusterBanner() {
+    const el = document.getElementById('cluster-banner');
+    if (!el) return;
+    if (!clusterState.enabled) {
+        el.hidden = true;
+        el.innerHTML = '';
+        return;
+    }
+
+    const nodes = clusterState.nodes || [];
+    const online = nodes.filter(n => n.online).length;
+    const chips = nodes.map(n => {
+        const isLocal = n.nodeId === clusterState.localNodeId;
+        const cls = n.online ? (isLocal ? 'is-local' : 'is-online') : 'is-offline';
+        const title = n.online
+            ? `${n.endpoint || ''}${isLocal ? '（本机）' : ''}`
+            : `${n.endpoint || ''} 不可达：${n.message || '未知原因'}`;
+        return `<span class="cm-node-chip ${cls}" title="${escapeHtml(title)}">
+            <span class="cm-node-dot"></span>${escapeHtml(n.nodeLabel || n.nodeId)}${isLocal ? '·本机' : ''}
+        </span>`;
+    }).join('');
+
+    el.hidden = false;
+    el.innerHTML = `
+        <span class="cm-cluster-label">集群</span>
+        <span class="cm-cluster-count">${online} / ${nodes.length} 在线</span>
+        <span class="cm-node-chips">${chips}</span>
+        ${clusterState.degraded ? '<span class="cm-cluster-warn">部分节点不可达，其服务状态暂不可见</span>' : ''}
+    `;
+}
+
+async function loadConfigMateSettings() {
+    try {
+        const res = await ConfigMateApi.settings();
+        const json = await res.json();
+        if (json.status === 'success' && json.settings) {
+            strictDependencyCheck = json.settings.strictDependencyCheck !== false;
+        }
+    } catch (e) {
+        // 读取失败时保持默认的严格校验，宁可拦住也不放行。
+        strictDependencyCheck = true;
+    }
+    renderStrictDependencyToggle();
+}
+
+function renderStrictDependencyToggle() {
+    const el = document.getElementById('strict-dependency-toggle');
+    if (!el) return;
+    el.checked = !!strictDependencyCheck;
+    const hint = document.getElementById('strict-dependency-hint');
+    if (hint) {
+        hint.textContent = strictDependencyCheck
+            ? '开启：依赖服务未就绪时阻止启动业务服务'
+            : '已关闭：依赖未就绪只提示不阻断，请自行确认集群状态';
+        hint.classList.toggle('is-relaxed', !strictDependencyCheck);
+    }
+}
+
+async function toggleStrictDependencyCheck(next) {
+    const previous = strictDependencyCheck;
+    strictDependencyCheck = next;
+    renderStrictDependencyToggle();
+    try {
+        const res = await ConfigMateApi.updateSettings({ strictDependencyCheck: next });
+        const json = await res.json();
+        if (json.status !== 'success') throw new Error(json.message || '保存失败');
+        strictDependencyCheck = json.settings.strictDependencyCheck !== false;
+        showToast(strictDependencyCheck ? '已开启严格依赖校验' : '已关闭严格依赖校验，操作前仅做提示', strictDependencyCheck ? 'success' : 'warning');
+    } catch (e) {
+        strictDependencyCheck = previous;
+        showToast('设置保存失败：' + e.message, 'error');
+    }
+    renderStrictDependencyToggle();
 }
 
 async function loadDeploymentInfo() {
@@ -1162,6 +1278,7 @@ async function updateDeploymentPlan() {
             return;
         }
         latestPlan = json.plan;
+        if (json.advisory) latestDependencyAdvisory = json.advisory;
         const warningHtml = (latestPlan.warnings || []).map(w => `<div class="overview-warning">${escapeHtml(w)}</div>`).join('');
         summaryEl.innerHTML = `
             <div class="overview-row">
@@ -1207,6 +1324,33 @@ function getCurrentAppServiceStatus() {
 function getMissingRequiredDependencies() {
     const appServiceId = getCurrentAppServiceId();
     const planStatuses = Array.isArray(latestPlan?.statuses) ? latestPlan.statuses : [];
+
+    /* 必须按能力组判定，与后端同口径。若按服务逐个过滤，互斥候选会被一并
+       算作缺失：现场跑着瀚高 HA 时，安装页会提示「请先启动 PostgreSQL
+       双机热备」，让运维去启动一个根本没部署的服务。 */
+    const groups = Array.isArray(latestPlan?.dependencyGroups) ? latestPlan.dependencyGroups : [];
+    if (groups.length > 0 && planStatuses.length > 0) {
+        const statusById = {};
+        planStatuses.forEach(item => { statusById[item.id] = item; });
+        const capabilityLabels = ConfigMateServicesUi.CAPABILITY_LABEL || {};
+        const missing = [];
+
+        groups.forEach(group => {
+            const candidates = (group.candidates || []).map(id => statusById[id]).filter(Boolean);
+            if (candidates.length === 0 || candidates.some(item => item.running)) return;
+
+            const reported = candidates.find(item => item.readOnly) || candidates[0];
+            if (reported.id === appServiceId) return;
+
+            // 多个互斥候选时按能力名提示，避免指名一个现场没部署的服务。
+            missing.push(candidates.length > 1
+                ? { ...reported, label: capabilityLabels[group.capability] || reported.label }
+                : reported);
+        });
+
+        return missing;
+    }
+
     if (planStatuses.length > 0) {
         return planStatuses.filter(s => s.id !== appServiceId && !s.running);
     }
@@ -1309,7 +1453,7 @@ function buildRequiredDependencyChecks(missingDependencies = []) {
     });
 }
 
-function renderDependencyCheckDialog(dependencies, actionText) {
+function renderDependencyCheckDialog(dependencies, actionText, options = {}) {
     const appName = getAppDisplayName();
     const checks = buildRequiredDependencyChecks(dependencies);
     const passedCount = checks.filter(item => item.running).length;
@@ -1333,18 +1477,32 @@ function renderDependencyCheckDialog(dependencies, actionText) {
         `;
     }).join('');
 
+    const blocking = options.blocking !== false;
+    const kicker = blocking ? '依赖检查未通过' : '依赖未就绪';
+    const title = blocking ? `暂不能${escapeHtml(actionText)}` : `确认继续${escapeHtml(actionText)}`;
+    const desc = blocking
+        ? `${escapeHtml(appName)} 启动前需要以下依赖服务全部处于 <code>running</code> 状态。`
+        : `以下依赖服务当前不处于 <code>running</code> 状态。严格校验已关闭，可以继续操作。`;
+    // 只读纳管的依赖无法在界面上启动，提示必须指向交付包脚本。
+    const hasReadOnly = checks.some(item => item.readOnly);
+    const hint = blocking
+        ? (hasReadOnly
+            ? '请先启动红色标记的服务；其中只读纳管的组件需在对应节点执行其交付包中的 ./start.sh。'
+            : '请先在服务管理中启动红色标记的服务，等待检测通过后再继续操作。')
+        : '若这些能力实际由集群形态（如 Kafka 集群、Cassandra 集群）提供，可直接继续；否则请先确认服务状态。';
+
     return `
-        <div class="dependency-check-dialog">
+        <div class="dependency-check-dialog${blocking ? '' : ' is-advisory'}">
             <div class="dependency-check-head">
                 <div>
-                    <div class="dependency-check-kicker">依赖检查未通过</div>
-                    <div class="dependency-check-title">暂不能${escapeHtml(actionText)}</div>
+                    <div class="dependency-check-kicker">${kicker}</div>
+                    <div class="dependency-check-title">${title}</div>
                 </div>
                 <div class="dependency-check-count">${passedCount} / ${totalCount}</div>
             </div>
-            <div class="dependency-check-desc">${escapeHtml(appName)} 启动前需要以下依赖服务全部处于 <code>running</code> 状态。</div>
+            <div class="dependency-check-desc">${desc}</div>
             <div class="dependency-check-list">${listHtml}</div>
-            <div class="dependency-check-hint">请先在服务管理中启动红色标记的服务，等待检测通过后再继续操作。</div>
+            <div class="dependency-check-hint">${hint}</div>
         </div>
     `;
 }
@@ -1355,20 +1513,27 @@ async function showDependencyBlock(dependencies, actionText) {
     await customConfirm(renderDependencyCheckDialog(dependencies, actionText), '知道了', 'var(--cm-warning)');
 }
 
+async function resolveDependencyGate(missingDependencies, actionText) {
+    if (strictDependencyCheck) {
+        await showDependencyBlock(missingDependencies, actionText);
+        return false;
+    }
+    // 非严格模式：只提示风险，由运维确认后继续。
+    return await showDependencyWarning(missingDependencies, actionText);
+}
+
 async function ensureRequiredDependenciesRunning(actionText) {
     await updateDeploymentPlan();
     const missingDependencies = getMissingRequiredDependencies();
     if (missingDependencies.length === 0) return true;
-    await showDependencyBlock(missingDependencies, actionText);
-    return false;
+    return await resolveDependencyGate(missingDependencies, actionText);
 }
 
 async function ensureKnownRequiredDependenciesRunning(actionText) {
     if (!latestPlan) return true;
     const missingDependencies = getMissingRequiredDependencies();
     if (missingDependencies.length === 0) return true;
-    await showDependencyBlock(missingDependencies, actionText);
-    return false;
+    return await resolveDependencyGate(missingDependencies, actionText);
 }
 
 async function handleDependencyBlockedResponse(data, actionText) {
@@ -1385,6 +1550,13 @@ async function handleDependencyBlockedResponse(data, actionText) {
     return true;
 }
 
+/* 非严格模式下的依赖提示：列出未就绪的依赖，但允许继续。 */
+async function showDependencyWarning(dependencies, actionText) {
+    const names = formatDependencyNames(dependencies);
+    const dialog = renderDependencyCheckDialog(dependencies, actionText, { blocking: false });
+    return await customConfirm(dialog, '仍要继续', 'var(--cm-warning)');
+}
+
 function renderServiceStatus(status) {
     return ConfigMateServicesUi.renderServiceStatus(status);
 }
@@ -1399,9 +1571,18 @@ function setHeaderStatus(state, label) {
 
 async function refreshServices() {
     try {
-        const res = await ConfigMateApi.services();
+        /* 集群启用时用聚合接口，一次拿到所有节点的服务；
+           未启用时沿用单机接口，避免多一次无谓请求。 */
+        const useCluster = clusterState.enabled;
+        const res = useCluster ? await ConfigMateApi.nodeServices() : await ConfigMateApi.services();
         const json = await res.json();
         if (json.status !== 'success') return;
+        if (useCluster) {
+            clusterState.degraded = !!json.degraded;
+            clusterState.offlineNodeIds = json.offlineNodeIds || [];
+            clusterState.nodes = json.nodes || [];
+            renderClusterBanner();
+        }
         latestServices = json.services || [];
         window.__CM__?.stateBridge.pushServices(latestServices);
         renderServices();
@@ -2158,6 +2339,19 @@ function applyBusinessLogic(key, val) {
             showToast('当最新数据存储为 Redis 时，必须使用 Redis 缓存', 'warning');
             updateFieldProgrammatically('CACHE_TYPE', 'redis');
         }
+    }
+
+    // 5. If Latest Storage is IoTDB -> EDQS MUST be off.
+    //    平台在 latest=iotdb 且 EDQS 开启时会直接拒绝启动，这里提前锁死，避免现场配出起不来的服务。
+    if (key === 'DATABASE_TS_LATEST_TYPE' && val === 'iotdb') {
+        updateFieldProgrammatically('TB_EDQS_SYNC_ENABLED', 'false');
+        updateFieldProgrammatically('TB_EDQS_API_SUPPORTED', 'false');
+    }
+
+    // 6. 历史走 IoTDB、最新仍留在别的引擎是官方支持的组合(例如最新值继续用 Redis)，
+    //    这里不强制联动，只在"历史切走但最新还是 iotdb"时提示，避免遗漏 IoTDB 连接配置。
+    if (key === 'DATABASE_TS_TYPE' && val !== 'iotdb' && configValues['DATABASE_TS_LATEST_TYPE'] === 'iotdb') {
+        showToast('最新数据存储仍为 IoTDB，IoTDB 连接配置依然生效', 'warning');
     }
 }
 
@@ -4223,13 +4417,13 @@ async function checkEnvConfigValidation() {
 
             msgEl.innerHTML = `
                 <div class="confirm-callout confirm-callout-danger">
-                    <div class="confirm-callout-title">未找到 ThingsBoard 配置文件：</div>
-                    <div>请确保 <code>conf/thingsboard.yml</code></div>
-                    <div>或 <code>conf/tb-edge.yml</code> 存在。</div>
+                    <div class="confirm-callout-title">未找到任何配置来源：</div>
+                    <div>请确保业务服务目录下的 <code>.env</code> 存在且包含配置，</div>
+                    <div>或 <code>conf/thingsboard.yml</code> / <code>conf/tb-edge.yml</code> 存在。</div>
                 </div>
                 <div class="confirm-note-list">
-                    <div>本工具依赖配置文件来生成元数据。</div>
-                    <div>请检查 <code>conf/</code> 目录是否完整。</div>
+                    <div>新版部署包不再下发 <code>conf/*.yml</code>，配置直接预置在 <code>.env</code> 中，只有 <code>.env</code> 也缺失时才会出现本提示。</div>
+                    <div>请检查业务服务目录下的 <code>.env</code> 是否被清空或删除。</div>
                     <div><b>工具将会暂停</b>，直到问题修复。</div>
                 </div>
             `;

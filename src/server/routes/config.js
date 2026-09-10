@@ -1,4 +1,4 @@
-const { readRequestBody, writeJson } = require('../http');
+const { readRequestBody, respondError, writeJson } = require('../http');
 const { checkDependsOn } = require('../config/env-store');
 
 const DEFAULT_IGNORED_RUNTIME_PREFIXES = [
@@ -141,7 +141,7 @@ function createConfigRoutes({
                 }
                 saveEnvFile(newConfig);
                 writeJson(res, 200, { status: 'ok' }, headers);
-            }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+            }).catch(e => respondError(res, e, headers));
             return true;
         }
 
@@ -159,7 +159,7 @@ function createConfigRoutes({
                     return;
                 }
                 writeJson(res, 200, { status: 'success', message: result.message }, headers);
-            }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+            }).catch(e => respondError(res, e, headers));
             return true;
         }
 
@@ -172,7 +172,7 @@ function createConfigRoutes({
                     return;
                 }
                 writeJson(res, 200, { status: 'success', content: result.content }, headers);
-            }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+            }).catch(e => respondError(res, e, headers));
             return true;
         }
 
@@ -190,7 +190,7 @@ function createConfigRoutes({
             readRequestBody(req).then(body => {
                 envStore.saveRaw(body);
                 writeJson(res, 200, { status: 'ok' }, headers);
-            }).catch(e => writeJson(res, 500, { status: 'error', message: e.message }, headers));
+            }).catch(e => respondError(res, e, headers));
             return true;
         }
 

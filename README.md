@@ -7,6 +7,7 @@ ThingBoard Config Mate 是一个专为 ThingsBoard Docker 部署环境设计的�
 * **🛠️ 可视化配置管理**：提供直观的表单界面，轻松修改数据库、缓存、消息队列等几十项核心参数，无需直接编辑 `.env` 文件。
 * **🚀 Docker 集成**：深度集成 Docker Compose，支持一键停止、重启服务，并根据应用类型（Cloud/Edge）自动识别服务名称。
 * **📊 实时状态监控**：自动检测容器运行状态，并通过右上角徽章实时反馈（Running/Stopped）。
+* **🔀 双机热备只读纳管**：自动发现 PostgreSQL / 瀚高双机热备集群与 Redis Cluster，展示主备角色、VIP 归属、流复制延迟和瀚高 License 到期告警。不修改 HA 配置、不提供启停，详见[说明文档](docs/ha-readonly-administration.md)。
 * **📜 实时日志查看**：内置实时日志查看器，支持自动滚动、换行切换，方便在重启服务后立即排查问题。
 * **💻 源码模式**：支持在 UI 模式和源码（Raw Text）模式间切换，满足高级用户直接编辑配置的需求。
 * **🔌 双模式运行**：
@@ -104,6 +105,8 @@ docker compose up -d
 * [现场快速使用说明](docs/config-mate-user-quick-start.md)
 * [容器化部署说明](docs/config-mate-container-deployment.md)
 * [Compose 配置说明](docs/config-mate-compose-simple.md)
+* [双机热备只读纳管](docs/ha-readonly-administration.md)
+* [HA 交付包已知缺陷](docs/ha-delivery-known-issues.md)
 * [工程化重构路线](docs/engineering-refactor-roadmap.md)
 
 ## 🛠️ 技术栈

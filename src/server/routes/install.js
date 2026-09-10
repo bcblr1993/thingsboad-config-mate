@@ -18,16 +18,33 @@ function checkComposeFileContent(filePath, keyword, logger = console) {
     }
 }
 
-function validateComposeFiles({ appDir, appDef }) {
+function hasEnvEntries(filePath, logger = console) {
+    try {
+        if (!filePath || !fs.existsSync(filePath)) return false;
+        return fs.readFileSync(filePath, 'utf-8').split('\n').some(line => {
+            const trimmed = line.trim();
+            return trimmed !== '' && !trimmed.startsWith('#') && trimmed.includes('=');
+        });
+    } catch (e) {
+        logger.error?.(`[Error] hasEnvEntries failed for ${filePath}:`, e);
+        return false;
+    }
+}
+
+function validateComposeFiles({ appDir, appDef, logger = console }) {
     const confDir = path.join(appDir, 'conf');
     const tbConfigPath = path.join(confDir, 'thingsboard.yml');
     const edgeConfigPath = path.join(confDir, 'tb-edge.yml');
+    const envPath = path.join(appDir, '.env');
 
-    if (!fs.existsSync(tbConfigPath) && !fs.existsSync(edgeConfigPath)) {
+    // 新版部署包不再下发 conf/*.yml —— 常用配置已经预置在 .env 里，工具不需要再从 YAML 抽取初值，
+    // 缺失的配置项由元数据默认值补齐。因此这里校验的是"存在配置来源"，而不是"存在 YAML 文件"：
+    // .env 里有真实配置即可放行，只有 .env 和 YAML 都拿不到时才是真的无从读起。
+    if (!hasEnvEntries(envPath, logger) && !fs.existsSync(tbConfigPath) && !fs.existsSync(edgeConfigPath)) {
         return {
             status: 'config_missing',
-            msg: 'Missing ThingsBoard configuration files',
-            files: ['conf/thingsboard.yml', 'conf/tb-edge.yml']
+            msg: 'Missing ThingsBoard configuration source',
+            files: ['.env', 'conf/thingsboard.yml', 'conf/tb-edge.yml']
         };
     }
 

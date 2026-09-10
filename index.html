@@ -300,6 +300,8 @@
                     <!-- 依赖摘要由 app.js renderDeploymentSummary() 填充 -->
                 </div>
 
+                <div id="cluster-banner" class="cm-cluster-banner" hidden></div>
+
                 <div class="cm-deployment-toolbar">
                     <div class="cm-segmented" id="deployment-tier-filter" role="tablist" aria-label="服务分类">
                         <button type="button" class="cm-segmented-item active" data-tier="all" onclick="filterDeploymentTier(this)">全部
@@ -323,6 +325,15 @@
                         </svg>
                         <input id="deployment-search-input" type="search" placeholder="筛选服务名 / 镜像 ..."
                             oninput="filterDeploymentSearch(this.value)">
+                    </label>
+                    <label class="cm-strict-toggle" for="strict-dependency-toggle"
+                        title="关闭后，依赖服务未就绪时不再阻止启动业务服务，仅在确认弹窗中提示风险。适用于 Kafka 集群、Cassandra 集群等本工具白名单覆盖不到的部署形态。">
+                        <input id="strict-dependency-toggle" type="checkbox" checked
+                            onchange="toggleStrictDependencyCheck(this.checked)">
+                        <span class="cm-strict-toggle-text">
+                            <span class="cm-strict-toggle-label">严格依赖校验</span>
+                            <span class="cm-strict-toggle-hint" id="strict-dependency-hint">开启：依赖服务未就绪时阻止启动业务服务</span>
+                        </span>
                     </label>
                 </div>
 

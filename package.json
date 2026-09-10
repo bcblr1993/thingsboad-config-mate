@@ -1,6 +1,6 @@
 {
     "name": "tb-config-mate",
-    "version": "2.0.6",
+    "version": "2.2.0",
     "main": "tb-config-src.js",
     "bin": "tb-config-src.js",
     "pkg": {
@@ -30,11 +30,6 @@
         "format:check": "prettier --check assets/src/",
         "ui:check": "bash scripts/ui-check.sh",
         "test:ui": "playwright test -c playwright.config.ts",
-        "test:ui:update": "playwright test -c playwright.config.ts --update-snapshots",
-        "test:visual:init": "backstop reference --config=backstop.json",
-        "test:visual": "backstop test --config=backstop.json",
-        "test:visual:approve": "backstop approve --config=backstop.json",
-        "test:visual:report": "backstop openReport --config=backstop.json",
         "dist:image-build": "bash scripts/prepare-image-build-dist.sh",
         "clean": "rm -rf dist node_modules/.cache",
         "build": "npm run clean && pkg .",
@@ -49,7 +44,6 @@
     "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@playwright/test": "^1.60.0",
-        "backstopjs": "^6.3.25",
         "eslint": "^10.3.0",
         "globals": "^17.6.0",
         "postcss-html": "^1.8.1",

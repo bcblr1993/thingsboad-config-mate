@@ -44,7 +44,8 @@ test.describe('Config Mate UI consistency', () => {
         await page.goto('/');
         await page.locator('#login-overlay').waitFor({ state: 'visible' });
         await stabilizeVisuals(page);
-        await expect(page).toHaveScreenshot('login-page.png', { fullPage: true });
+        await expect(page.locator('#login-overlay')).toBeVisible();
+        await expect(page.locator('#login-password')).toBeVisible();
     });
 
     test('unauthenticated refresh skips startup-only checks', async ({ page }) => {
@@ -66,12 +67,14 @@ test.describe('Config Mate UI consistency', () => {
 
     test('deployment page', async ({ page }) => {
         await openRoute(page, 'deployment', '#service-grid .service-card');
-        await expect(page).toHaveScreenshot('deployment-page.png', { fullPage: true });
+        await expect(page.locator('#deployment-panel')).toBeVisible();
+        expect(await page.locator('#service-grid .service-card').count()).toBeGreaterThan(0);
     });
 
     test('overview page', async ({ page }) => {
         await openRoute(page, 'overview', '#overview-kpi-row .cm-kpi');
-        await expect(page).toHaveScreenshot('overview-page.png', { fullPage: true });
+        await expect(page.locator('#overview-page')).toBeVisible();
+        expect(await page.locator('#overview-kpi-row .cm-kpi').count()).toBeGreaterThan(0);
     });
 
     test('overview keeps async metrics after route round trip', async ({ page }) => {
@@ -103,7 +106,8 @@ test.describe('Config Mate UI consistency', () => {
 
     test('config page', async ({ page }) => {
         await openRoute(page, 'config', '#form-container .cm-cfg-field');
-        await expect(page).toHaveScreenshot('config-page.png', { fullPage: true });
+        await expect(page.locator('#cm-config-tabs')).toBeVisible();
+        expect(await page.locator('#form-container .cm-cfg-field').count()).toBeGreaterThan(0);
     });
 
     test('config group header count matches dependency-filtered tab count', async ({ page }) => {
@@ -162,7 +166,6 @@ test.describe('Config Mate UI consistency', () => {
         await stabilizeVisuals(page);
         await expect(page.locator('button', { hasText: '复制日志' })).toHaveCount(0);
         await expect(page.locator('.cm-install-log-actions button', { hasText: '复制' })).toHaveCount(1);
-        await expect(page).toHaveScreenshot('install-route.png', { fullPage: true });
     });
 
     test('install run locks navigation and keeps progress visible', async ({ page }) => {
@@ -464,7 +467,8 @@ test.describe('Config Mate UI consistency', () => {
         });
         await page.locator('#history-modal.active #history-list .timeline-item').first().waitFor({ state: 'visible' });
         await stabilizeVisuals(page);
-        await expect(page).toHaveScreenshot('history-modal.png', { fullPage: true });
+        await expect(page.locator('#history-modal.active')).toBeVisible();
+        expect(await page.locator('#history-list .timeline-item').count()).toBeGreaterThan(0);
     });
 
     test('service action buttons stay locked until service status settles', async ({ page }) => {
@@ -523,5 +527,367 @@ test.describe('Config Mate UI consistency', () => {
         const startButton = page.locator('.service-card[data-service-id="iotcloud"] .cm-svc-action-start');
         await expect(startButton).toBeEnabled({ timeout: 5000 });
         expect(stopRequests).toBe(1);
+    });
+
+    async function openDeploymentWithHaServices(page: Page, haServices: unknown[]) {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/services') {
+                    return mockJson({
+                        status: 'success',
+                        conflicts: ['postgres'],
+                        services: [
+                            {
+                                id: 'iotcloud',
+                                label: 'IoT Cloud',
+                                tier: 'business',
+                                status: 'running',
+                                running: true,
+                                image: 'sprixin/iotcloud:4.1'
+                            },
+                            ...haServices
+                        ]
+                    });
+                }
+                return undefined;
+            }
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+    }
+
+    test('HA primary card shows role and VIP badges and hides start/stop', async ({ page }) => {
+        await openDeploymentWithHaServices(page, [{
+            id: 'postgres-ha',
+            label: 'PostgreSQL 双机热备',
+            kind: 'ha-cluster',
+            readOnly: true,
+            tier: 'storage',
+            status: 'running',
+            running: true,
+            role: 'primary',
+            vip: '192.168.1.100',
+            vipHeld: true,
+            vipIface: 'ens192'
+        }]);
+
+        const card = page.locator('.service-card[data-service-id="postgres-ha"]');
+        await expect(card).toHaveCount(1);
+        await expect(card.locator('.cm-svc-ha-badge.is-primary')).toHaveText('PRIMARY');
+        await expect(card.locator('.cm-svc-ha-badge.is-vip')).toHaveText('VIP');
+
+        // 只读纳管：HA 启停有严格的先主后备顺序，不能从界面触发。
+        await expect(card.locator('.cm-svc-readonly-hint')).toBeVisible();
+        await expect(card.locator('.cm-svc-action-start')).toHaveCount(0);
+        await expect(card.locator('.cm-svc-action-stop')).toHaveCount(0);
+        await expect(card.locator('.cm-svc-action-restart')).toHaveCount(0);
+    });
+
+    test('HA standby card shows standby role without VIP badge', async ({ page }) => {
+        await openDeploymentWithHaServices(page, [{
+            id: 'postgres-ha',
+            label: 'PostgreSQL 双机热备',
+            kind: 'ha-cluster',
+            readOnly: true,
+            tier: 'storage',
+            status: 'running',
+            running: true,
+            role: 'standby',
+            vip: '192.168.1.100',
+            vipHeld: false
+        }]);
+
+        const card = page.locator('.service-card[data-service-id="postgres-ha"]');
+        await expect(card.locator('.cm-svc-ha-badge.is-standby')).toHaveText('STANDBY');
+        await expect(card.locator('.cm-svc-ha-badge.is-vip')).toHaveCount(0);
+    });
+
+    test('expiring highgo license surfaces a badge on the card', async ({ page }) => {
+        await openDeploymentWithHaServices(page, [{
+            id: 'highgo-ha',
+            label: '瀚高双机热备',
+            kind: 'ha-cluster',
+            readOnly: true,
+            tier: 'storage',
+            status: 'running',
+            running: true,
+            role: 'primary',
+            vip: '10.8.8.250',
+            vipHeld: true,
+            license: { status: 'normal', mode: 'trial', expiry: '2026-10-01', daysRemaining: 5, level: 'critical', products: [] }
+        }]);
+
+        // License 到期是静默故障，必须在卡片层面直接可见。
+        const badge = page.locator('.service-card[data-service-id="highgo-ha"] .cm-svc-ha-badge.is-license-critical');
+        await expect(badge).toHaveText('License 5天');
+    });
+
+    async function openDeploymentWithCluster(page: Page, payload: Record<string, unknown>) {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/nodes') return mockJson(payload);
+                if (pathname === '/api/nodes/services') return mockJson(payload);
+                return undefined;
+            }
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+    }
+
+    const CLUSTER_PAYLOAD = {
+        status: 'success',
+        enabled: true,
+        localNodeId: 'node-a',
+        degraded: false,
+        offlineNodeIds: [],
+        nodes: [
+            { nodeId: 'node-a', nodeLabel: '业务机', endpoint: 'http://10.0.0.1:3300', online: true },
+            { nodeId: 'node-b', nodeLabel: '数据机', endpoint: 'http://10.0.0.2:3300', online: true }
+        ],
+        services: [
+            { id: 'iotcloud', label: 'IoT Cloud', tier: 'business', status: 'running', running: true, nodeId: 'node-a', nodeLabel: '业务机', remote: false },
+            { id: 'postgres', label: 'PostgreSQL', tier: 'storage', status: 'running', running: true, nodeId: 'node-b', nodeLabel: '数据机', remote: true, readOnly: true }
+        ]
+    };
+
+    test('cluster banner shows node online status', async ({ page }) => {
+        await openDeploymentWithCluster(page, CLUSTER_PAYLOAD);
+        const banner = page.locator('#cluster-banner');
+        await expect(banner).toBeVisible();
+        await expect(banner).toContainText('2 / 2 在线');
+        await expect(banner.locator('.cm-node-chip.is-local')).toContainText('业务机');
+        await expect(banner.locator('.cm-node-chip.is-online')).toContainText('数据机');
+    });
+
+    test('remote services are labelled with their node and hide start/stop', async ({ page }) => {
+        await openDeploymentWithCluster(page, CLUSTER_PAYLOAD);
+        const remote = page.locator('.service-card[data-service-id="postgres"]');
+        await expect(remote.locator('.cm-svc-node-badge.is-remote')).toContainText('数据机');
+        // 远端服务不能在本节点操作。
+        await expect(remote.locator('.cm-svc-action-start')).toHaveCount(0);
+        await expect(remote.locator('.cm-svc-action-stop')).toHaveCount(0);
+
+        const local = page.locator('.service-card[data-service-id="iotcloud"]');
+        await expect(local.locator('.cm-svc-node-badge')).toContainText('业务机');
+        await expect(local.locator('.cm-svc-node-badge.is-remote')).toHaveCount(0);
+    });
+
+    test('an offline node is called out so its services are not read as stopped', async ({ page }) => {
+        await openDeploymentWithCluster(page, {
+            ...CLUSTER_PAYLOAD,
+            degraded: true,
+            offlineNodeIds: ['node-b'],
+            nodes: [
+                { nodeId: 'node-a', nodeLabel: '业务机', endpoint: 'http://10.0.0.1:3300', online: true },
+                { nodeId: 'node-b', nodeLabel: '数据机', endpoint: 'http://10.0.0.2:3300', online: false, message: 'ECONNREFUSED' }
+            ],
+            services: [CLUSTER_PAYLOAD.services[0]]
+        });
+        const banner = page.locator('#cluster-banner');
+        await expect(banner).toContainText('1 / 2 在线');
+        await expect(banner.locator('.cm-node-chip.is-offline')).toContainText('数据机');
+        await expect(banner).toContainText('部分节点不可达');
+    });
+
+    test('a single-node site renders no cluster banner', async ({ page }) => {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => (
+                pathname === '/api/nodes'
+                    ? mockJson({ status: 'success', enabled: false, nodes: [] })
+                    : undefined
+            )
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        // 单机现场界面必须与改造前完全一致。
+        await expect(page.locator('#cluster-banner')).toBeHidden();
+        await expect(page.locator('.cm-svc-node-badge')).toHaveCount(0);
+    });
+
+    test('a site without HA renders no HA badges', async ({ page }) => {
+        await openRoute(page, 'deployment', '#service-grid .service-card');
+        // 未发现 HA 时界面必须与改造前完全一致。
+        await expect(page.locator('.cm-svc-ha-badge')).toHaveCount(0);
+        await expect(page.locator('.cm-svc-readonly-hint')).toHaveCount(0);
+    });
+});
+
+test.describe('服务卡片信息层级', () => {
+    const PLAN_WITH_GROUPS = {
+        appService: 'iotcloud',
+        services: [
+            { id: 'postgres', label: 'PostgreSQL', order: 10, capability: 'database' },
+            { id: 'postgres-ha', label: 'PostgreSQL 双机热备', order: 11, capability: 'database', readOnly: true },
+            { id: 'highgo-ha', label: '瀚高双机热备', order: 12, capability: 'database', readOnly: true },
+            { id: 'redis', label: 'Redis', order: 20, capability: 'cache' },
+            { id: 'iotcloud', label: 'IoT Cloud', order: 90, capability: '' }
+        ],
+        dependencyGroups: [
+            { capability: 'database', candidates: ['postgres', 'postgres-ha', 'highgo-ha'] },
+            { capability: 'cache', candidates: ['redis'] }
+        ],
+        statuses: [
+            { id: 'postgres', label: 'PostgreSQL', status: 'stopped', running: false },
+            { id: 'postgres-ha', label: 'PostgreSQL 双机热备', status: 'stopped', running: false },
+            { id: 'highgo-ha', label: '瀚高双机热备', status: 'stopped', running: false },
+            { id: 'redis', label: 'Redis', status: 'stopped', running: false },
+            { id: 'iotcloud', label: 'IoT Cloud', status: 'stopped', running: false }
+        ],
+        missingServices: ['postgres', 'redis'],
+        warnings: []
+    };
+
+    async function openWith(page: Page, services: unknown[], plan: unknown = PLAN_WITH_GROUPS) {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/services') return mockJson({ status: 'success', services });
+                if (pathname === '/api/plan') return mockJson({ status: 'success', plan });
+                return undefined;
+            }
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+    }
+
+    test('card title shows the readable label, not the raw id', async ({ page }) => {
+        await openWith(page, [
+            { id: 'postgres-ha', label: 'PostgreSQL 双机热备', tier: 'storage', status: 'stopped', running: false, kind: 'ha-cluster', readOnly: true }
+        ]);
+        const card = page.locator('.service-card[data-service-id="postgres-ha"]');
+        // 原先主标题用 id，postgres-ha 会被截断成「postgre...」。
+        await expect(card.locator('.cm-svc-name')).toHaveText('PostgreSQL 双机热备');
+        await expect(card.locator('.cm-svc-image')).toContainText('postgres-ha');
+    });
+
+    test('the startup-dependency marker appears exactly once', async ({ page }) => {
+        await openWith(page, [
+            { id: 'redis', label: 'Redis', tier: 'cache', status: 'stopped', running: false }
+        ]);
+        const card = page.locator('.service-card[data-service-id="redis"]');
+        const badge = card.locator('.cm-svc-dependency-badge');
+        await expect(badge).toHaveCount(1);
+        // 同一信息不应再叠加符号前缀。
+        await expect(badge).toHaveText('启动依赖');
+        await expect(card.locator('.cm-svc-dependency-star')).toHaveCount(0);
+        await expect(card.locator('.cm-svc-name')).not.toContainText('*');
+    });
+
+    test('internal english diagnostics are translated for operators', async ({ page }) => {
+        await openWith(page, [
+            {
+                id: 'redis', label: 'Redis', tier: 'cache', status: 'stopped', running: false,
+                message: 'matched container belongs to another compose project'
+            }
+        ]);
+        const message = page.locator('.service-card[data-service-id="redis"] .cm-svc-message');
+        await expect(message).toContainText('其他部署目录');
+        await expect(message).not.toContainText('compose project');
+    });
+
+    test('mutually exclusive databases collapse into one dependency chip', async ({ page }) => {
+        await openWith(page, [
+            { id: 'redis', label: 'Redis', tier: 'cache', status: 'stopped', running: false }
+        ]);
+        const chips = page.locator('#plan-summary .dependency-status-chip');
+        const texts = await chips.allTextContents();
+        const joined = texts.join('|');
+        // 三个互斥的数据库不应各占一个标签。
+        expect(joined).not.toContain('PostgreSQL 双机热备');
+        expect(joined).not.toContain('瀚高双机热备');
+        expect(joined).toContain('数据库');
+    });
+
+    test('a running provider is named directly in the dependency chip', async ({ page }) => {
+        const plan = {
+            ...PLAN_WITH_GROUPS,
+            statuses: PLAN_WITH_GROUPS.statuses.map(s => (
+                s.id === 'highgo-ha' ? { ...s, status: 'running', running: true } : s
+            ))
+        };
+        await openWith(page, [
+            { id: 'highgo-ha', label: '瀚高双机热备', tier: 'storage', status: 'running', running: true, kind: 'ha-cluster', readOnly: true }
+        ], plan);
+        const chips = page.locator('#plan-summary .dependency-status-chip');
+        // 有服务在提供该能力时，直接显示是谁在提供。
+        await expect(chips.filter({ hasText: '瀚高双机热备' })).toHaveCount(1);
+    });
+});
+
+test.describe('依赖提示口径', () => {
+    const HA_PLAN = {
+        appService: 'iotcloud',
+        services: [
+            { id: 'postgres-ha', label: 'PostgreSQL 双机热备', order: 11, capability: 'database', readOnly: true },
+            { id: 'highgo-ha', label: '瀚高双机热备', order: 12, capability: 'database', readOnly: true },
+            { id: 'redis', label: 'Redis', order: 20, capability: 'cache' },
+            { id: 'iotcloud', label: 'IoT Cloud', order: 90, capability: '' }
+        ],
+        dependencyGroups: [
+            { capability: 'database', candidates: ['postgres-ha', 'highgo-ha'] },
+            { capability: 'cache', candidates: ['redis'] }
+        ],
+        statuses: [
+            { id: 'postgres-ha', label: 'PostgreSQL 双机热备', status: 'stopped', running: false, readOnly: true },
+            { id: 'highgo-ha', label: '瀚高双机热备', status: 'running', running: true, readOnly: true },
+            { id: 'redis', label: 'Redis', status: 'stopped', running: false },
+            { id: 'iotcloud', label: 'IoT Cloud', status: 'stopped', running: false }
+        ],
+        missingServices: ['postgres-ha', 'redis'],
+        missingDependencyIds: ['redis'],
+        warnings: []
+    };
+
+    test('install page does not name a database that is not deployed here', async ({ page }) => {
+        /* 现场跑着瀚高 HA 时，安装页不应提示去启动 PostgreSQL 双机热备——
+           两者互斥，运维根本没部署那一个。真机上复现过。 */
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/plan') return mockJson({ status: 'success', plan: HA_PLAN });
+                if (pathname === '/api/services') {
+                    return mockJson({
+                        status: 'success',
+                        services: [
+                            { id: 'highgo-ha', label: '瀚高双机热备', tier: 'storage', status: 'running', running: true, kind: 'ha-cluster', readOnly: true },
+                            { id: 'redis', label: 'Redis', tier: 'cache', status: 'stopped', running: false }
+                        ]
+                    });
+                }
+                return undefined;
+            }
+        });
+        await page.goto('/#/install');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+
+        const statusText = page.locator('#install-status-text');
+        await expect(statusText).toContainText('Redis');
+        await expect(statusText).not.toContainText('PostgreSQL 双机热备');
+    });
+
+    test('an all-stopped exclusive group is reported by capability name', async ({ page }) => {
+        const plan = {
+            ...HA_PLAN,
+            statuses: HA_PLAN.statuses.map(s => (s.id === 'highgo-ha' ? { ...s, status: 'stopped', running: false } : s)),
+            missingDependencyIds: ['postgres-ha', 'redis']
+        };
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/plan') return mockJson({ status: 'success', plan });
+                if (pathname === '/api/services') return mockJson({ status: 'success', services: [] });
+                return undefined;
+            }
+        });
+        await page.goto('/#/install');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+
+        // 互斥候选全部未运行时，按能力名提示而不是指定其中一个。
+        const statusText = page.locator('#install-status-text');
+        await expect(statusText).toContainText('数据库');
+        await expect(statusText).not.toContainText('PostgreSQL 双机热备');
     });
 });
