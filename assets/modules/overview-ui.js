@@ -196,9 +196,16 @@
                「postgres-ha · PostgreSQL 双机热备」这种重复。 */
             const image = s.image || s.composeService || '';
             const tierIcon = TIER_ICONS[tier] || TIER_ICONS.business;
-            /* 与服务管理页保持同一层级：主标题可读名称、副标题服务 id（与镜像去重）。
-               原先主标题用 id，postgres-ha 这类较长的 id 会被截断成「postgre...」。 */
-            const tileSubtitle = [...new Set([s.id, image].filter(Boolean))].join(' · ');
+            /* 与服务管理页保持同一层级和同一条副标题规则：主标题可读名称，
+               副标题只在 id / 镜像确实不同于名称时才出现。共用同一个实现，
+               避免两个页面各写一份后规则漂移。 */
+            const tileSubtitle = window.ConfigMateServicesUi?.buildServiceSubtitle
+                ? window.ConfigMateServicesUi.buildServiceSubtitle(s, image)
+                : '';
+            // 省略 id 时 tooltip 里仍要能查到容器名。
+            const tileNameTitle = tileSubtitle
+                ? (s.label || s.id)
+                : [s.label || s.id, s.id].filter(Boolean).join(' · ');
             const uptime = running ? formatUptime(s.startedAt) : '—';
             const cpu = running ? formatCpu(s) : '—';
             const memory = running ? formatMemory(s) : '—';
@@ -207,8 +214,8 @@
                     <div class="cm-tile-head">
                         <span class="cm-tile-icon" aria-hidden="true">${tierIcon}</span>
                         <span class="cm-tile-meta">
-                            <span class="cm-tile-name" title="${escapeHtml(s.label || s.id)}">${escapeHtml(s.label || s.id)}</span>
-                            <span class="cm-tile-desc" title="${escapeHtml(tileSubtitle)}">${escapeHtml(tileSubtitle)}</span>
+                            <span class="cm-tile-name" title="${escapeHtml(tileNameTitle)}">${escapeHtml(s.label || s.id)}</span>
+                            ${tileSubtitle ? `<span class="cm-tile-desc" title="${escapeHtml(tileSubtitle)}">${escapeHtml(tileSubtitle)}</span>` : ''}
                         </span>
                         <span class="cm-tile-status ${statusClass}">
                             <span class="cm-tile-dot"></span>${escapeHtml(statusLabel)}

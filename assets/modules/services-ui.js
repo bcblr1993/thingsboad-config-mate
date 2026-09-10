@@ -333,6 +333,37 @@
         `;
     }
 
+    /** 去掉大小写、空格和连字符后比较，用于判断两个名字是否其实是同一个。 */
+    function normalizeName(value) {
+        return String(value || '').toLowerCase().replace(/[\s._-]/g, '');
+    }
+
+    /**
+     * 卡片副标题：只在确实能提供新信息时才出现。
+     *
+     * 副标题原本无条件显示服务 id。但多数服务的 id 就是名字的小写形式
+     * （Cassandra / cassandra、IoTDB / iotdb、IoT Cloud / iotcloud……），
+     * 等于每张卡都把同一个词重复一遍，是纯噪声。
+     *
+     * 保留的是真正不同的那些：容器名与显示名不一致（企业微信告警 / wechat、
+     * PostgreSQL 双机热备 / postgres-ha），以及镜像名带了版本号需要核对时。
+     * 被省略的 id 仍可在标题的 tooltip 与详情里看到，信息没有丢。
+     */
+    function buildServiceSubtitle(service, image) {
+        const label = service.label || service.id || '';
+        const parts = [];
+        if (service.id && normalizeName(service.id) !== normalizeName(label)) {
+            parts.push(service.id);
+        }
+        // 镜像与已显示的名字重复时不再叠加（如 postgres · postgres）。
+        if (image
+            && normalizeName(image) !== normalizeName(label)
+            && !parts.some(part => normalizeName(part) === normalizeName(image))) {
+            parts.push(image);
+        }
+        return parts.join(' · ');
+    }
+
     function renderServiceCards({
         services = [],
         requiredIds = new Set(),
@@ -359,9 +390,12 @@
             const image = service.image || service.composeService || '';
             const tierIcon = getTierIcon(tier);
             const readOnly = !!service.readOnly;
-            /* 服务 id 与镜像/compose 服务名经常同名（如 postgres · postgres），
-               去重避免副标题出现重复词。 */
-            const subtitle = [...new Set([service.id, image].filter(Boolean))].join(' · ');
+            const subtitle = buildServiceSubtitle(service, image);
+            /* 副标题省略 id 时，tooltip 里仍要能查到容器名——去命令行看日志
+               或找部署目录时用的是它。 */
+            const nameTitle = subtitle
+                ? (service.label || service.id)
+                : [service.label || service.id, service.id].filter(Boolean).join(' · ');
             const actionsHtml = renderServiceActionButtons({
                 idArg,
                 status,
@@ -398,12 +432,12 @@
                             <span class="cm-svc-icon">${tierIcon}</span>
                             <div class="cm-svc-meta">
                                 <div class="cm-svc-name-row">
-                                    <span class="cm-svc-name" title="${escapeHtml(service.label || service.id)}">${escapeHtml(service.label || service.id)}</span>
+                                    <span class="cm-svc-name" title="${escapeHtml(nameTitle)}">${escapeHtml(service.label || service.id)}</span>
                                     ${dependencyBadgeHtml}
                                     ${nodeBadgeHtml}
                                     ${haBadgesHtml}
                                 </div>
-                                <span class="cm-svc-image" title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</span>
+                                ${subtitle ? `<span class="cm-svc-image" title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</span>` : ''}
                             </div>
                         </div>
                         <span class="cm-svc-status ${escapeHtml(status)}">
@@ -656,6 +690,7 @@
     }
 
     window.ConfigMateServicesUi = {
+        buildServiceSubtitle,
         isCleanupSupportedService,
         isDisabledStatus,
         renderHaBadges,

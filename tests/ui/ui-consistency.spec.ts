@@ -1092,3 +1092,52 @@ test.describe('集群模式下的卡片标题', () => {
         expect(clipped, '「PostgreSQL 双机热备」仍被截断').toBe(false);
     });
 });
+
+test.describe('卡片副标题只在有信息时出现', () => {
+    const services = [
+        // id 就是名字的小写形式，副标题重复一遍等于噪声。
+        { id: 'cassandra', label: 'Cassandra', tier: 'storage', status: 'stopped', running: false },
+        { id: 'iotdb', label: 'IoTDB', tier: 'storage', status: 'stopped', running: false },
+        { id: 'iotcloud', label: 'IoT Cloud', tier: 'business', status: 'running', running: true },
+        // 容器名与显示名确实不同，必须留着——去命令行看日志用的是它。
+        { id: 'postgres-ha', label: 'PostgreSQL 双机热备', tier: 'storage', status: 'stopped', running: false, readOnly: true, kind: 'ha-cluster' },
+        { id: 'wechat', label: '企业微信告警', tier: 'business', status: 'stopped', running: false, image: 'wechat-messenger:v2.1.0' }
+    ];
+
+    async function open(page: Page) {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/services') return mockJson({ status: 'success', services });
+                return undefined;
+            }
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await expect(page.locator('#service-grid [data-service-id]').first()).toBeVisible();
+    }
+
+    test('a redundant id is not repeated under the name', async ({ page }) => {
+        await open(page);
+        for (const id of ['cassandra', 'iotdb', 'iotcloud']) {
+            const sub = page.locator(`#service-grid [data-service-id="${id}"] .cm-svc-image`);
+            await expect(sub, `「${id}」的 id 与名称相同，不应再出现副标题`).toHaveCount(0);
+        }
+    });
+
+    test('a container name that differs from the label is kept', async ({ page }) => {
+        await open(page);
+        await expect(page.locator('#service-grid [data-service-id="postgres-ha"] .cm-svc-image'))
+            .toHaveText('postgres-ha');
+        // 镜像带版本号，核对现场版本时要用。
+        await expect(page.locator('#service-grid [data-service-id="wechat"] .cm-svc-image'))
+            .toHaveText('wechat · wechat-messenger:v2.1.0');
+    });
+
+    test('an omitted id is still reachable from the title tooltip', async ({ page }) => {
+        // 省掉的只是重复展示，信息本身不能丢。
+        await open(page);
+        const name = page.locator('#service-grid [data-service-id="iotcloud"] .cm-svc-name');
+        await expect(name).toHaveAttribute('title', /iotcloud/);
+    });
+});
