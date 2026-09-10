@@ -91,7 +91,13 @@ function parseDockerStatsPayload(stdout) {
     };
 }
 
-function createServiceRuntime({ docker, getServiceDefinition, haProbe = null, redisClusterProbe = null }) {
+function createServiceRuntime({
+    docker,
+    getServiceDefinition,
+    haProbe = null,
+    redisClusterProbe = null,
+    containerStats = null
+}) {
     /* 动态服务（HA / redis-cluster）没有可用的 compose 文件路径，
        状态改由各自的只读探测器提供。 */
     async function getDynamicServiceStatus(def) {
@@ -109,15 +115,12 @@ function createServiceRuntime({ docker, getServiceDefinition, haProbe = null, re
         return { ...def, status: 'unknown', running: false, containerId: '', message: '该服务没有可用的状态探测器' };
     }
 
-    async function getContainerStats(containerId) {
-        if (!containerId) return {};
-        const stats = await docker.exec(
-            docker.dockerPath,
-            ['stats', '--no-stream', '--format', '{{json .}}', containerId],
-            { timeout: 4500 }
-        );
-        if (stats.error) return {};
-        return parseDockerStatsPayload(stats.stdout);
+    /* CPU / 内存取自批量采样缓存，不阻塞状态探测。
+       未注入缓存时退化为不显示资源占用——绝不退回到「每个容器各调一次
+       docker stats」，那正是把 /api/services 拖到 3 秒以上的原因。 */
+    function getContainerStats(containerId) {
+        if (!containerId || !containerStats) return {};
+        return containerStats.get(containerId);
     }
 
     async function getServiceStatus(def) {
@@ -183,7 +186,7 @@ function createServiceRuntime({ docker, getServiceDefinition, haProbe = null, re
 
         const running = !!inspectData?.State?.Running;
         const startedAt = inspectData?.State?.StartedAt || '';
-        const runtimeStats = running ? await getContainerStats(containerId) : {};
+        const runtimeStats = running ? getContainerStats(containerId) : {};
         return { ...def, status: running ? 'running' : 'stopped', running, containerId, startedAt, ...runtimeStats };
     }
 

@@ -1075,11 +1075,19 @@ async function refreshDeployment(options = {}) {
         setDeploymentRefreshState({ refreshing: true, label: '刷新中' });
     }
     try {
-        await loadConfigMateSettings();
-        await loadClusterState();
-        await loadDeploymentInfo();
-        await updateDeploymentPlan();
-        await refreshServices();
+        /* 这五步原本是串行 await，等于把五次往返的耗时全加起来。真机上
+           /api/plan 与 /api/services 各要几百毫秒，串起来就是肉眼可见的等待。
+           实际依赖只有一条：refreshServices 要先知道集群是否启用，才能决定
+           调本机接口还是聚合接口。其余互不相关，分两批并发。 */
+        await Promise.all([
+            loadConfigMateSettings(),
+            loadClusterState(),
+            loadDeploymentInfo()
+        ]);
+        await Promise.all([
+            updateDeploymentPlan(),
+            refreshServices()
+        ]);
         if (interactive) {
             deploymentRefreshCooldownUntil = Date.now() + MANUAL_REFRESH_COOLDOWN_MS;
             setDeploymentRefreshState({ cooling: true, label: '已刷新', title: '刚刚刷新过，请稍候再试' });

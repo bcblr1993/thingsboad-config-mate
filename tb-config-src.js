@@ -22,7 +22,8 @@ const { createHaProbe } = require('./src/server/services/ha-probe');
 const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createRedisClusterProbe } = require('./src/server/services/redis-cluster-probe');
 const { createServiceRegistry } = require('./src/server/services/registry');
-const { createServiceRuntime } = require('./src/server/services/runtime');
+const { createContainerStatsCache } = require('./src/server/services/container-stats');
+const { createServiceRuntime, parseDockerStatsPayload } = require('./src/server/services/runtime');
 const { createServiceSnapshot } = require('./src/server/services/service-snapshot');
 const { createAppRoutes } = require('./src/server/routes/app');
 const { createConfigRoutes, validateConfigValues } = require('./src/server/routes/config');
@@ -84,11 +85,18 @@ const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = se
 const dockerRuntime = createDockerComposeRuntime({ appRoot: APP_ROOT });
 const haProbe = createHaProbe({ docker: dockerRuntime });
 const redisClusterProbe = createRedisClusterProbe({ docker: dockerRuntime });
+/* CPU / 内存单独走批量采样缓存：docker stats 单次就要 1.5–2 秒，
+   按服务逐个 await 会把服务列表拖到 3 秒以上。 */
+const containerStats = createContainerStatsCache({
+    docker: dockerRuntime,
+    parseEntry: parseDockerStatsPayload
+});
 const serviceRuntime = createServiceRuntime({
     docker: dockerRuntime,
     getServiceDefinition,
     haProbe,
-    redisClusterProbe
+    redisClusterProbe,
+    containerStats
 });
 const { getServiceStatus, runComposeAction } = serviceRuntime;
 
@@ -706,6 +714,8 @@ serviceRoutes = createServiceRoutes({
     localServicesProvider: collectLocalServices,
     invalidateServiceSnapshot: () => {
         localServiceSnapshot.invalidate();
+        // 启停后容器换了 id，旧样本必须作废，否则会把上一个容器的占用显示出来。
+        containerStats.invalidate();
         clusterAggregator?.invalidateCache();
     }
 });
@@ -910,6 +920,12 @@ function startServer() {
             process.on('SIGTERM', () => { cleanup(); process.exit(); });
         } catch (e) {
             console.warn('[Warn] Failed to write PID:', e);
+        }
+
+        /* 预热一次资源采样：docker stats 要 1.5–2 秒，不预热的话首屏
+           CPU / 内存是空的，要等下一轮轮询才出现。这里不 await，不挡启动。 */
+        if (!dockerRuntime.readyMessage()) {
+            containerStats.refresh().catch(() => {});
         }
 
         /* 会话与登录失败计数都存在内存里，过期项原本只在被访问时惰性清理。

@@ -6,6 +6,17 @@ const {
     parseDockerStatsPayload,
     createServiceRuntime
 } = require('../src/server/services/runtime');
+const { createContainerStatsCache } = require('../src/server/services/container-stats');
+
+/** 用真实的采样缓存，只把 docker 换成 mock。 */
+function createStatsCache(docker, options = {}) {
+    return createContainerStatsCache({
+        docker,
+        parseEntry: parseDockerStatsPayload,
+        logger: { warn() {} },
+        ...options
+    });
+}
 
 function createDockerMock(overrides = {}) {
     const calls = [];
@@ -101,7 +112,8 @@ test('getServiceStatus inspects running container', async () => {
             if (args.includes('ps')) return { stdout: 'container-1\n', stderr: '', error: null };
             if (args.includes('stats')) {
                 return {
-                    stdout: '{"CPUPerc":"0.42%","MemUsage":"128MiB / 2GiB","MemPerc":"6.25%"}\n',
+                    // 批量采样靠 ID 对应到容器，缺 ID 的行会被丢弃。
+                    stdout: '{"ID":"container-1","CPUPerc":"0.42%","MemUsage":"128MiB / 2GiB","MemPerc":"6.25%"}\n',
                     stderr: '',
                     error: null
                 };
@@ -125,7 +137,10 @@ test('getServiceStatus inspects running container', async () => {
             return { stdout: '', stderr: '', error: null };
         }
     });
-    const runtime = createServiceRuntime({ docker, getServiceDefinition: () => postgresDef });
+    const containerStats = createStatsCache(docker);
+    // 采样是异步补齐的：先预热一次，再断言数值。
+    await containerStats.refresh();
+    const runtime = createServiceRuntime({ docker, getServiceDefinition: () => postgresDef, containerStats });
 
     const status = await runtime.getServiceStatus(postgresDef);
 
@@ -136,6 +151,97 @@ test('getServiceStatus inspects running container', async () => {
     assert.equal(status.cpuPercent, 0.42);
     assert.equal(status.memoryUsage, '128 MB');
     assert.equal(status.memoryBytes, 134217728);
+});
+
+test('a slow docker stats never delays the service status', async () => {
+    /* docker stats --no-stream 单次要 1.5-2 秒（真机实测），按服务逐个 await
+       会把 /api/services 拖到 3 秒以上。这里让 stats 一直挂住：状态探测必须
+       照样立刻返回，采样只在后台补。 */
+    let statsCalls = 0;
+    let releaseStats = null;
+    const statsGate = new Promise(resolve => { releaseStats = resolve; });
+
+    const docker = createDockerMock({
+        async exec(cmd, args) {
+            this.calls.push({ cmd, args });
+            if (args.includes('stats')) {
+                statsCalls += 1;
+                await statsGate; // 永远不返回，直到测试放行
+                return { stdout: '', stderr: '', error: null };
+            }
+            if (args.includes('ps')) return { stdout: 'container-1\n', stderr: '', error: null };
+            if (args.includes('inspect')) {
+                return {
+                    stdout: JSON.stringify([{
+                        State: { Running: true },
+                        Config: {
+                            Labels: {
+                                'com.docker.compose.service': 'postgres',
+                                'com.docker.compose.project.working_dir': '/tmp/services/postgres',
+                                'com.docker.compose.project.config_files': '/tmp/services/postgres/docker-compose.yml'
+                            }
+                        }
+                    }]),
+                    stderr: '',
+                    error: null
+                };
+            }
+            return { stdout: '', stderr: '', error: null };
+        }
+    });
+    const containerStats = createStatsCache(docker);
+    const runtime = createServiceRuntime({ docker, getServiceDefinition: () => postgresDef, containerStats });
+
+    // 卡住的采样不能挡住状态返回。
+    const status = await runtime.getServiceStatus(postgresDef);
+    assert.equal(status.running, true);
+
+    // 多个服务同时探测时，后台采样也只会发起一次，不会 N 次争抢 docker。
+    await Promise.all([
+        runtime.getServiceStatus(postgresDef),
+        runtime.getServiceStatus(postgresDef),
+        runtime.getServiceStatus(postgresDef)
+    ]);
+    assert.equal(statsCalls, 1, `并发探测应合并为一次采样，实际 ${statsCalls} 次`);
+
+    releaseStats();
+});
+
+test('a service status still resolves when stats have not been sampled yet', async () => {
+    // 首次访问时缓存是空的，不能因此报错或阻塞，只是暂时没有 CPU / 内存。
+    const docker = createDockerMock({
+        async exec(cmd, args) {
+            this.calls.push({ cmd, args });
+            if (args.includes('ps')) return { stdout: 'container-1\n', stderr: '', error: null };
+            if (args.includes('inspect')) {
+                return {
+                    stdout: JSON.stringify([{
+                        State: { Running: true },
+                        Config: {
+                            Labels: {
+                                'com.docker.compose.service': 'postgres',
+                                'com.docker.compose.project.working_dir': '/tmp/services/postgres',
+                                'com.docker.compose.project.config_files': '/tmp/services/postgres/docker-compose.yml'
+                            }
+                        }
+                    }]),
+                    stderr: '',
+                    error: null
+                };
+            }
+            return { stdout: '', stderr: '', error: null };
+        }
+    });
+    const runtime = createServiceRuntime({
+        docker,
+        getServiceDefinition: () => postgresDef,
+        containerStats: createStatsCache(docker)
+    });
+
+    const status = await runtime.getServiceStatus(postgresDef);
+
+    assert.equal(status.running, true, '没有采样也必须给出运行状态');
+    assert.equal(status.cpu, undefined);
 });
 
 test('parseDockerStatsPayload extracts CPU and memory metrics', () => {
