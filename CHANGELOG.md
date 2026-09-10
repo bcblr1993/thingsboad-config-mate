@@ -1,5 +1,17 @@
 ## [未发布]
 
+### ⚡️ 性能 (Performance)
+- 服务状态刷新从约 8 秒降到 0.9 秒。真机逐条计时定位到两个原因：
+  - `docker stats --no-stream` 单次要 1.5–2 秒（必须采样 CPU 间隔，与容器数量
+    几乎无关），原先按服务逐个 await，把 `/api/services` 拖到 3 秒以上，而其余
+    探测全部并行只要 125ms。改为一次批量采样 + 缓存，读取永不阻塞，并发读取
+    合并为一次采样。代价是 CPU / 内存最多滞后 8 秒；运行/停止状态仍每次实时探测。
+  - 前端 `refreshDeployment` 把 settings / cluster / deployment / plan / services
+    五次往返串行 await，改为按真实依赖分两批并发。
+  - `haProbe.discover()` 的串行 for-await 改为并行。
+- 实测：`/api/services` 3.07s → 0.47s，`/api/plan` 4.06s → 0.59s，
+  整体刷新 8.05s → 0.96s。
+
 ### 🐛 修复 (Fixed)
 合并后在真机（10.8.8.157 / 10.8.8.235）逐项复验时发现的一批缺陷，共同特征
 是「机制存在但实际不生效」或「数据到达前先编一个具体值」。
