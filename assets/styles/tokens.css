@@ -61,6 +61,10 @@
 
     --cm-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     --cm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    /* 微型标签档（徽章、指标名、chip）。新增而非改动已有档位，不影响未使用它的样式。
+       此前这类文字散落着 9px 和 10px 共 24 处，现场笔记本与远程桌面上基本读不清；
+       11px 是可读下限，再小不要用。 */
+    --cm-text-2xs: 11px;
     --cm-text-xs: 12px;
     --cm-text-sm: 13px;
     --cm-text-base: 14px;
@@ -68,6 +72,14 @@
     --cm-text-lg: 18px;
     --cm-text-xl: 22px;
     --cm-text-2xl: 26px;
+
+    /* 动效时长。此前散落着 0.15/0.16/0.18/0.2/0.22/0.28/0.3s 共 7 种，
+       同类交互（按钮 hover、卡片 hover）快慢不一。收敛成三档：
+       fast 用于按钮/输入这类即时反馈，base 用于卡片，slow 用于面板展开。 */
+    --cm-duration-fast: 0.15s;
+    --cm-duration-base: 0.2s;
+    --cm-duration-slow: 0.28s;
+    --cm-ease: cubic-bezier(0.4, 0, 0.2, 1);
 
     /* === Cloud Console (C 方案) tokens =====================================
        Consumed by new components introduced in the C-redesign (mega-nav,

@@ -83,7 +83,7 @@
 }
 
 .cm-login-brand-name {
-    font-size: 17px;
+    font-size: var(--cm-text-lg);
     font-weight: 800;
     color: #fff;
     letter-spacing: 0;
@@ -92,7 +92,7 @@
 
 .cm-login-brand-sub {
     margin-top: 2px;
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: #94A3B8;
     line-height: 1.2;
 }
@@ -107,7 +107,7 @@
 }
 
 .cm-login-brand-kicker {
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     color: #60A5FA;
     text-transform: uppercase;
@@ -125,7 +125,7 @@
 
 .cm-login-brand-desc {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     color: #CBD5E1;
     line-height: 1.6;
 }
@@ -145,7 +145,7 @@
     border-radius: var(--cm-radius-full);
     background: rgba(37, 99, 235, 0.10);
     color: #BFDBFE;
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 600;
 }
 
@@ -154,7 +154,7 @@
     align-items: center;
     justify-content: space-between;
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: #64748B;
 }
 
@@ -189,7 +189,7 @@
 .cm-login-form::before { display: none; }
 
 .cm-login-form-kicker {
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     color: var(--cm-cloud-primary);
     text-transform: uppercase;
@@ -198,7 +198,7 @@
 
 .cm-login-form-title.login-title {
     margin: 0;
-    font-size: 26px;
+    font-size: var(--cm-text-2xl);
     font-weight: 800;
     color: var(--cm-cloud-fg);
     letter-spacing: 0;
@@ -206,7 +206,7 @@
 
 .cm-login-form-desc.login-desc {
     margin: 0 0 10px;
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     color: var(--cm-cloud-muted);
     line-height: 1.6;
 }
@@ -220,7 +220,7 @@
 }
 
 .cm-login-field-label {
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 700;
     color: var(--cm-cloud-fg);
 }
@@ -231,10 +231,10 @@
     gap: 10px;
     padding: 11px 14px;
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 10px;
+    border-radius: var(--cm-radius-lg);
     background: var(--cm-cloud-surface);
     color: var(--cm-cloud-muted);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color var(--cm-duration-fast) ease, box-shadow var(--cm-duration-fast) ease;
 }
 
 .cm-login-field-shell:focus-within {
@@ -256,7 +256,7 @@
     background: transparent;
     box-shadow: none;
     font-family: var(--cm-font-sans);
-    font-size: 14px;
+    font-size: var(--cm-text-base);
     color: var(--cm-cloud-fg);
 }
 
@@ -293,7 +293,7 @@
 .cm-login-admin-note {
     display: inline-flex;
     align-items: center;
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     color: var(--cm-cloud-muted);
 }
 
@@ -303,8 +303,8 @@
     margin-top: 4px;
     min-height: 48px;
     padding: 0 16px;
-    font-size: 14px;
-    border-radius: 10px;
+    font-size: var(--cm-text-base);
+    border-radius: var(--cm-radius-lg);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -318,11 +318,11 @@
     align-items: flex-start;
     gap: 10px;
     padding: 12px 14px;
-    border-radius: 10px;
+    border-radius: var(--cm-radius-lg);
     background: var(--cm-cloud-warning-soft);
     border: 1px solid var(--cm-cloud-warning-border);
     color: #92400E;
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     line-height: 1.55;
 }
 
@@ -336,7 +336,7 @@
     font-family: var(--cm-font-mono);
     background: rgba(255, 255, 255, 0.6);
     border: 1px solid var(--cm-cloud-warning-border);
-    border-radius: 4px;
+    border-radius: var(--cm-radius-xs);
     padding: 0 5px;
 }
 
@@ -350,7 +350,7 @@
     align-items: center;
     justify-content: space-between;
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-subtle);
     gap: 12px;
     flex-wrap: wrap;
@@ -376,7 +376,7 @@
     }
     .cm-login-brand-body { flex: none; }
     .cm-login-brand-headline { font-size: 20px; }
-    .cm-login-brand-desc { font-size: 12px; }
+    .cm-login-brand-desc { font-size: var(--cm-text-xs); }
     .cm-login-form-panel { padding: 24px; }
     .cm-login-form { width: 100%; }
     .cm-login-brand-foot { display: none; }

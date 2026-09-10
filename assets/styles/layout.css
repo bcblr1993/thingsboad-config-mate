@@ -43,7 +43,7 @@
 }
 
 .brand-name {
-    font-size: 15px;
+    font-size: var(--cm-text-md);
     font-weight: 800;
     color: var(--cm-cloud-fg);
     letter-spacing: 0;
@@ -52,7 +52,7 @@
 
 .version-badge {
     font-family: var(--cm-font-sans);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     line-height: 1;
     color: var(--cm-cloud-primary);
@@ -160,7 +160,7 @@
     border-radius: 50%;
     background: var(--cm-cloud-primary);
     color: #fff;
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0;
@@ -175,7 +175,7 @@
 }
 
 .user-name {
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 700;
     color: var(--cm-cloud-fg);
     line-height: 1.2;
@@ -186,7 +186,7 @@
 }
 
 .user-project {
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 500;
     color: var(--cm-cloud-muted);
     line-height: 1.2;
@@ -265,13 +265,24 @@
         flex-basis: 100%;
         justify-content: flex-start;
     }
-    .mega-nav-item { padding: 7px 10px; font-size: 12px; }
+    .mega-nav-item { padding: 7px 10px; font-size: var(--cm-text-xs); }
 }
 
 .content {
     background:
         linear-gradient(180deg, rgba(239, 246, 255, 0.58), rgba(246, 248, 251, 0) 260px),
         var(--cm-background);
+}
+
+/* 内容区最大宽度。原来没有上限，1920 及以上的屏幕会把内容拉满整屏：
+   KPI 卡片被撑得很宽而里面只有一个标签加一个数字，右侧活动面板高而空，
+   配置项一行两端相距过远。限宽后在宽屏上居中，窄屏（≤1600）行为不变。 */
+.content > .route-page,
+.content > #deployment-panel,
+.content > #config-workspace {
+    max-width: 1600px;
+    margin-inline: auto;
+    width: 100%;
 }
 
 /* SPA route containers must keep the native hidden contract even when later

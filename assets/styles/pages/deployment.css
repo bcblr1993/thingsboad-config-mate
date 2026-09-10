@@ -37,7 +37,7 @@
 .cm-deployment-summary {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     padding: 14px 18px;
     margin-bottom: 18px;
     box-shadow: var(--cm-cloud-shadow-sm);
@@ -122,7 +122,7 @@
     background: var(--cm-cloud-warning-soft);
     border: 1px solid var(--cm-cloud-warning-border);
     padding: 8px 12px;
-    border-radius: 10px;
+    border-radius: var(--cm-radius-lg);
     font-size: var(--cm-text-xs);
 }
 
@@ -154,7 +154,7 @@
     padding: 8px 14px;
     min-height: 32px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--cm-radius-sm);
     background: transparent;
     color: var(--cm-cloud-muted);
     font-family: var(--cm-font-sans);
@@ -162,7 +162,7 @@
     font-weight: 700;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    transition: background var(--cm-duration-fast) ease, color var(--cm-duration-fast) ease, box-shadow var(--cm-duration-fast) ease;
 }
 
 .cm-segmented-item:hover {
@@ -176,7 +176,7 @@
 }
 
 .cm-segmented-count {
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 600;
     color: var(--cm-cloud-subtle);
 }
@@ -247,7 +247,7 @@
 
 .cm-strict-toggle-hint {
     color: var(--cm-cloud-muted);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
 }
 
 /* 关闭后保持持续可见的提醒，避免运维忘记自己放宽过校验。 */
@@ -271,7 +271,9 @@
     width: 100%;
     height: auto !important;
     flex: 0 0 auto !important;
-    align-items: start;
+    /* stretch 而非 start：带诊断信息的卡片（如「未找到该服务的 compose 文件」）
+       比同行其他卡片高，start 会让同一行的卡片下沿参差不齐。 */
+    align-items: stretch;
     align-content: start;
     overflow: visible !important;
     /* legacy styles.css declared the list in a single column; reset that. */
@@ -297,7 +299,7 @@
     grid-template-areas: none;
     min-height: 148px;
     overflow: hidden;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    transition: border-color var(--cm-duration-fast) ease, box-shadow var(--cm-duration-fast) ease, transform var(--cm-duration-fast) ease;
 }
 
 #service-grid.cm-service-grid .service-card .cm-svc-stats {
@@ -406,7 +408,7 @@
     border-radius: var(--cm-radius-full);
     background: var(--cm-cloud-surface-muted);
     color: var(--cm-cloud-muted);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     line-height: 1.2;
     font-weight: 700;
     white-space: nowrap;
@@ -422,7 +424,7 @@
     border-radius: var(--cm-radius-full);
     background: var(--cm-cloud-info-soft);
     color: var(--cm-cloud-info);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     line-height: 1.2;
     font-weight: 850;
     white-space: nowrap;
@@ -480,7 +482,7 @@
     border-radius: var(--cm-radius-full);
     border: 1px solid transparent;
     font-family: var(--cm-font-sans);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     white-space: nowrap;
     flex-shrink: 0;
@@ -501,7 +503,7 @@
 .cm-svc-status.missing-image { color: var(--cm-cloud-warning); background: var(--cm-cloud-warning-soft); border-color: var(--cm-cloud-warning-border); }
 
 .cm-svc-message {
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     color: var(--cm-cloud-warning);
     background: var(--cm-cloud-warning-soft);
     border: 1px solid var(--cm-cloud-warning-border);
@@ -531,7 +533,7 @@
 
 .cm-svc-stat-label {
     color: var(--cm-cloud-muted);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 850;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -541,7 +543,7 @@
     min-width: 0;
     color: var(--cm-cloud-fg);
     font-family: var(--cm-font-mono);
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     font-weight: 850;
     line-height: 1.2;
     overflow: hidden;
@@ -554,12 +556,18 @@
     font-weight: 750;
 }
 
+/* 操作按钮必须排在一行。
+   原来是 grid repeat(auto-fit, minmax(70px, 1fr))：卡片内宽约 288px，四个按钮
+   需要 4×70+3×8=304px 放不下，「…」就被挤到第二行单独占一排，看着像没做完，
+   还让同一行卡片高度在 148 / 169 之间参差。
+   改为 flex 不换行：三个文字按钮均分，「…」固定窄宽——它只有一个省略号，
+   本来就不需要和「日志」一样宽。 */
 body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .service-card .cm-svc-actions,
 #service-grid.cm-service-grid .service-card .cm-svc-actions,
 .cm-svc-card .cm-svc-actions {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)) !important;
-    gap: 8px !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
     margin-top: auto !important;
     padding-top: 0 !important;
     padding-bottom: 0 !important;
@@ -572,10 +580,21 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
 body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .service-card .cm-svc-actions > button,
 #service-grid.cm-service-grid .service-card .cm-svc-actions > button,
 .cm-svc-card .cm-svc-actions > button {
-    width: 100% !important;
+    flex: 1 1 0 !important;
+    width: auto !important;
     min-width: 0 !important;
     min-height: 36px;
     box-sizing: border-box !important;
+}
+
+/* 「…」只承载一个省略号，不参与均分，让出宽度给文字按钮。 */
+body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .service-card .cm-svc-actions > .cm-svc-action-more,
+#service-grid.cm-service-grid .service-card .cm-svc-actions > .cm-svc-action-more,
+.cm-svc-card .cm-svc-actions > .cm-svc-action-more {
+    flex: 0 0 auto !important;
+    width: 40px !important;
+    padding-left: 0;
+    padding-right: 0;
 }
 
 .cm-svc-actions button {
@@ -584,12 +603,33 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
     background: var(--cm-cloud-surface);
     color: var(--cm-cloud-fg);
     border-radius: var(--cm-radius-md);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 850;
     line-height: 1.1;
     white-space: nowrap;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition:
+        background var(--cm-duration-fast) var(--cm-ease),
+        border-color var(--cm-duration-fast) var(--cm-ease),
+        color var(--cm-duration-fast) var(--cm-ease);
+}
+
+/* 按钮按下时给一点位移反馈。现场经常是远程桌面操作，画面有延迟，
+   点下去没有任何即时反应会让人怀疑是不是没点上，于是重复点击。 */
+.cm-svc-actions button:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.cm-svc-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+/* 键盘焦点必须可见——此前只有 hover 有反馈，Tab 走到哪儿看不出来。 */
+.cm-svc-actions button:focus-visible {
+    outline: none;
+    box-shadow: var(--cm-cloud-ring);
+    border-color: var(--cm-cloud-primary-border);
 }
 
 .cm-svc-actions .cm-svc-action-primary {
@@ -627,7 +667,7 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
     border-color: var(--cm-cloud-primary-border);
     background: var(--cm-cloud-primary-soft);
     color: var(--cm-cloud-primary);
-    font-size: 14px;
+    font-size: var(--cm-text-base);
     letter-spacing: 0.08em;
 }
 
@@ -656,7 +696,7 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
     border-radius: var(--cm-radius-md);
     background: transparent;
     color: var(--cm-cloud-fg);
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     font-weight: 700;
     text-align: left;
     cursor: pointer;
@@ -737,7 +777,7 @@ body.cm-service-detail-open {
     overflow: auto;
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 16px;
+    border-radius: var(--cm-radius-2xl);
     box-shadow: var(--cm-shadow-lg);
 }
 
@@ -786,16 +826,16 @@ body.cm-service-detail-open {
 
 .cm-detail-title-path {
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-muted);
     background: var(--cm-cloud-surface-muted);
     border: 1px solid var(--cm-cloud-border-subtle);
     padding: 2px 7px;
-    border-radius: 4px;
+    border-radius: var(--cm-radius-xs);
 }
 
 .cm-detail-subtitle {
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     color: var(--cm-cloud-muted);
 }
 
@@ -808,7 +848,7 @@ body.cm-service-detail-open {
 }
 
 .cm-detail-close-btn {
-    font-size: 22px;
+    font-size: var(--cm-text-xl);
 }
 
 .cm-detail-state-close {
@@ -818,7 +858,7 @@ body.cm-service-detail-open {
 }
 
 .cm-detail-actions .btn {
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     padding: 6px 12px;
 }
 
@@ -839,7 +879,7 @@ body.cm-service-detail-open {
 }
 
 .cm-detail-col-title {
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     color: var(--cm-cloud-muted);
     text-transform: uppercase;
@@ -848,7 +888,7 @@ body.cm-service-detail-open {
 }
 
 .cm-detail-sub-title {
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     color: var(--cm-cloud-subtle);
     text-transform: uppercase;
@@ -875,7 +915,7 @@ body.cm-service-detail-open {
 }
 
 .cm-detail-kv-key {
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     color: var(--cm-cloud-subtle);
     text-transform: uppercase;
@@ -884,7 +924,7 @@ body.cm-service-detail-open {
 
 .cm-detail-kv-val {
     font-family: var(--cm-font-mono);
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     font-weight: 700;
     color: var(--cm-cloud-fg);
     margin-top: 2px;
@@ -905,7 +945,7 @@ body.cm-service-detail-open {
     justify-content: space-between;
     gap: 8px;
     padding: 5px 0;
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
 }
 
 .cm-detail-list-row-mount {
@@ -915,7 +955,7 @@ body.cm-service-detail-open {
 
 .cm-detail-list-key {
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 600;
     color: var(--cm-cloud-fg);
     background: transparent;
@@ -928,7 +968,7 @@ body.cm-service-detail-open {
 
 .cm-detail-list-val {
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -937,7 +977,7 @@ body.cm-service-detail-open {
 }
 
 .cm-detail-empty {
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     color: var(--cm-cloud-muted);
     font-style: italic;
 }
@@ -960,7 +1000,7 @@ body.cm-service-detail-open {
     font-size: var(--cm-text-sm);
     background: var(--cm-cloud-surface);
     border: 1px dashed var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
 }
 
 /* ---- Responsive ------------------------------------------------------ */
@@ -1034,7 +1074,7 @@ body.cm-service-detail-open {
     border-radius: var(--cm-radius-full);
     background: var(--cm-cloud-surface-muted);
     color: var(--cm-cloud-muted);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 600;
     white-space: nowrap;
 }
@@ -1079,7 +1119,7 @@ body.cm-service-detail-open {
     border-radius: var(--cm-radius-full);
     background: var(--cm-cloud-surface-muted);
     color: var(--cm-cloud-muted);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     line-height: 1.2;
     font-weight: 700;
     white-space: nowrap;

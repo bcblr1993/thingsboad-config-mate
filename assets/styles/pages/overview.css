@@ -73,9 +73,12 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
     min-width: 0;
 }
 
+/* 页面标题降一档。原来与 KPI 数字同为 26px/800，两者视觉权重完全相同，
+   进页面时眼睛先被六个大数字抓走，分不出主次。标题是导航性的（导航栏已经
+   高亮了当前页），数字才是内容，所以让标题退一档而不是压小数字。 */
 .cm-page-title {
     margin: 0;
-    font-size: var(--cm-text-2xl);
+    font-size: var(--cm-text-xl);
     font-weight: 800;
     color: var(--cm-cloud-fg);
     letter-spacing: 0;
@@ -132,7 +135,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
 .cm-kpi {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     padding: 14px 16px;
     box-shadow: var(--cm-cloud-shadow-sm);
     min-width: 0;
@@ -147,7 +150,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
 }
 
 .cm-kpi-label {
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -217,7 +220,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
 .cm-overview-card {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     overflow: hidden;
     box-shadow: var(--cm-cloud-shadow-sm);
 }
@@ -250,7 +253,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
     padding: 6px 10px;
     min-height: 32px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--cm-radius-sm);
     background: transparent;
     color: var(--cm-cloud-primary);
     font-size: var(--cm-text-xs);
@@ -281,12 +284,12 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
     gap: 8px;
     padding: 14px;
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     background: var(--cm-cloud-surface);
     box-shadow: var(--cm-cloud-shadow-sm);
     cursor: pointer;
     text-align: left;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    transition: border-color var(--cm-duration-fast) ease, box-shadow var(--cm-duration-fast) ease, transform var(--cm-duration-fast) ease;
 }
 
 .cm-service-tile:hover {
@@ -306,7 +309,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
 .cm-tile-icon {
     width: 32px;
     height: 32px;
-    border-radius: 8px;
+    border-radius: var(--cm-radius-md);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -339,7 +342,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 6px;
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
 }
 
 .cm-tile-metric {
@@ -349,7 +352,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
 }
 
 .cm-tile-metric-key {
-    font-size: 9px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     color: var(--cm-cloud-subtle);
     text-transform: uppercase;
@@ -368,7 +371,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
     align-items: center;
     gap: 4px;
     font-family: var(--cm-font-sans);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     padding: 3px 8px;
     border-radius: var(--cm-radius-full);
@@ -455,7 +458,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
     align-items: flex-start;
     gap: 10px;
     padding: 12px 14px;
-    border-radius: 10px;
+    border-radius: var(--cm-radius-lg);
     border: 1px solid;
 }
 
@@ -481,7 +484,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
     width: 28px;
     height: 28px;
     flex-shrink: 0;
-    border-radius: 7px;
+    border-radius: var(--cm-radius-md);
     background: rgba(255, 255, 255, 0.7);
     border: 1px solid currentColor;
     display: inline-flex;
@@ -570,7 +573,7 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
 
 .cm-activity-time {
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-subtle);
     white-space: nowrap;
     align-self: center;

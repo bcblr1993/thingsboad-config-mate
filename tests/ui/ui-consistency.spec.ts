@@ -1154,3 +1154,103 @@ test.describe('卡片正面只留服务名', () => {
         await expect(visible()).toHaveCount(services.length);
     });
 });
+
+test.describe('版式与布局约束', () => {
+    test('no text is smaller than the readable floor', async ({ page }) => {
+        /* 此前徽章、指标名这类微型文字散落着 9px 和 10px 共 24 处，
+           现场笔记本与远程桌面上基本读不清。11px 是下限。 */
+        await openRoute(page, 'overview', '#overview-page');
+        const tooSmall = await page.evaluate(() => {
+            const out: string[] = [];
+            document.querySelectorAll('*').forEach(el => {
+                const e = el as HTMLElement;
+                if (!e.getClientRects().length || e.children.length || !e.textContent?.trim()) return;
+                const size = parseFloat(getComputedStyle(e).fontSize);
+                if (size < 11) out.push(`${size}px «${e.textContent!.trim().slice(0, 16)}»`);
+            });
+            return [...new Set(out)];
+        });
+        expect(tooSmall, `以下文字小于 11px：${tooSmall.join(', ')}`).toEqual([]);
+    });
+
+    test('the page title does not compete with the KPI numbers', async ({ page }) => {
+        // 原来两者同为 26px/800，进页面时先被大数字抓走，分不出主次。
+        await openRoute(page, 'overview', '#overview-page');
+        const sizes = await page.evaluate(() => {
+            const px = (sel: string) => {
+                const el = document.querySelector(sel);
+                return el ? parseFloat(getComputedStyle(el).fontSize) : 0;
+            };
+            return { title: px('#overview-page .cm-page-title'), kpi: px('#overview-page .cm-kpi-value') };
+        });
+        expect(sizes.title).toBeGreaterThan(0);
+        expect(sizes.kpi).toBeGreaterThan(0);
+        expect(sizes.title, '标题与 KPI 数字不应同一字号').not.toBe(sizes.kpi);
+    });
+
+    test('service card actions stay on one row and cards in a row match height', async ({ page }) => {
+        /* 按钮原为 grid auto-fit minmax(70px)，四个按钮放不下时「…」被挤到
+           第二行单独占一排，还让同行卡片高度在 148 / 169 之间参差。 */
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/services') {
+                    return mockJson({
+                        status: 'success',
+                        services: [
+                            { id: 'postgres', label: 'PostgreSQL', tier: 'storage', status: 'running', running: true },
+                            { id: 'redis', label: 'Redis', tier: 'cache', status: 'running', running: true },
+                            // 带诊断消息，比同行其他卡片高
+                            { id: 'iotdb', label: 'IoTDB', tier: 'storage', status: 'missing', running: false, message: 'compose file missing' },
+                            { id: 'kafka', label: 'Kafka', tier: 'queue', status: 'stopped', running: false }
+                        ]
+                    });
+                }
+                return undefined;
+            }
+        });
+        await page.goto('/#/deployment');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await expect(page.locator('#service-grid .service-card').first()).toBeVisible();
+
+        const layout = await page.evaluate(() => {
+            const cards = [...document.querySelectorAll('#service-grid .service-card')] as HTMLElement[];
+            const buttonRows = cards.map(c => new Set(
+                [...c.querySelectorAll('.cm-svc-actions button')].map(b => Math.round(b.getBoundingClientRect().top))
+            ).size);
+            const rows: Record<number, number[]> = {};
+            cards.forEach(c => {
+                const r = c.getBoundingClientRect();
+                (rows[Math.round(r.top)] ||= []).push(Math.round(r.height));
+            });
+            return {
+                buttonRows,
+                raggedRows: Object.values(rows).filter(hs => new Set(hs).size > 1).length
+            };
+        });
+        expect(layout.buttonRows.every(n => n === 1), '操作按钮不应换行').toBe(true);
+        expect(layout.raggedRows, '同一行的卡片应等高').toBe(0);
+    });
+
+    test('a config row keeps its label next to its input', async ({ page }, testInfo) => {
+        // 窄屏下配置行会折成上下结构，横向间距不再适用，只在桌面宽度断言。
+        test.skip(testInfo.project.name !== 'desktop-chromium', '仅桌面宽度适用');
+        /* 原来左列 minmax(0,1fr) 吃掉全部剩余宽度，输入框 justify-self:end
+           且 max-width:430px，标签与输入框之间空出 612px，长 jdbc 串反而显示不全。 */
+        await openRoute(page, 'config', '#config-workspace');
+        const gap = await page.evaluate(() => {
+            const field = document.querySelector('#config-workspace .cm-cfg-field');
+            if (!field) return null;
+            const label = field.querySelector('.field-label');
+            const input = field.querySelector('input');
+            if (!label || !input) return null;
+            return {
+                gap: Math.round(input.getBoundingClientRect().left - label.getBoundingClientRect().right),
+                height: Math.round(field.getBoundingClientRect().height)
+            };
+        });
+        expect(gap).not.toBeNull();
+        expect(gap!.gap, `标签与输入框相距 ${gap!.gap}px`).toBeLessThan(320);
+        expect(gap!.height, `配置行高 ${gap!.height}px`).toBeLessThan(90);
+    });
+});

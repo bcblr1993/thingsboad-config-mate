@@ -32,7 +32,7 @@
 
 .logs-container {
     background: #1E1E1E;
-    border-radius: 16px;
+    border-radius: var(--cm-radius-2xl);
     width: 90%;
     max-width: 1200px;
     height: 80vh;
@@ -66,7 +66,7 @@
     align-items: center;
     justify-content: space-between;
     background: #161B22;
-    border-radius: 12px 12px 0 0;
+    border-radius: var(--cm-radius-xl) var(--cm-radius-xl) 0 0;
     gap: 16px;
 }
 
@@ -90,7 +90,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     color: #8B949E;
     white-space: nowrap;
 }
@@ -149,7 +149,7 @@
     gap: 8px;
     padding: 0 10px;
     border: 1px solid #30363D;
-    border-radius: 7px;
+    border-radius: var(--cm-radius-md);
     background: #161B22;
     color: #8B949E;
 }
@@ -161,7 +161,7 @@
     outline: none;
     background: transparent;
     color: #E6EDF3;
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
 }
 
 .logs-search input::placeholder {
@@ -178,7 +178,7 @@
     background: transparent;
     color: #8B949E;
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: var(--cm-radius-xs);
 }
 
 .logs-search-clear:hover {
@@ -190,10 +190,10 @@
 .logs-tool-btn {
     height: 34px;
     border: 1px solid #30363D;
-    border-radius: 7px;
+    border-radius: var(--cm-radius-md);
     background: #161B22;
     color: #C9D1D9;
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
 }
 
 .logs-select {
@@ -207,7 +207,7 @@
     gap: 6px;
     padding: 0 10px;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    transition: background var(--cm-duration-fast), color var(--cm-duration-fast), border-color var(--cm-duration-fast);
 }
 
 .logs-tool-btn:hover {
@@ -233,7 +233,7 @@
     overflow-y: auto;
     padding: 14px;
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     line-height: 1.55;
     background: #0D1117;
     color: #C9D1D9;
@@ -242,7 +242,7 @@
 .log-line {
     margin: 1px 0;
     padding: 3px 8px;
-    border-radius: 4px;
+    border-radius: var(--cm-radius-xs);
     border-left: 2px solid transparent;
 }
 
@@ -290,7 +290,7 @@
 .log-match {
     color: #0D1117;
     background: #FDCB6E;
-    border-radius: 3px;
+    border-radius: var(--cm-radius-xs);
     padding: 0 2px;
 }
 
@@ -313,7 +313,7 @@
 .logs-meta {
     min-width: 0;
     color: #8B949E;
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -358,7 +358,7 @@
     padding: 0;
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 18px;
+    border-radius: var(--cm-radius-2xl);
     box-shadow: var(--cm-shadow-lg);
     display: flex;
     flex-direction: column;
@@ -402,7 +402,7 @@
     margin-left: 12px;
     color: var(--cm-cloud-success);
     font-weight: 700;
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
 }
 
 .cm-logs-live.success {
@@ -437,7 +437,7 @@
     border-radius: var(--cm-radius-md);
     background: var(--cm-cloud-surface);
     color: var(--cm-cloud-fg);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     cursor: pointer;
     font-family: var(--cm-font-sans);
 }
@@ -485,7 +485,7 @@
 }
 
 .cm-logs-card-sub {
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-muted);
     margin-top: 2px;
 }
@@ -535,7 +535,7 @@
 
 .cm-logs-source-name {
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 700;
     color: var(--cm-cloud-fg);
     overflow: hidden;
@@ -549,7 +549,7 @@
 
 .cm-logs-source-desc {
     font-family: var(--cm-font-mono);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-muted);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -559,7 +559,7 @@
 .cm-logs-empty {
     padding: 18px 16px;
     color: var(--cm-cloud-muted);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     text-align: center;
 }
 
@@ -606,7 +606,7 @@
     outline: none;
     background: transparent;
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     color: var(--cm-term-fg);
 }
 
@@ -615,7 +615,7 @@
     background: transparent;
     color: var(--cm-term-fg-muted);
     cursor: pointer;
-    font-size: 14px;
+    font-size: var(--cm-text-base);
     line-height: 1;
 }
 
@@ -632,10 +632,10 @@
     align-items: center;
     justify-content: center;
     border: 1px solid var(--cm-term-border);
-    border-radius: 6px;
+    border-radius: var(--cm-radius-sm);
     background: color-mix(in srgb, var(--cm-term-bg) 88%, var(--cm-cloud-surface) 12%);
     color: var(--cm-term-fg);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     cursor: pointer;
     font-family: var(--cm-font-sans);
@@ -661,7 +661,7 @@
     color: var(--cm-term-fg);
     padding: 14px 16px;
     font-family: var(--cm-font-mono);
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     line-height: 1.65;
 }
 
@@ -674,7 +674,7 @@
     justify-content: space-between;
     gap: 10px;
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-term-fg-muted);
     flex-shrink: 0;
 }
@@ -691,7 +691,7 @@
     margin: 0;
     padding: 12px 16px 14px;
     color: var(--cm-cloud-muted);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     line-height: 1.65;
 }
 
@@ -775,7 +775,7 @@
         align-items: center;
         gap: 6px 8px;
         margin-top: 6px;
-        font-size: 13px;
+        font-size: var(--cm-text-sm);
         line-height: 1.45;
     }
 
@@ -787,7 +787,7 @@
         border-radius: var(--cm-radius-full);
         background: var(--cm-cloud-surface);
         white-space: nowrap;
-        font-size: 11px;
+        font-size: var(--cm-text-2xs);
         line-height: 1.2;
     }
 
@@ -816,7 +816,7 @@
         min-height: 38px;
         justify-content: center;
         padding: 0 10px;
-        font-size: 13px;
+        font-size: var(--cm-text-sm);
         white-space: nowrap;
     }
 
@@ -861,11 +861,11 @@
         width: 100%;
         min-height: 38px;
         padding: 0 10px;
-        font-size: 12px;
+        font-size: var(--cm-text-xs);
     }
 
     .cm-logs-route #logs-content {
-        font-size: 12px;
+        font-size: var(--cm-text-xs);
         line-height: 1.55;
     }
 

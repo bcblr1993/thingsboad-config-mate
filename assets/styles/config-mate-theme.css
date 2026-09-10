@@ -162,7 +162,7 @@ body {
     gap: 9px;
     color: var(--cm-foreground);
     font-family: var(--cm-font-serif);
-    font-size: 22px;
+    font-size: var(--cm-text-xl);
     font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.05;
@@ -171,7 +171,7 @@ body {
 .brand-subtitle {
     margin-top: 5px;
     color: var(--cm-muted-foreground);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 600;
 }
 
@@ -181,7 +181,7 @@ body {
     background: #F8EAC8;
     color: #8B5E14;
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     padding: 2px 8px;
 }
@@ -223,13 +223,13 @@ body {
 }
 
 .workbench-nav-title {
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     font-weight: 800;
 }
 
 .workbench-nav-desc {
     color: var(--cm-muted-foreground);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 600;
 }
 
@@ -278,7 +278,7 @@ body {
 .section-kicker {
     color: #8B6F4E;
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     letter-spacing: 0.16em;
     text-transform: uppercase;
@@ -289,7 +289,7 @@ body {
     margin-top: 4px;
     color: var(--cm-foreground);
     font-family: var(--cm-font-serif);
-    font-size: 25px;
+    font-size: var(--cm-text-2xl);
     font-weight: 750;
     letter-spacing: -0.02em;
 }
@@ -298,7 +298,7 @@ body {
 .deployment-meta,
 .config-workspace-meta {
     color: var(--cm-muted);
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     line-height: 1.7;
 }
 
@@ -319,7 +319,7 @@ body {
     align-items: center;
     gap: 8px;
     color: var(--cm-foreground);
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     font-weight: 800;
 }
 
@@ -422,14 +422,14 @@ body {
 
 .deployment-target-label {
     color: var(--cm-muted-foreground);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
 }
 
 .deployment-target-value {
     color: var(--cm-foreground);
     font-family: var(--cm-font-mono);
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     font-weight: 800;
 }
 
@@ -527,7 +527,7 @@ body {
 .config-nav-title {
     color: var(--cm-foreground);
     font-family: var(--cm-font-serif);
-    font-size: 18px;
+    font-size: var(--cm-text-lg);
     font-weight: 750;
 }
 
@@ -587,7 +587,7 @@ body {
 .service-name,
 .config-nav-name {
     color: var(--cm-foreground);
-    font-size: 15px;
+    font-size: var(--cm-text-md);
     font-weight: 850;
 }
 
@@ -677,7 +677,7 @@ body {
     background: #F5F3ED;
     color: var(--cm-foreground);
     font-family: var(--cm-font-serif);
-    font-size: 15px;
+    font-size: var(--cm-text-md);
     font-weight: 760;
 }
 
@@ -735,7 +735,7 @@ body {
 .group-title {
     color: var(--cm-foreground);
     font-family: var(--cm-font-serif);
-    font-size: 19px;
+    font-size: var(--cm-text-lg);
     font-weight: 760;
 }
 
@@ -796,7 +796,7 @@ select.field-input:focus,
 .action-title {
     color: var(--cm-foreground);
     font-family: var(--cm-font-serif);
-    font-size: 17px;
+    font-size: var(--cm-text-lg);
 }
 
 .action-subtitle {

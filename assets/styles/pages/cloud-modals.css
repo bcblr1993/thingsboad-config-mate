@@ -144,7 +144,7 @@
 #logs-modal.route-active .logs-toolbar {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 10px;
+    border-radius: var(--cm-radius-lg);
     padding: 8px 10px;
 }
 
@@ -152,7 +152,7 @@
     background: var(--cm-term-bg);
     color: var(--cm-term-fg);
     border: 1px solid var(--cm-term-border);
-    border-radius: 10px;
+    border-radius: var(--cm-radius-lg);
     flex: 1 1 auto;
     min-height: 480px;
     max-height: calc(100vh - 280px);
@@ -199,7 +199,7 @@
 #history-modal.route-active .history-summary {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     padding: 12px 16px;
 }
 
@@ -214,7 +214,7 @@
 #runtime-diff-modal.route-active .runtime-table-shell {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     overflow: hidden;
 }
 
@@ -251,7 +251,7 @@
     margin: 0 !important;
     padding: 18px !important;
     border: 1px solid var(--cm-cloud-border) !important;
-    border-radius: 14px !important;
+    border-radius: var(--cm-radius-xl) !important;
     background: var(--cm-cloud-bg) !important;
     box-shadow: var(--cm-cloud-shadow-lg) !important;
     overflow: hidden;
@@ -353,7 +353,7 @@
     align-items: flex-start;
     gap: 12px;
     padding: 14px 18px;
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     border: 1px solid var(--cm-cloud-border);
     background: var(--cm-cloud-surface);
 }
@@ -382,7 +382,7 @@
     width: 36px;
     height: 36px;
     flex-shrink: 0;
-    border-radius: 9px;
+    border-radius: var(--cm-radius-lg);
     background: var(--cm-cloud-surface);
     border: 1px solid currentColor;
     display: inline-flex;
@@ -396,7 +396,7 @@
 .cm-diff-banner.is-danger .cm-diff-banner-icon { color: var(--cm-cloud-danger); }
 
 .cm-diff-banner-title {
-    font-size: 14px;
+    font-size: var(--cm-text-base);
     font-weight: 800;
     color: var(--cm-cloud-fg);
 }
@@ -407,7 +407,7 @@
 .cm-diff-banner.is-danger .cm-diff-banner-title { color: var(--cm-cloud-danger); }
 
 .cm-diff-banner-desc {
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     color: var(--cm-cloud-muted);
     margin-top: 4px;
     line-height: 1.55;
@@ -416,7 +416,7 @@
 .cm-diff-table-shell {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     overflow: hidden;
     box-shadow: var(--cm-cloud-shadow-sm);
 }
@@ -434,7 +434,7 @@
 .cm-diff-route .runtime-diff-table thead th {
     text-align: left;
     padding: 10px 16px;
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     color: var(--cm-cloud-muted);
     text-transform: uppercase;
@@ -465,7 +465,7 @@
 
 .cm-diff-route .runtime-diff-table .runtime-key-cell code {
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 700;
     color: var(--cm-cloud-fg);
     background: transparent;
@@ -475,23 +475,23 @@
     color: var(--cm-cloud-danger);
     background: var(--cm-cloud-danger-soft);
     padding: 2px 7px;
-    border-radius: 4px;
+    border-radius: var(--cm-radius-xs);
 }
 
 .cm-diff-route .diff-val-new {
     color: var(--cm-cloud-success);
     background: var(--cm-cloud-success-soft);
     padding: 2px 7px;
-    border-radius: 4px;
+    border-radius: var(--cm-radius-xs);
     font-weight: 600;
 }
 
 .cm-diff-route .diff-tag {
     font-family: var(--cm-font-mono);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: var(--cm-radius-xs);
     letter-spacing: 0.06em;
 }
 
@@ -549,7 +549,7 @@
     margin: 0 !important;
     padding: 26px !important;
     border: 1px solid var(--cm-cloud-border) !important;
-    border-radius: 14px !important;
+    border-radius: var(--cm-radius-xl) !important;
     background: var(--cm-cloud-surface) !important;
     box-shadow: var(--cm-cloud-shadow-xl) !important;
     overflow: hidden !important;
@@ -647,7 +647,7 @@
     margin: 0 !important;
     padding: 26px !important;
     border: 1px solid var(--cm-cloud-border) !important;
-    border-radius: 14px !important;
+    border-radius: var(--cm-radius-xl) !important;
     background: var(--cm-cloud-surface) !important;
     box-shadow: var(--cm-cloud-shadow-xl) !important;
     overflow: hidden !important;
@@ -851,13 +851,13 @@ body[data-workbench-page="install-modal"] .content {
 .cm-install-kpi {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     padding: 14px 18px;
     box-shadow: var(--cm-cloud-shadow-sm);
 }
 
 .cm-install-kpi-label {
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     color: var(--cm-cloud-muted);
     text-transform: uppercase;
@@ -878,15 +878,19 @@ body[data-workbench-page="install-modal"] .content {
     white-space: nowrap;
 }
 
+/* 四张指标卡的数值原本是 18 / 22 / 26 / 26px 四种字号，同一排等价指标却各写各的。
+   统一到 22px；只有文件路径这一项保持小一档——它是一串长文本而非数值，
+   放大反而更容易被截断。 */
 #install-compose-label {
-    font-size: var(--cm-text-lg);
+    font-family: var(--cm-font-mono);
+    font-size: var(--cm-text-md);
 }
 
 #install-percent,
 #install-elapsed {
     font-family: var(--cm-font-mono);
-    font-size: var(--cm-text-2xl);
-    line-height: 1.2;
+    font-size: var(--cm-text-xl);
+    line-height: 1.25;
 }
 
 .cm-install-kpi-sub {
@@ -903,7 +907,7 @@ body[data-workbench-page="install-modal"] .content {
 .cm-install-progress-card {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     padding: 16px;
     box-shadow: var(--cm-cloud-shadow-sm);
     display: flex;
@@ -926,7 +930,7 @@ body[data-workbench-page="install-modal"] .content {
     height: 100%;
     background: linear-gradient(90deg, #14B8A6, #22C55E);
     border-radius: inherit;
-    transition: width 0.3s ease;
+    transition: width var(--cm-duration-slow) ease;
 }
 
 .cm-install-progress-card .progress-bar-fill.initialized,
@@ -948,11 +952,11 @@ body[data-workbench-page="install-modal"] .content {
     flex-direction: column;
     gap: 6px;
     padding: 11px 13px;
-    border-radius: 9px;
+    border-radius: var(--cm-radius-lg);
     border: 1px solid var(--cm-cloud-border);
     background: var(--cm-cloud-surface);
     color: var(--cm-cloud-muted);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     line-height: 1.4;
     min-width: 0;
 }
@@ -987,12 +991,12 @@ body[data-workbench-page="install-modal"] .content {
     justify-content: center;
     width: 22px;
     height: 22px;
-    border-radius: 999px;
+    border-radius: var(--cm-radius-full);
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border-strong);
     color: var(--cm-cloud-muted);
     font-family: var(--cm-font-mono);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     flex-shrink: 0;
 }
@@ -1023,7 +1027,7 @@ body[data-workbench-page="install-modal"] .content {
 
 .cm-install-route .install-step-label {
     font-family: var(--cm-font-sans);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 800;
     color: inherit;
 }
@@ -1031,7 +1035,7 @@ body[data-workbench-page="install-modal"] .content {
 .cm-install-log-card {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     overflow: hidden;
     flex: 1;
     min-height: 0;
@@ -1060,7 +1064,7 @@ body[data-workbench-page="install-modal"] .content {
 
 .cm-install-log-sub {
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 500;
     color: var(--cm-cloud-muted);
     margin-left: 4px;
@@ -1082,10 +1086,10 @@ body[data-workbench-page="install-modal"] .content {
     justify-content: center;
     box-sizing: border-box;
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 6px;
+    border-radius: var(--cm-radius-sm);
     background: var(--cm-cloud-surface);
     color: var(--cm-cloud-fg);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     cursor: pointer;
     font-family: var(--cm-font-sans);
@@ -1106,7 +1110,7 @@ body[data-workbench-page="install-modal"] .content {
     color: var(--cm-term-fg);
     padding: 10px 0;
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     line-height: 1.62;
     white-space: pre;
 }
@@ -1148,11 +1152,11 @@ body[data-workbench-page="install-modal"] .content {
 
 .cm-install-route.install-log-fullscreen .cm-install-log-card {
     height: 100%;
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
 }
 
 .cm-install-route.install-log-fullscreen #install-logs.install-terminal {
-    font-size: 13px;
+    font-size: var(--cm-text-sm);
     line-height: 1.7;
 }
 

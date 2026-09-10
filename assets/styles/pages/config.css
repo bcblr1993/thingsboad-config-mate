@@ -75,7 +75,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 .cm-config-change-actions {
     padding: 6px;
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     background: var(--cm-cloud-surface);
     box-shadow: var(--cm-cloud-shadow-sm);
 }
@@ -98,7 +98,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     color: var(--cm-cloud-muted);
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 800;
     white-space: nowrap;
 }
@@ -126,7 +126,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     cursor: pointer;
     white-space: nowrap;
     box-shadow: var(--cm-cloud-shadow-sm);
-    transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    transition: border-color var(--cm-duration-fast) ease, box-shadow var(--cm-duration-fast) ease, transform var(--cm-duration-fast) ease;
 }
 
 .cm-config-dirty-trigger:hover {
@@ -148,7 +148,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     border-radius: var(--cm-radius-full);
     background: var(--cm-cloud-surface);
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 900;
 }
 
@@ -238,7 +238,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 .cm-config .group-section {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 14px;
+    border-radius: var(--cm-radius-xl);
     box-shadow: var(--cm-cloud-shadow-sm);
     overflow: hidden;
 }
@@ -281,13 +281,13 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     background: var(--cm-cloud-primary-soft);
     color: var(--cm-cloud-primary);
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 900;
 }
 
 .cm-config .group-subtitle {
     margin-top: 5px;
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     color: var(--cm-cloud-muted);
     line-height: 1.45;
 }
@@ -302,7 +302,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 
 .cm-config .group-field-count {
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     color: var(--cm-cloud-muted);
     padding: 2px 8px;
@@ -330,10 +330,10 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     gap: 10px;
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 10px;
+    border-radius: var(--cm-radius-lg);
     padding: 12px 14px;
     box-shadow: none;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    transition: border-color var(--cm-duration-fast) ease, box-shadow var(--cm-duration-fast) ease, background var(--cm-duration-fast) ease;
 }
 
 .cm-config .cm-cfg-field:hover {
@@ -385,7 +385,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 .cm-config .cm-cfg-field-mod-badge {
     display: none;
     font-family: var(--cm-font-mono);
-    font-size: 9px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     color: var(--cm-cloud-warning);
     background: var(--cm-cloud-surface);
@@ -418,13 +418,13 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 
 .cm-config .var-code {
     font-family: var(--cm-font-mono);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     color: var(--cm-cloud-muted);
     background: var(--cm-cloud-surface-muted);
     border: 1px solid var(--cm-cloud-border-subtle);
     padding: 2px 7px;
-    border-radius: 5px;
+    border-radius: var(--cm-radius-sm);
     flex: 0 1 auto;
     overflow: visible;
     overflow-wrap: anywhere;
@@ -442,7 +442,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     background: var(--cm-cloud-warning-soft);
     color: var(--cm-cloud-warning);
     font-family: var(--cm-font-mono);
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     font-weight: 850;
     white-space: nowrap;
 }
@@ -458,7 +458,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     color: var(--cm-cloud-fg);
     background: var(--cm-cloud-surface);
     outline: none;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color var(--cm-duration-fast) ease, box-shadow var(--cm-duration-fast) ease;
 }
 
 .cm-config .field-input:focus {
@@ -473,7 +473,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 }
 
 .cm-config .field-desc {
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-muted);
     line-height: 1.4;
     text-align: left;
@@ -484,7 +484,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 
 .cm-config .field-error {
     margin-top: 4px;
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-danger);
     min-height: 0;
 }
@@ -516,7 +516,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 .cm-config .source-panel {
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 14px;
+    border-radius: var(--cm-radius-xl);
     overflow: hidden;
     box-shadow: var(--cm-cloud-shadow-sm);
     margin-bottom: 16px;
@@ -536,7 +536,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 
 .cm-config .source-panel-meta {
     margin-top: 2px;
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-muted);
 }
 
@@ -546,7 +546,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     border: none;
     padding: 14px 18px 88px;
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     line-height: 1.55;
     scroll-padding-bottom: 88px;
 }
@@ -561,7 +561,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     padding: 12px 14px;
     background: var(--cm-cloud-surface);
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 10px;
+    border-radius: var(--cm-radius-lg);
     margin-bottom: 14px;
     box-shadow: var(--cm-cloud-shadow-sm);
 }
@@ -578,7 +578,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     border: 1px solid var(--cm-cloud-border);
     background: var(--cm-cloud-surface-muted);
     color: var(--cm-cloud-fg);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 600;
     font-family: var(--cm-font-sans);
 }
@@ -602,13 +602,13 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
 .cm-config-anchor-count {
     font-family: var(--cm-font-mono);
     color: var(--cm-cloud-muted);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
 }
 
 .cm-config-anchor-mod {
     margin-left: 4px;
     font-family: var(--cm-font-mono);
-    font-size: 9px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     color: var(--cm-cloud-warning);
     background: var(--cm-cloud-warning-soft);
@@ -708,28 +708,45 @@ body[data-workbench-page="config-workspace"] #config-workspace .group-content {
 
 body[data-workbench-page="config-workspace"] #config-workspace .group-section .group-content {
     grid-template-columns: 1fr !important;
-    gap: 10px;
-    padding: 14px;
+    gap: var(--cm-space-2);
+    padding: var(--cm-space-3);
     background:
         linear-gradient(180deg, var(--cm-cloud-surface-muted), var(--cm-cloud-surface));
 }
 
+/* 配置项一行的骨架。
+   原来左列是 minmax(0,1fr)（吃掉全部剩余宽度），右列 minmax(320px,34%) 且
+   justify-self:end + max-width:430px 把输入框钉死在右边。实测 1440 宽下标签
+   文字在 x=297 结束、输入框从 x=909 开始——中间 612px 是空的，而
+   jdbc:postgresql://... 这种长值被挤在 422px 里显示不全。行高固定 108px，
+   一屏只看得到 4 项，而云端有 23 项、边缘端 36 项。
+   改为左列限宽、右列吃掉剩余：空洞收到 181px，输入框 653px，行高 70px。 */
 body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 34%);
+    grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
     align-items: center;
-    min-height: 108px;
-    padding: 18px 20px;
-    gap: 24px;
-    border-radius: 12px;
+    min-height: 0;
+    padding: var(--cm-space-3) var(--cm-space-4);
+    gap: 6px var(--cm-space-5);
+    border-radius: var(--cm-radius-lg);
     box-shadow: var(--cm-cloud-shadow-sm);
 }
 
+/* 变量名与配置名同行，说明文字在其下——原来三者纵向堆叠，把行撑到 108px。 */
 body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field-head {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 8px;
+    flex-direction: row;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 2px var(--cm-space-3);
+}
+
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field-label-wrap {
+    flex: 1 1 auto;
+}
+
+body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field-badges {
+    flex: 0 0 auto;
 }
 
 body[data-workbench-page="config-workspace"] #config-workspace .field-label {
@@ -758,18 +775,20 @@ body[data-workbench-page="config-workspace"] #config-workspace .var-code {
     background: var(--cm-cloud-surface-sunken);
 }
 
+/* 输入框铺满右列。原来 justify-self:end + max-width:430px，长连接串看不全，
+   旁边却空着几百像素。 */
 body[data-workbench-page="config-workspace"] #config-workspace .cm-cfg-field-input {
     margin-top: 0;
-    gap: 7px;
-    justify-self: end;
+    gap: 6px;
+    justify-self: stretch;
     min-width: 0;
     width: 100%;
-    max-width: 430px;
+    max-width: none;
 }
 
 body[data-workbench-page="config-workspace"] #config-workspace .field-input {
-    min-height: 46px;
-    padding: 11px 14px;
+    min-height: 38px;
+    padding: var(--cm-space-2) var(--cm-space-3);
     font-size: var(--cm-text-sm);
     background: var(--cm-cloud-surface-muted);
 }
@@ -804,7 +823,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .password-wrapper
     gap: 12px;
     padding: 14px;
     border: 1px solid var(--cm-cloud-warning-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     background: var(--cm-cloud-warning-soft);
 }
 
@@ -834,7 +853,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .password-wrapper
 
 .cm-config-pending-count {
     font-family: var(--cm-font-mono);
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 800;
     color: var(--cm-cloud-warning);
     background: var(--cm-cloud-warning-soft);
@@ -845,7 +864,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .password-wrapper
 }
 
 .cm-config-pending-sub {
-    font-size: 11px;
+    font-size: var(--cm-text-2xs);
     color: var(--cm-cloud-muted);
     margin-top: 3px;
 }
@@ -857,7 +876,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .password-wrapper
     max-height: min(54vh, 460px);
     overflow-y: auto;
     border: 1px solid var(--cm-cloud-border);
-    border-radius: 12px;
+    border-radius: var(--cm-radius-xl);
     background: var(--cm-cloud-surface);
 }
 
@@ -869,7 +888,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .password-wrapper
 .cm-cfg-pending-item:first-child { border-top: none; }
 
 .cm-cfg-pending-group {
-    font-size: 10px;
+    font-size: var(--cm-text-2xs);
     font-weight: 700;
     color: var(--cm-cloud-muted);
     text-transform: uppercase;
@@ -879,7 +898,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .password-wrapper
 
 .cm-cfg-pending-key {
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     font-weight: 700;
     color: var(--cm-cloud-fg);
     background: transparent;
@@ -891,7 +910,7 @@ body[data-workbench-page="config-workspace"] #config-workspace .password-wrapper
     gap: 6px;
     margin-top: 6px;
     font-family: var(--cm-font-mono);
-    font-size: 12px;
+    font-size: var(--cm-text-xs);
     color: var(--cm-cloud-muted);
     overflow: hidden;
 }

@@ -60,3 +60,18 @@ pre,
     border: 3px solid transparent;
     background-clip: content-box;
 }
+
+/* 尊重系统的「减少动态效果」设置。
+   此前全站没有任何处理：开了该设置的用户（前庭功能敏感、或远程桌面下为了
+   降低带宽而关闭动画）依然会看到卡片位移、旋转的刷新图标和面板展开动画。
+   这里只在用户明确要求时生效，不影响默认观感。 */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
