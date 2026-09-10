@@ -177,3 +177,58 @@ test('iotdb dependency is reported as missing when it is not running', async () 
     assert.equal(check.ok, false);
     assert.ok(check.missingDependencyIds.includes('iotdb'));
 });
+
+test('missingDependencyIds is computed per capability group, not per service', async () => {
+    /* 现场跑着瀚高 HA 时，postgres-ha 虽然未运行也不算缺失——两者互斥。
+       若按服务简单过滤，界面会提示「请先启动 PostgreSQL 双机热备」，
+       让运维去启动一个根本没部署的服务。真机在安装页复现过。 */
+    const definitions = {
+        'postgres-ha': { id: 'postgres-ha', label: 'PostgreSQL 双机热备', order: 11, exists: true, readOnly: true },
+        'highgo-ha': { id: 'highgo-ha', label: '瀚高双机热备', order: 12, exists: true, readOnly: true },
+        redis: { id: 'redis', label: 'Redis', order: 20, exists: true },
+        iotcloud: { id: 'iotcloud', label: 'IoT Cloud', order: 90, exists: true }
+    };
+    const running = ['highgo-ha'];
+    const planner = createDeploymentPlanner({
+        appType: 'CLOUD',
+        getPackageServiceId: () => 'iotcloud',
+        getServiceDefinition: id => definitions[id],
+        configProvider: () => ({ CACHE_TYPE: 'redis' }),
+        getServiceStatus: async def => ({
+            ...def,
+            running: running.includes(def.id),
+            status: running.includes(def.id) ? 'running' : 'stopped'
+        }),
+        runComposeAction: async () => ({ status: 'success' }),
+        listCapabilityServiceIds: cap => (cap === 'database' ? ['postgres-ha', 'highgo-ha'] : ['redis'])
+    });
+
+    const plan = await planner.buildDeploymentPlanWithStatus({ CACHE_TYPE: 'redis' });
+    assert.equal(plan.missingDependencyIds.includes('postgres-ha'), false,
+        '数据库能力已由瀚高满足，postgres-ha 不应被列为缺失');
+    assert.ok(plan.missingDependencyIds.includes('redis'), 'redis 未运行应被列为缺失');
+
+    // 与依赖检查保持同口径
+    const check = await planner.checkRequiredDependencies({ CACHE_TYPE: 'redis' });
+    assert.deepEqual(plan.missingDependencyIds.sort(), check.missingDependencyIds.sort());
+});
+
+test('missingServices still lists every stopped service for display', async () => {
+    // missingServices 用于界面展示「哪些没跑」，语义与依赖判定不同，保持原样。
+    const definitions = {
+        postgres: { id: 'postgres', label: 'PostgreSQL', order: 10, exists: true },
+        iotcloud: { id: 'iotcloud', label: 'IoT Cloud', order: 90, exists: true }
+    };
+    const planner = createDeploymentPlanner({
+        appType: 'CLOUD',
+        getPackageServiceId: () => 'iotcloud',
+        getServiceDefinition: id => definitions[id],
+        configProvider: () => ({}),
+        getServiceStatus: async def => ({ ...def, running: false, status: 'stopped' }),
+        runComposeAction: async () => ({ status: 'success' })
+    });
+
+    const plan = await planner.buildDeploymentPlanWithStatus({});
+    assert.ok(plan.missingServices.includes('postgres'));
+    assert.ok(plan.missingServices.includes('iotcloud'));
+});

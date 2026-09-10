@@ -1324,6 +1324,33 @@ function getCurrentAppServiceStatus() {
 function getMissingRequiredDependencies() {
     const appServiceId = getCurrentAppServiceId();
     const planStatuses = Array.isArray(latestPlan?.statuses) ? latestPlan.statuses : [];
+
+    /* 必须按能力组判定，与后端同口径。若按服务逐个过滤，互斥候选会被一并
+       算作缺失：现场跑着瀚高 HA 时，安装页会提示「请先启动 PostgreSQL
+       双机热备」，让运维去启动一个根本没部署的服务。 */
+    const groups = Array.isArray(latestPlan?.dependencyGroups) ? latestPlan.dependencyGroups : [];
+    if (groups.length > 0 && planStatuses.length > 0) {
+        const statusById = {};
+        planStatuses.forEach(item => { statusById[item.id] = item; });
+        const capabilityLabels = ConfigMateServicesUi.CAPABILITY_LABEL || {};
+        const missing = [];
+
+        groups.forEach(group => {
+            const candidates = (group.candidates || []).map(id => statusById[id]).filter(Boolean);
+            if (candidates.length === 0 || candidates.some(item => item.running)) return;
+
+            const reported = candidates.find(item => item.readOnly) || candidates[0];
+            if (reported.id === appServiceId) return;
+
+            // 多个互斥候选时按能力名提示，避免指名一个现场没部署的服务。
+            missing.push(candidates.length > 1
+                ? { ...reported, label: capabilityLabels[group.capability] || reported.label }
+                : reported);
+        });
+
+        return missing;
+    }
+
     if (planStatuses.length > 0) {
         return planStatuses.filter(s => s.id !== appServiceId && !s.running);
     }

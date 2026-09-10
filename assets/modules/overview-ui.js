@@ -184,8 +184,13 @@
             const running = !!s.running;
             const statusLabel = running ? 'Running' : (s.status === 'missing' || s.status === 'unsupported' ? '不可用' : 'Stopped');
             const statusClass = running ? 'cm-tile-status-ok' : (s.status === 'missing' || s.status === 'unsupported' ? 'cm-tile-status-warn' : 'cm-tile-status-stopped');
-            const image = s.image || s.composeService || s.label || '';
+            /* 不再回落到 label：label 已作为主标题，回落会让副标题变成
+               「postgres-ha · PostgreSQL 双机热备」这种重复。 */
+            const image = s.image || s.composeService || '';
             const tierIcon = TIER_ICONS[tier] || TIER_ICONS.business;
+            /* 与服务管理页保持同一层级：主标题可读名称、副标题服务 id（与镜像去重）。
+               原先主标题用 id，postgres-ha 这类较长的 id 会被截断成「postgre...」。 */
+            const tileSubtitle = [...new Set([s.id, image].filter(Boolean))].join(' · ');
             const uptime = running ? formatUptime(s.startedAt) : '—';
             const cpu = running ? formatCpu(s) : '—';
             const memory = running ? formatMemory(s) : '—';
@@ -194,8 +199,8 @@
                     <div class="cm-tile-head">
                         <span class="cm-tile-icon" aria-hidden="true">${tierIcon}</span>
                         <span class="cm-tile-meta">
-                            <span class="cm-tile-name">${escapeHtml(s.id || s.label)}</span>
-                            <span class="cm-tile-desc">${escapeHtml(image)}</span>
+                            <span class="cm-tile-name" title="${escapeHtml(s.label || s.id)}">${escapeHtml(s.label || s.id)}</span>
+                            <span class="cm-tile-desc" title="${escapeHtml(tileSubtitle)}">${escapeHtml(tileSubtitle)}</span>
                         </span>
                         <span class="cm-tile-status ${statusClass}">
                             <span class="cm-tile-dot"></span>${escapeHtml(statusLabel)}

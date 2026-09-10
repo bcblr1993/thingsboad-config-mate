@@ -133,9 +133,23 @@ function createDeploymentPlanner({
         const statuses = await Promise.all(plan.services.map(service => getServiceStatus(getServiceDefinition(service.id))));
         const appServiceId = getPackageServiceId();
         const missingServices = statuses.filter(status => !status.running).map(status => status.id);
-        const missingDependencyIds = statuses
-            .filter(status => status.id !== appServiceId && !status.running)
-            .map(status => status.id);
+
+        /* missingDependencyIds 必须与依赖检查同口径——按能力组判定。
+           若在这里简单过滤所有未运行的服务，互斥候选会被一并列为缺失：
+           现场跑着瀚高 HA 时，界面会提示「请先启动 PostgreSQL 双机热备」，
+           让运维去启动一个根本没部署的服务。 */
+        const statusById = statuses.reduce((acc, status) => {
+            acc[status.id] = status;
+            return acc;
+        }, {});
+        const missingDependencyIds = [];
+        (plan.dependencyGroups || []).forEach(group => {
+            const candidates = (group.candidates || []).map(id => statusById[id]).filter(Boolean);
+            if (candidates.length === 0 || candidates.some(status => status.running)) return;
+            const reported = candidates.find(status => status.readOnly) || candidates[0];
+            if (reported.id !== appServiceId) missingDependencyIds.push(reported.id);
+        });
+
         return { ...plan, statuses, missingServices, missingDependencyIds };
     }
 

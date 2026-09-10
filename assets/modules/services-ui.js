@@ -77,6 +77,21 @@
         return badges.join('');
     }
 
+/* 后端的容器归属诊断是给排查用的英文短语，直接透传到卡片上运维看不懂。
+   这里翻译为可操作的说明；未收录的消息原样展示，避免吞掉有用信息。 */
+    const SERVICE_MESSAGE_TEXT = {
+        'matched container belongs to another compose project':
+            '发现同名容器，但它由其他部署目录启动，不属于本安装包',
+        'compose file missing': '未找到该服务的 compose 文件',
+        'service definition missing': '缺少服务定义'
+    };
+
+    function translateServiceMessage(message) {
+        const text = String(message || '').trim();
+        if (!text) return '';
+        return SERVICE_MESSAGE_TEXT[text] || text;
+    }
+
     function jsArg(value) {
         return escapeHtml(JSON.stringify(String(value || '')));
     }
@@ -233,29 +248,81 @@
         `;
     }
 
+    const CAPABILITY_LABEL = {
+        database: '数据库',
+        cache: '缓存',
+        queue: '消息队列',
+        timeseries: '时序存储'
+    };
+
+    function dependencyChip(label, state, title) {
+        const statusText = state === 'running' ? '运行中' : (state === 'unknown' ? '异常' : '待启动');
+        return `
+            <span class="dependency-status-chip ${state}" title="${escapeHtml(title || `${label}：${statusText}`)}">
+                <span class="dependency-status-dot"></span>
+                <span class="dependency-status-name">${escapeHtml(label)}</span>
+            </span>
+        `;
+    }
+
+    /**
+     * 依赖状态按「能力」聚合展示，而不是逐个服务列出。
+     *
+     * 数据库能力可能由 postgres / postgres-ha / highgo-ha 提供，三者互斥，
+     * 逐个列出会让顶部同时出现「PostgreSQL 双机热备」和「瀚高双机热备」，
+     * 看起来像两个都要跑。这里一组只出一个标签：
+     *   - 组内已有服务在跑 → 显示该服务名（运维关心的是「谁在提供」）
+     *   - 组内只有一个候选 → 直接显示它
+     *   - 多个候选且都没跑 → 显示能力名，候选放进 tooltip
+     */
     function renderDependencyStatusChips(plan = {}) {
-        const statuses = Array.isArray(plan.statuses) && plan.statuses.length
-            ? plan.statuses
-            : (plan.services || []).map(service => ({
-                ...service,
-                running: !(plan.missingServices || []).includes(service.id),
-                status: (plan.missingServices || []).includes(service.id) ? 'stopped' : 'running'
-            }));
-        if (!statuses.length) {
-            return '<span class="dependency-status-chip empty">无依赖</span>';
+        const statusById = {};
+        (plan.statuses || []).forEach(item => { statusById[item.id] = item; });
+
+        const groups = Array.isArray(plan.dependencyGroups) ? plan.dependencyGroups : [];
+        if (groups.length === 0) {
+            // 旧结构（无 dependencyGroups）时保持原有的逐服务展示。
+            const statuses = Array.isArray(plan.statuses) && plan.statuses.length
+                ? plan.statuses
+                : (plan.services || []).map(service => ({
+                    ...service,
+                    running: !(plan.missingServices || []).includes(service.id)
+                }));
+            if (!statuses.length) return '<span class="dependency-status-chip empty">无依赖</span>';
+            return statuses.map(item => dependencyChip(
+                item.label || item.id || 'service',
+                item.running ? 'running' : (isDisabledStatus(item.status) ? 'unknown' : 'pending')
+            )).join('');
         }
-        return statuses.map(item => {
-            const state = item.running ? 'running'
-                : (isDisabledStatus(item.status) ? 'unknown' : 'pending');
-            const statusText = item.running ? '运行中' : (state === 'unknown' ? '异常' : '待启动');
-            const label = item.label || item.id || 'service';
-            return `
-                <span class="dependency-status-chip ${state}" title="${escapeHtml(label)}：${escapeHtml(item.status || statusText)}">
-                    <span class="dependency-status-dot"></span>
-                    <span class="dependency-status-name">${escapeHtml(label)}</span>
-                </span>
-            `;
-        }).join('');
+
+        const chips = groups.map(group => {
+            const candidates = (group.candidates || []).map(id => statusById[id]).filter(Boolean);
+            if (candidates.length === 0) return '';
+
+            const active = candidates.find(item => item.running);
+            if (active) {
+                return dependencyChip(active.label || active.id, 'running', `${active.label || active.id}：运行中`);
+            }
+            if (candidates.length === 1) {
+                const only = candidates[0];
+                const state = isDisabledStatus(only.status) ? 'unknown' : 'pending';
+                return dependencyChip(only.label || only.id, state);
+            }
+            // 多个互斥候选都未运行：显示能力名，避免误以为要全部启动。
+            const names = candidates.map(item => item.label || item.id).join(' / ');
+            const capabilityLabel = CAPABILITY_LABEL[group.capability] || group.capability || '依赖';
+            return dependencyChip(capabilityLabel, 'pending', `${capabilityLabel}未就绪，可由以下任一提供：${names}`);
+        }).filter(Boolean);
+
+        // 业务服务本身不属于任何能力组，单独列在最后。
+        const appService = (plan.services || []).find(service => !service.capability);
+        if (appService) {
+            const status = statusById[appService.id];
+            const state = status?.running ? 'running' : (isDisabledStatus(status?.status) ? 'unknown' : 'pending');
+            chips.push(dependencyChip(appService.label || appService.id, state));
+        }
+
+        return chips.length ? chips.join('') : '<span class="dependency-status-chip empty">无依赖</span>';
     }
 
     function renderServiceStatus(status) {
@@ -292,6 +359,9 @@
             const image = service.image || service.composeService || '';
             const tierIcon = getTierIcon(tier);
             const readOnly = !!service.readOnly;
+            /* 服务 id 与镜像/compose 服务名经常同名（如 postgres · postgres），
+               去重避免副标题出现重复词。 */
+            const subtitle = [...new Set([service.id, image].filter(Boolean))].join(' · ');
             const actionsHtml = renderServiceActionButtons({
                 idArg,
                 status,
@@ -304,11 +374,12 @@
             });
             const haBadgesHtml = renderHaBadges(service);
             const nodeBadgeHtml = renderNodeBadge(service);
-            const messageHtml = service.message
-                ? `<div class="cm-svc-message">${escapeHtml(service.message)}</div>`
+            const messageText = translateServiceMessage(service.message);
+            const messageHtml = messageText
+                ? `<div class="cm-svc-message" title="${escapeHtml(service.message || '')}">${escapeHtml(messageText)}</div>`
                 : '';
             const dependencyBadgeHtml = startupDependency
-                ? '<span class="cm-svc-dependency-badge" title="根据平台配置，启动业务服务前必须先运行该服务"><span class="cm-svc-dependency-star">*</span><span>启动依赖</span></span>'
+                ? '<span class="cm-svc-dependency-badge" title="根据平台配置，启动业务服务前必须先运行该服务">启动依赖</span>'
                 : '';
             const classes = [
                 'service-card',
@@ -327,12 +398,12 @@
                             <span class="cm-svc-icon">${tierIcon}</span>
                             <div class="cm-svc-meta">
                                 <div class="cm-svc-name-row">
-                                    <span class="cm-svc-name" title="${escapeHtml(service.label || service.id)}">${escapeHtml(service.id || service.label)}</span>
+                                    <span class="cm-svc-name" title="${escapeHtml(service.label || service.id)}">${escapeHtml(service.label || service.id)}</span>
                                     ${dependencyBadgeHtml}
                                     ${nodeBadgeHtml}
                                     ${haBadgesHtml}
                                 </div>
-                                <span class="cm-svc-image" title="${escapeHtml(image || service.label || '')}">${escapeHtml(image || service.label || '')}</span>
+                                <span class="cm-svc-image" title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</span>
                             </div>
                         </div>
                         <span class="cm-svc-status ${escapeHtml(status)}">
@@ -589,6 +660,8 @@
         isDisabledStatus,
         renderHaBadges,
         renderNodeBadge,
+        translateServiceMessage,
+        CAPABILITY_LABEL,
         renderDependencyStatusChips,
         renderServiceStatus,
         renderServiceCards,
