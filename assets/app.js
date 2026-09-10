@@ -2,7 +2,15 @@ let configMeta = {};
 
 let configValues = {};
 let deploymentInfo = null;
+/* latestServices 是「服务管理页要展示的那份」：集群启用时是全节点聚合结果，
+   同一个服务 id 会在每个节点各出现一次。
+   localServices 始终只有本节点，供总览的 KPI 与磁贴使用。
+   两者必须分开：曾经共用一个变量，由本机 /api/services 与聚合
+   /api/nodes/services 交替写入，谁后写谁生效。走一遍
+   总览 → 服务管理 → 30 秒内回总览，总览就会用缓存渲染出聚合结果——
+   服务总数从 10 变成 20，10 个服务各出现两次。 */
 let latestServices = [];
+let localServices = [];
 let latestPlan = null;
 let selectedServiceId = null;
 let selectedServiceConfig = null;
@@ -615,9 +623,15 @@ async function refreshOverview(force) {
 
         const servicesJson = servicesRes.status === 'fulfilled' ? servicesRes.value : null;
         if (servicesJson?.status === 'success' && Array.isArray(servicesJson.services)) {
-            latestServices = servicesJson.services;
-            window.__CM__?.stateBridge.pushServices(latestServices);
-            renderServices();
+            // 这里取的是本机接口，只能更新本机那份。
+            localServices = servicesJson.services;
+            /* 集群启用时服务管理页展示的是聚合结果，不能被本机数据覆盖，
+               否则从总览切过去会短暂只剩本节点的服务。 */
+            if (!clusterState.enabled) {
+                latestServices = localServices;
+                window.__CM__?.stateBridge.pushServices(latestServices);
+                renderServices();
+            }
         }
 
         const disk = diskRes.status === 'fulfilled' ? (diskRes.value?.usage || diskRes.value) : null;
@@ -658,9 +672,12 @@ async function refreshOverview(force) {
 
 function buildOverviewSnapshot(extra) {
     return Object.assign({
-        services: latestServices || [],
+        // 总览只统计本节点，不能用聚合的 latestServices。
+        services: localServices || [],
         plan: latestPlan,
         deployment: deploymentInfo || null,
+        // 总览统计的是本节点；带上集群状态是为了让页面说清这个范围。
+        cluster: clusterState,
     }, overviewAuxiliarySnapshot || {}, extra || {});
 }
 
@@ -1179,6 +1196,15 @@ async function loadDeploymentInfo() {
     if (!res.ok) return;
     deploymentInfo = await res.json();
     window.__CM__?.stateBridge.pushDeployment(deploymentInfo);
+    /* 总览的挂载与本次请求是并行的，先完成的那次拿不到 deploymentInfo，
+       副标题就会一直停在「正在读取部署环境...」——每次登录首屏都如此，
+       只有点刷新才补上。这里用缓存数据补渲染一次，不产生额外请求。 */
+    if (window.ConfigMateOverviewUi) {
+        ConfigMateOverviewUi.mount(buildOverviewSnapshot(overviewAuxiliarySnapshot));
+    }
+    /* 安装页同理：它的标题与任务文件名都取自部署类型，先渲染的那次拿不到，
+       就会停在「业务服务 / 读取中…」不动。安装未在执行时才刷，避免打断进度。 */
+    if (!installRunning && installUiMode === 'idle') refreshInstallPanelLabels();
     const metaEl = document.getElementById('deployment-meta');
     if (!metaEl) return;
     const dockerText = deploymentInfo.docker.available ? 'Docker 可用' : (deploymentInfo.docker.message || 'Docker 不可用');
@@ -1228,8 +1254,18 @@ function renderDeploymentDiagnostics(diagnostics) {
     `;
 }
 
+/* 部署类型未知时不要猜。原本默认按 CLOUD 处理：边缘端直接打开 #/install
+   会显示「执行 IoT Cloud 的安装初始化任务 / iotcloud/docker-compose-install.yml」，
+   要切走再切回才纠正——等于告诉运维他们要初始化的是另一个产品。 */
+function getAppTypeOrNull() {
+    const raw = deploymentInfo?.appType || configValues?.APPTYPE || '';
+    const appType = String(raw).toUpperCase();
+    return appType === 'EDGE' || appType === 'CLOUD' ? appType : null;
+}
+
 function getAppDisplayName() {
-    const appType = (deploymentInfo?.appType || configValues?.APPTYPE || 'CLOUD').toUpperCase();
+    const appType = getAppTypeOrNull();
+    if (!appType) return '业务服务';
     return appType === 'EDGE' ? 'IoT Edge' : 'IoT Cloud';
 }
 
@@ -1279,6 +1315,11 @@ async function updateDeploymentPlan() {
         }
         latestPlan = json.plan;
         if (json.advisory) latestDependencyAdvisory = json.advisory;
+        /* 总览的「N 项依赖」只有拿到计划才有值。这里补渲染一次，否则要等用户
+           去过一趟服务管理才会显示——用缓存数据，不产生额外请求。 */
+        if (window.ConfigMateOverviewUi) {
+            ConfigMateOverviewUi.mount(buildOverviewSnapshot(overviewAuxiliarySnapshot));
+        }
         const warningHtml = (latestPlan.warnings || []).map(w => `<div class="overview-warning">${escapeHtml(w)}</div>`).join('');
         summaryEl.innerHTML = `
             <div class="overview-row">
@@ -1584,6 +1625,11 @@ async function refreshServices() {
             renderClusterBanner();
         }
         latestServices = json.services || [];
+        /* 聚合结果里挑出本节点那份供总览使用；未启用集群时两者本就一致。
+           聚合条目带 nodeId，缺失时按「没有 nodeId 即本机」处理。 */
+        localServices = useCluster
+            ? latestServices.filter(s => !s.nodeId || s.nodeId === clusterState.localNodeId)
+            : latestServices;
         window.__CM__?.stateBridge.pushServices(latestServices);
         renderServices();
         syncInstallReadinessUi();
@@ -3415,7 +3461,7 @@ async function openConfigRuntimeDiffModal() {
     const originalHtml = btn ? btn.innerHTML : '';
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<span>校验中</span><span class="cm-config-verify-hint" aria-hidden="true">!</span>';
+        btn.innerHTML = '<span>校验中</span>';
     }
     const canCheck = await ensureAppServiceRunningForConfigCheck();
     if (btn) {
@@ -3950,6 +3996,22 @@ async function startInstallService() {
     }
 }
 
+/* 安装页里依赖部署类型的两处文案。单独成函数，是因为部署信息到达得比首次
+   渲染晚，那次渲染之后必须能再刷一遍。 */
+function refreshInstallPanelLabels() {
+    const subtitle = document.getElementById('install-subtitle');
+    const composeLabel = document.getElementById('install-compose-label');
+    if (subtitle) subtitle.textContent = `执行 ${getAppDisplayName()} 的安装初始化任务`;
+    if (composeLabel) {
+        const appType = getAppTypeOrNull();
+        const appService = deploymentInfo?.appService
+            || (appType ? (appType === 'EDGE' ? 'iotedge' : 'iotcloud') : '');
+        // 还不知道是哪个业务服务时留空，别写出一个具体但可能是错的文件名。
+        composeLabel.textContent = appService ? `${appService}/docker-compose-install.yml` : '读取中…';
+        composeLabel.title = composeLabel.textContent;
+    }
+}
+
 function resetInstallUi() {
     installUiMode = 'idle';
     installLogRemainder = '';
@@ -3966,8 +4028,6 @@ function resetInstallUi() {
     const followBtn = document.getElementById('btn-install-follow');
     const wrapBtn = document.getElementById('btn-install-wrap');
     const fullscreenBtn = document.getElementById('btn-install-fullscreen');
-    const subtitle = document.getElementById('install-subtitle');
-    const composeLabel = document.getElementById('install-compose-label');
     const elapsedEl = document.getElementById('install-elapsed');
     const footerNote = document.getElementById('install-footer-note');
     const progressBar = document.getElementById('install-progress-bar');
@@ -3992,12 +4052,7 @@ function resetInstallUi() {
         startBtn.textContent = '开始初始化';
         startBtn.style.display = installAvailable ? '' : 'none';
     }
-    if (subtitle) subtitle.textContent = `执行 ${getAppDisplayName()} 的安装初始化任务`;
-    if (composeLabel) {
-        const appService = deploymentInfo?.appService || ((deploymentInfo?.appType || configValues?.APPTYPE || 'CLOUD').toUpperCase() === 'EDGE' ? 'iotedge' : 'iotcloud');
-        composeLabel.textContent = `${appService}/docker-compose-install.yml`;
-        composeLabel.title = composeLabel.textContent;
-    }
+    refreshInstallPanelLabels();
     if (progressBar) progressBar.classList.remove('error', 'initialized');
     setInstallState('idle', '检查中');
     setInstallProgress(0, '等待开始', '');

@@ -94,11 +94,12 @@
         const total = services?.length || 0;
         const running = (services || []).filter(s => s.running).length;
         const stopped = total - running;
-        const stoppedNames = (services || [])
-            .filter(s => !s.running)
-            .slice(0, 2)
-            .map(s => s.id)
-            .join(', ');
+        /* 只列前两个，但必须标出还有多少没列：8 个已停止却只写
+           「postgres, postgres-ha」会被读成只停了这两个。 */
+        const stoppedIds = (services || []).filter(s => !s.running).map(s => s.id);
+        const shownIds = stoppedIds.slice(0, 2);
+        const restCount = stoppedIds.length - shownIds.length;
+        const stoppedNames = shownIds.join(', ') + (restCount > 0 ? ` 等 ${stoppedIds.length} 个` : '');
 
         const driftCount = Number.isFinite(drift?.modifiedCount)
             ? drift.modifiedCount
@@ -124,7 +125,14 @@
         }
 
         return [
-            kpiHtml({ key: '服务总数', value: String(total), sub: total ? `${(plan?.services || []).length || total} 项依赖` : null, icon: ICONS.cube }),
+            /* 依赖数只有拿到部署计划才知道。原来在计划缺失时退回服务总数，
+               首屏会先显示「10 项依赖」再跳成「4 项依赖」——那是个编出来的数。 */
+            kpiHtml({
+                key: '服务总数',
+                value: String(total),
+                sub: plan?.services ? `${plan.services.length} 项依赖` : null,
+                icon: ICONS.cube
+            }),
             kpiHtml({ key: '运行中', value: String(running), sub: total ? `共 ${total} 个` : null, tone: running > 0 ? 'ok' : '', icon: ICONS.play }),
             kpiHtml({ key: '已停止', value: String(stopped), sub: stoppedNames || (stopped ? null : '全部健康'), tone: stopped > 0 ? 'warn' : 'ok', icon: ICONS.alert }),
             kpiHtml({ key: '配置漂移', value: driftValue, sub: driftSub, tone: driftTone, icon: ICONS.diff }),
@@ -231,7 +239,9 @@
             alerts.push({
                 tone: 'warn',
                 title: `${stopped.length} 个服务已停止`,
-                desc: stopped.map(s => s.id).slice(0, 3).join(' / '),
+                // 同样要标出未列出的部分，避免被读成只停了这三个。
+                desc: stopped.map(s => s.id).slice(0, 3).join(' / ')
+                    + (stopped.length > 3 ? ` 等 ${stopped.length} 个` : ''),
                 action: { label: '查看', target: 'deployment' }
             });
         }
@@ -293,10 +303,18 @@
         if (grid) grid.innerHTML = renderServiceTiles(overview.services);
         if (alerts) alerts.innerHTML = renderAlerts(overview);
         if (activity) activity.innerHTML = renderActivity(overview.history);
+        /* 本页统计的始终是本节点。集群启用时必须说清这一点，否则运维会把
+           这里的「2 / 10 运行中」当成全集群的数——服务管理页展示的才是全集群。 */
+        const cluster = overview.cluster;
+        const nodeScope = cluster?.enabled
+            ? (cluster.nodes || []).find(n => n.nodeId === cluster.localNodeId)?.nodeLabel || cluster.localNodeId || '本节点'
+            : '';
+
         if (meta) {
             const total = overview.services?.length || 0;
             const running = (overview.services || []).filter(s => s.running).length;
-            meta.textContent = total > 0 ? `${running} / ${total} 运行中` : '尚未获取服务状态';
+            const counts = total > 0 ? `${running} / ${total} 运行中` : '尚未获取服务状态';
+            meta.textContent = nodeScope ? `${counts}（仅本节点 ${nodeScope}）` : counts;
         }
         if (subtitle && overview.deployment) {
             const d = overview.deployment;

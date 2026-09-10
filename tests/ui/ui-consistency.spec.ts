@@ -891,3 +891,120 @@ test.describe('依赖提示口径', () => {
         await expect(statusText).not.toContainText('PostgreSQL 双机热备');
     });
 });
+
+test.describe('集群模式下的总览口径', () => {
+    const LOCAL_NODE = 'node-a';
+    const NODES = [
+        { nodeId: 'node-a', nodeLabel: '业务机', endpoint: 'http://a:3301', online: true, local: true },
+        { nodeId: 'node-b', nodeLabel: '数据机', endpoint: 'http://b:3301', online: true }
+    ];
+    // 两个节点各有同名的一套服务，这正是重复计数的来源。
+    const perNode = (nodeId: string, running: boolean) => [
+        { id: 'postgres', label: 'PostgreSQL', tier: 'storage', status: running ? 'running' : 'stopped', running, nodeId },
+        { id: 'redis', label: 'Redis', tier: 'cache', status: 'running', running: true, nodeId }
+    ];
+
+    async function mockCluster(page: Page) {
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/nodes') {
+                    return mockJson({
+                        status: 'success', enabled: true, clusterId: 'lab',
+                        localNodeId: LOCAL_NODE, degraded: false, offlineNodeIds: [], nodes: NODES
+                    });
+                }
+                if (pathname === '/api/nodes/services') {
+                    return mockJson({
+                        status: 'success', degraded: false, offlineNodeIds: [], nodes: NODES,
+                        services: [...perNode('node-a', false), ...perNode('node-b', true)]
+                    });
+                }
+                // 本机接口只返回本节点的两个服务。
+                if (pathname === '/api/services') {
+                    return mockJson({ status: 'success', services: perNode('node-a', false) });
+                }
+                return undefined;
+            }
+        });
+    }
+
+    test('overview counts stay node-local after visiting the services page', async ({ page }) => {
+        /* 曾经总览与服务管理共用一个 latestServices，分别由本机接口和聚合接口
+           写入。走「总览 → 服务管理 → 30 秒缓存期内回总览」，总览会用缓存里的
+           聚合结果渲染：服务总数翻倍，每个服务 id 出现两次。真机上稳定复现。 */
+        await mockCluster(page);
+        await page.goto('/#/overview');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+
+        const tiles = page.locator('#overview-services .cm-service-tile');
+        await expect(tiles).toHaveCount(2);
+
+        await page.evaluate(() => {
+            const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.trim() === '服务管理');
+            (btn as HTMLButtonElement | undefined)?.click();
+        });
+        await expect(page.locator('#service-grid .service-card, #service-grid [data-service-id]')).toHaveCount(4);
+
+        // 回到总览：仍应只统计本节点，而不是缓存里的聚合结果。
+        await page.evaluate(() => {
+            const btn = [...document.querySelectorAll('button')].find(b => b.textContent?.trim() === '总览');
+            (btn as HTMLButtonElement | undefined)?.click();
+        });
+        await expect(tiles).toHaveCount(2);
+
+        const ids = await tiles.evaluateAll(nodes => nodes.map(n => n.getAttribute('data-service-id')));
+        expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    test('overview states that its numbers cover only this node', async ({ page }) => {
+        // 不说清范围，运维会把总览的数字当成全集群的。
+        await mockCluster(page);
+        await page.goto('/#/overview');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+        await expect(page.locator('#overview-services-meta')).toContainText('仅本节点');
+    });
+});
+
+test.describe('部署类型未知时不猜', () => {
+    test('install page never names the wrong product while deployment info is loading', async ({ page }) => {
+        /* 边缘端直接打开 #/install（或在该页刷新）时，部署信息还没到，原来按
+           CLOUD 兜底：页面显示「执行 IoT Cloud 的安装初始化任务」和
+           iotcloud/docker-compose-install.yml，要切走再切回才纠正——等于告诉
+           运维他们要初始化的是另一个产品。真机 10.8.8.157（EDGE）上复现过。 */
+        let releaseDeployment: (() => void) | null = null;
+        const deploymentGate = new Promise<void>(resolve => { releaseDeployment = resolve; });
+
+        await mockConfigMateApi(page, {
+            authenticated: true,
+            apiHandler: async ({ pathname }) => {
+                if (pathname === '/api/deployment') {
+                    await deploymentGate; // 卡住，模拟部署信息尚未返回
+                    return mockJson({
+                        status: 'success', appRoot: '/root/sprixin-iotedge',
+                        appDir: '/root/sprixin-iotedge/services/iotedge',
+                        appType: 'EDGE', appService: 'iotedge',
+                        envPath: '/root/sprixin-iotedge/services/iotedge/.env',
+                        yamlPath: '', authRequired: true,
+                        docker: { available: true, message: '' }, diagnostics: []
+                    });
+                }
+                return undefined;
+            }
+        });
+
+        await page.goto('/#/install');
+        await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+
+        const subtitle = page.locator('#install-subtitle');
+        const composeLabel = page.locator('#install-compose-label');
+        // 关键断言：宁可显示占位，也不能显示另一个产品。
+        await expect(subtitle).not.toContainText('IoT Cloud');
+        await expect(composeLabel).not.toContainText('iotcloud');
+
+        releaseDeployment!();
+        // 部署信息到达后必须自行纠正，而不是等用户切走再切回。
+        await expect(subtitle).toContainText('IoT Edge');
+        await expect(composeLabel).toContainText('iotedge/docker-compose-install.yml');
+    });
+});

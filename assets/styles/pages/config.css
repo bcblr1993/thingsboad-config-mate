@@ -156,22 +156,6 @@ body[data-workbench-page="config-workspace"] #config-workspace .cm-config-header
     gap: 7px;
 }
 
-.cm-config-verify-hint {
-    width: 16px;
-    height: 16px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--cm-cloud-warning-border);
-    border-radius: var(--cm-radius-full);
-    background: var(--cm-cloud-warning-soft);
-    color: var(--cm-cloud-warning);
-    font-family: var(--cm-font-mono);
-    font-size: 10px;
-    font-weight: 900;
-    line-height: 1;
-}
-
 .cm-config-change-actions #btn-cfg-save-apply {
     min-width: 150px;
 }
