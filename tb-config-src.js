@@ -11,6 +11,7 @@ const { createNodeRegistry } = require('./src/server/cluster/node-registry');
 const { createEnvStore } = require('./src/server/config/env-store');
 const { createSettingsStore } = require('./src/server/config/settings-store');
 const { createYamlInitializer } = require('./src/server/config/yaml-init');
+const { computeAssetVersion, rewriteAssetVersion } = require('./src/server/asset-version');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { writeJson } = require('./src/server/http');
 const { createCleanupService } = require('./src/server/services/cleanup');
@@ -49,23 +50,7 @@ const HISTORY_DIR = path.join(APP_DIR, '.env_history');
 process.env.APP_ROOT = APP_ROOT;
 process.env.APP_TYPE = APP_TYPE;
 
-/* 前端资源缓存版本。
-   index.html 里原本是手写的 ?v=20260521-xxx 版本串：改了 JS/CSS 却忘了同步
-   版本串，浏览器就会继续用旧缓存——容器都重建了界面还是旧逻辑，这个坑
-   在 2.0.3 已经出过一次事故。改为按入口文件的修改时间自动生成，
-   代码一变版本串就变，不再依赖人工维护。 */
-const ASSET_VERSION = (() => {
-    const entries = ['index.html', 'assets/app.js', 'assets/api.js', 'assets/modules', 'assets/styles', 'assets/src'];
-    let newest = 0;
-    entries.forEach(entry => {
-        try {
-            newest = Math.max(newest, fs.statSync(path.join(__dirname, entry)).mtimeMs);
-        } catch (e) {
-            // 缺失的入口不参与计算。
-        }
-    });
-    return newest > 0 ? String(Math.floor(newest / 1000)) : String(Date.now());
-})();
+const ASSET_VERSION = computeAssetVersion(__dirname);
 
 const RUNTIME_DIR = path.join(APP_ROOT, '.config-mate');
 if (!fs.existsSync(RUNTIME_DIR)) {
@@ -845,9 +830,7 @@ function startServer() {
             const htmlPath = path.join(__dirname, 'index.html');
             console.log(`[Debug] Loading HTML from: ${htmlPath}`);
             /* 统一改写为自动版本，避免遗漏某个 ?v= 导致新旧脚本混用。 */
-            const html = fs.readFileSync(htmlPath, 'utf-8')
-                .replace(/(\.(?:js|css))\?v=[^"']*/g, `$1?v=${ASSET_VERSION}`)
-                .replace(/(<(?:script|link)[^>]*(?:src|href)="assets\/[^"?]+\.(?:js|css))"/g, `$1?v=${ASSET_VERSION}"`);
+            const html = rewriteAssetVersion(fs.readFileSync(htmlPath, 'utf-8'), ASSET_VERSION);
             res.writeHead(200, {
                 ...headers,
                 'Content-Type': 'text/html; charset=utf-8',

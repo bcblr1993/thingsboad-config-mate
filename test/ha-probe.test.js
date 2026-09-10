@@ -3,6 +3,7 @@ const test = require('node:test');
 
 const {
     createHaProbe,
+    firstMeaningfulLine,
     getHaVariant,
     isHaServiceId,
     listHaVariants,
@@ -161,6 +162,18 @@ test('parseHighgoLicense warns within 30 days and escalates within 7', () => {
     assert.equal(parseHighgoLicense(`DATABASE  V4.5  ${critical}`).level, 'critical');
 });
 
+test('firstMeaningfulLine surfaces the tool reason and drops noise', () => {
+    // 真机 10.8.8.157 上未激活时 hg_lic 的实际输出。
+    assert.equal(
+        firstMeaningfulLine('\n  hg_lic: Check failed! hgdb.lic is not found in $HGDB_HOME/etc/lic.\n'),
+        'hg_lic: Check failed! hgdb.lic is not found in $HGDB_HOME/etc/lic'
+    );
+    assert.equal(firstMeaningfulLine(''), '');
+    assert.equal(firstMeaningfulLine('   \n\n'), '');
+    // 异常长输出不能撑爆详情页。
+    assert.equal(firstMeaningfulLine('x'.repeat(500)).length, 160);
+});
+
 test('ha variants cover postgres and highgo with only parameter differences', () => {
     const variants = listHaVariants();
     assert.deepEqual(variants.map(v => v.id).sort(), ['highgo-ha', 'postgres-ha']);
@@ -173,6 +186,9 @@ test('ha variants cover postgres and highgo with only parameter differences', ()
     assert.equal(hg.dbUser, 'highgo');
     assert.equal(hg.defaultPort, 5866);
     assert.equal(hg.license.command, 'hg_lic');
+    /* 必须是安装生效的那份 License。曾经指向数据目录下的 ./hgdb.lic，
+       那里根本不放 License，正常授权的现场也读不到，到期预警形同虚设。 */
+    assert.equal(hg.license.path, '$HGDB_HOME/etc/lic/hgdb.lic');
 
     assert.equal(isHaServiceId('postgres-ha'), true);
     assert.equal(isHaServiceId('postgres'), false);
@@ -213,6 +229,53 @@ test('probe returns role, vip and topology for a running primary', async () => {
     assert.equal(result.replication[0].applicationName, 'pg-node2');
     // PostgreSQL 变体没有 License 概念。
     assert.equal(result.license, null);
+});
+
+test('license is read from the installed location, and a licensed site is graded', async () => {
+    /* 现场无法造真实 License 文件，这里断言两件事：查的是安装生效的那份，
+       以及能正确解析并分级。真机 10.8.8.157 的瀚高镜像未激活，只能验前者。 */
+    const seen = [];
+    const soon = new Date(Date.now() + 12 * 86400000).toISOString().slice(0, 10);
+    const docker = createDockerMock(args => {
+        const joined = args.join(' ');
+        if (args[0] === 'inspect') return { stdout: inspectPayload(), stderr: '', error: null };
+        if (joined.includes('hg_lic')) {
+            seen.push(joined);
+            return {
+                stdout: `License status: normal\nLicense mode: enterprise\nPRODUCT VERSION EXPIRY\nDATABASE HGDB-SEE-V4.5 ${soon}`,
+                stderr: '',
+                error: null
+            };
+        }
+        if (joined.includes('pg_is_in_recovery')) return { stdout: 'f\n', stderr: '', error: null };
+        return { stdout: '', stderr: '', error: null };
+    });
+
+    const result = await createHaProbe({ docker }).probe('highgo-ha');
+    assert.ok(seen.length > 0, 'hg_lic 应被调用');
+    assert.ok(seen[0].includes('$HGDB_HOME/etc/lic/hgdb.lic'), `查询路径不对：${seen[0]}`);
+    assert.equal(result.license.status, 'normal');
+    assert.equal(result.license.expiry, soon);
+    assert.equal(result.license.level, 'warning');
+});
+
+test('an unreadable license reports the tool reason instead of a generic hint', async () => {
+    const docker = createDockerMock(args => {
+        const joined = args.join(' ');
+        if (args[0] === 'inspect') return { stdout: inspectPayload(), stderr: '', error: null };
+        if (joined.includes('hg_lic')) {
+            return {
+                stdout: '',
+                stderr: 'hg_lic: Check failed! hgdb.lic is not found in $HGDB_HOME/etc/lic.',
+                error: new Error('exit 1')
+            };
+        }
+        return { stdout: 'f\n', stderr: '', error: null };
+    });
+
+    const result = await createHaProbe({ docker }).probe('highgo-ha');
+    assert.equal(result.license.level, 'unknown');
+    assert.match(result.license.message, /hgdb\.lic is not found/);
 });
 
 test('probe reports standby role and does not require replication rows', async () => {

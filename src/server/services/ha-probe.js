@@ -30,7 +30,8 @@ const HA_VARIANTS = {
         dbUser: 'highgo',
         defaultPort: 5866,
         pgdataRoot: '/opt/highgo/hgdb-4.5/data',
-        license: { command: 'hg_lic', file: 'hgdb.lic' },
+        // hg_lic 的默认检查位置，见其 --help；不是数据目录。
+        license: { command: 'hg_lic', path: '$HGDB_HOME/etc/lic/hgdb.lic' },
         tier: 'storage'
     }
 };
@@ -138,6 +139,15 @@ function parseReplicationRows(stdout) {
  * DATABASE         HGDB-SEE-V4.5              2026-09-02
  * HA_CLUSTER       ALL                        NULL
  */
+/** 取输出中第一行有内容的文本，用于把底层工具的报错原样带给运维。 */
+function firstMeaningfulLine(text) {
+    const line = String(text || '')
+        .split(/\r?\n/)
+        .map(item => item.trim())
+        .find(Boolean);
+    return line ? line.replace(/[。.\s]+$/, '').slice(0, 160) : '';
+}
+
 function parseHighgoLicense(stdout) {
     const text = String(stdout || '');
     if (!text.trim()) return null;
@@ -258,24 +268,33 @@ function createHaProbe({ docker, logger = console, timeoutMs = HA_PROBE_TIMEOUT_
 
     async function probeLicense(variant) {
         if (!variant.license) return null;
-        const { command, file } = variant.license;
+        const { command, path: licensePath } = variant.license;
+        /* 必须读安装生效的那份 License。hg_lic --help 明确说明默认检查
+           $HGDB_HOME/etc/lic/hgdb.lic，此处显式带上该路径；用 bash -lc 让
+           $HGDB_HOME 展开。曾经从数据目录找 ./hgdb.lic，那里根本不放 License，
+           导致正常授权的现场也永远读不到，到期预警形同虚设。 */
         const result = await dockerExec([
             'exec', variant.containerName,
-            'bash', '-c',
-            `cd ${variant.pgdataRoot} && ${command} -c -F ./${file}`
+            'bash', '-lc',
+            `${command} -c -F "${licensePath}"`
         ]);
-        if (result.error) {
-            return {
-                status: 'unavailable',
-                mode: '',
-                products: [],
-                expiry: '',
-                daysRemaining: null,
-                level: 'unknown',
-                message: '未能读取 License 信息，请确认已按部署文档激活。'
-            };
-        }
-        return parseHighgoLicense(result.stdout);
+        const parsed = result.error ? null : parseHighgoLicense(result.stdout);
+        if (parsed) return parsed;
+
+        /* hg_lic 失败时会自己说清原因（例如 hgdb.lic 不在 $HGDB_HOME/etc/lic），
+           把这句原文带出来，省掉现场一轮猜。截断避免异常输出撑爆详情页。 */
+        const reason = firstMeaningfulLine(result.stderr) || firstMeaningfulLine(result.stdout);
+        return {
+            status: 'unavailable',
+            mode: '',
+            products: [],
+            expiry: '',
+            daysRemaining: null,
+            level: 'unknown',
+            message: reason
+                ? `未能读取 License 信息：${reason}。请确认已按部署文档激活。`
+                : '未能读取 License 信息，请确认已按部署文档激活。'
+        };
     }
 
     /**
@@ -379,6 +398,7 @@ function createHaProbe({ docker, logger = console, timeoutMs = HA_PROBE_TIMEOUT_
 module.exports = {
     HA_VARIANTS,
     createHaProbe,
+    firstMeaningfulLine,
     getHaVariant,
     isHaServiceId,
     listHaVariants,

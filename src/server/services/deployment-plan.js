@@ -119,6 +119,45 @@ function createDeploymentPlanner({
         };
     }
 
+    /**
+     * 按能力分组判定哪些依赖缺失。
+     *
+     * 这是全局唯一的缺失判定实现：安装页展示的 plan 与拦截操作的 advisory
+     * 都取自这里。此前两处各写一份，先后出过两次口径不一致——一次是互斥
+     * 候选（现场跑瀚高却提示启动 PG 双机热备），一次是跨节点依赖（Redis
+     * 在对端机器上跑着，安装页仍提示先启动 Redis）。两次都是界面指引与
+     * 实际行为相反，运维只能照着错的做。合成一份后不会再有第三次。
+     */
+    function resolveMissingDependencies({ groups, statusById, clusterRunningIds, appServiceId }) {
+        const missing = [];
+        (groups || []).forEach(group => {
+            /* 该能力在集群任一节点上被满足即可（用未裁剪的全量候选匹配），
+               避免把「依赖部署在另一台机器上」误判为未启动——这是跨机部署
+               最容易被卡住的地方。 */
+            const clusterCandidates = group.clusterCandidates || group.candidates;
+            if (clusterCandidates.some(id => clusterRunningIds.includes(id))) return;
+
+            /* 组内任一候选 running 即视为满足。现场把单机 postgres 换成
+               postgres-ha / highgo-ha 后，不应再因为「postgres 未启动」拦住业务服务。 */
+            const candidates = (group.candidates || []).map(id => statusById[id]).filter(Boolean);
+            if (candidates.length === 0) return;
+            if (candidates.some(status => status.running)) return;
+
+            // 整组都没运行时，报告实际部署的那个（只读 HA 优先于未使用的单机服务）。
+            const reported = candidates.find(status => status.readOnly) || candidates[0];
+            if (reported.id === appServiceId) return;
+            missing.push({
+                id: reported.id,
+                label: reported.label || reported.id,
+                status: reported.status || 'unknown',
+                message: reported.message || '',
+                readOnly: !!reported.readOnly,
+                capability: group.capability
+            });
+        });
+        return missing;
+    }
+
     async function buildDeploymentPlanWithStatus(config = configProvider()) {
         /* 依赖检查可能先于 /api/services 被调用（例如直接点启动业务服务），
            此时动态服务尚未发现，按能力解析会退回单机 postgres 而误拦。 */
@@ -130,81 +169,42 @@ function createDeploymentPlanner({
             }
         }
         const plan = buildDeploymentPlan(config);
-        const statuses = await Promise.all(plan.services.map(service => getServiceStatus(getServiceDefinition(service.id))));
-        const appServiceId = getPackageServiceId();
-        const missingServices = statuses.filter(status => !status.running).map(status => status.id);
+        const [statuses, clusterRunningIds] = await Promise.all([
+            Promise.all(plan.services.map(service => getServiceStatus(getServiceDefinition(service.id)))),
+            collectClusterRunningServiceIds
+                // 聚合失败时退化为只看本机，不阻断计划构建。
+                ? Promise.resolve().then(collectClusterRunningServiceIds).then(ids => ids || []).catch(() => [])
+                : Promise.resolve([])
+        ]);
 
-        /* missingDependencyIds 必须与依赖检查同口径——按能力组判定。
-           若在这里简单过滤所有未运行的服务，互斥候选会被一并列为缺失：
-           现场跑着瀚高 HA 时，界面会提示「请先启动 PostgreSQL 双机热备」，
-           让运维去启动一个根本没部署的服务。 */
         const statusById = statuses.reduce((acc, status) => {
             acc[status.id] = status;
             return acc;
         }, {});
-        const missingDependencyIds = [];
-        (plan.dependencyGroups || []).forEach(group => {
-            const candidates = (group.candidates || []).map(id => statusById[id]).filter(Boolean);
-            if (candidates.length === 0 || candidates.some(status => status.running)) return;
-            const reported = candidates.find(status => status.readOnly) || candidates[0];
-            if (reported.id !== appServiceId) missingDependencyIds.push(reported.id);
+        const missingDependencies = resolveMissingDependencies({
+            groups: plan.dependencyGroups,
+            statusById,
+            clusterRunningIds,
+            appServiceId: getPackageServiceId()
         });
 
-        return { ...plan, statuses, missingServices, missingDependencyIds };
+        return {
+            ...plan,
+            statuses,
+            // missingServices 是「哪些没在本机跑」，用于界面展示，语义与依赖判定不同。
+            missingServices: statuses.filter(status => !status.running).map(status => status.id),
+            missingDependencies,
+            missingDependencyIds: missingDependencies.map(service => service.id)
+        };
     }
 
     async function checkRequiredDependencies(config = configProvider()) {
         const plan = await buildDeploymentPlanWithStatus(config);
-        const appServiceId = getPackageServiceId();
-        const statusById = (plan.statuses || []).reduce((acc, status) => {
-            acc[status.id] = status;
-            return acc;
-        }, {});
-
-        /* 集群模式下先取全集群运行中的服务，避免把「依赖部署在另一台机器上」
-           误判为未启动——这是跨机部署最容易被卡住的地方。 */
-        let clusterRunningIds = [];
-        if (collectClusterRunningServiceIds) {
-            try {
-                clusterRunningIds = await collectClusterRunningServiceIds() || [];
-            } catch (e) {
-                // 聚合失败时退化为只看本机，不阻断检查。
-                clusterRunningIds = [];
-            }
-        }
-
-        /* 按能力分组判断：只要组内任一候选处于 running，该能力即满足。
-           现场把单机 postgres 换成 postgres-ha / highgo-ha 后，
-           不应再因为「postgres 未启动」而拦住业务服务。 */
-        const missingDependencies = [];
-        (plan.dependencyGroups || []).forEach(group => {
-            // 该能力在集群任一节点上被满足即可（用未裁剪的全量候选匹配）。
-            const clusterCandidates = group.clusterCandidates || group.candidates;
-            if (clusterCandidates.some(id => clusterRunningIds.includes(id))) return;
-
-            const candidates = group.candidates
-                .map(id => statusById[id])
-                .filter(Boolean);
-            if (candidates.length === 0) return;
-            if (candidates.some(status => status.running)) return;
-
-            // 整组都没运行时，报告实际部署的那个（只读 HA 优先于未使用的单机服务）。
-            const reported = candidates.find(status => status.readOnly) || candidates[0];
-            missingDependencies.push({
-                id: reported.id,
-                label: reported.label || reported.id,
-                status: reported.status || 'unknown',
-                message: reported.message || '',
-                readOnly: !!reported.readOnly,
-                capability: group.capability
-            });
-        });
-
         return {
-            ok: missingDependencies.length === 0,
+            ok: plan.missingDependencies.length === 0,
             plan,
-            missingDependencies,
-            missingDependencyIds: missingDependencies.map(service => service.id)
+            missingDependencies: plan.missingDependencies,
+            missingDependencyIds: plan.missingDependencyIds
         };
     }
 

@@ -213,6 +213,63 @@ test('missingDependencyIds is computed per capability group, not per service', a
     assert.deepEqual(plan.missingDependencyIds.sort(), check.missingDependencyIds.sort());
 });
 
+test('a dependency running on another node is not reported as missing', async () => {
+    /* 跨机部署：Redis 单独装在另一台机器上。此前 plan 与 advisory 各写一份
+       判定，plan 不看集群，安装页会提示「请先启动 Redis」，而实际操作并不
+       拦截——界面指引与实际行为相反。真机 10.8.8.157 复现过。 */
+    const definitions = {
+        postgres: { id: 'postgres', label: 'PostgreSQL', order: 10, exists: true },
+        redis: { id: 'redis', label: 'Redis', order: 20, exists: true },
+        iotedge: { id: 'iotedge', label: 'IoT Edge', order: 90, exists: true }
+    };
+    const localRunning = ['postgres'];
+    const planner = createDeploymentPlanner({
+        appType: 'EDGE',
+        getPackageServiceId: () => 'iotedge',
+        getServiceDefinition: id => definitions[id],
+        configProvider: () => ({ CACHE_TYPE: 'redis' }),
+        getServiceStatus: async def => ({
+            ...def,
+            running: localRunning.includes(def.id),
+            status: localRunning.includes(def.id) ? 'running' : 'stopped'
+        }),
+        runComposeAction: async () => ({ status: 'success' }),
+        // 对端节点跑着 redis
+        collectClusterRunningServiceIds: async () => ['redis']
+    });
+
+    const plan = await planner.buildDeploymentPlanWithStatus({ CACHE_TYPE: 'redis' });
+    assert.deepEqual(plan.missingDependencyIds, [],
+        'redis 在对端节点运行，不应被列为缺失');
+    // 但本机确实没跑，展示用的 missingServices 仍应如实列出。
+    assert.ok(plan.missingServices.includes('redis'));
+
+    const check = await planner.checkRequiredDependencies({ CACHE_TYPE: 'redis' });
+    assert.equal(check.ok, true);
+    assert.deepEqual(plan.missingDependencyIds, check.missingDependencyIds);
+});
+
+test('cluster aggregation failure degrades to local judgement instead of blocking', async () => {
+    // 聚合超时/对端不可达时不能当作「依赖都在」放行，也不能抛异常中断计划构建。
+    const definitions = {
+        postgres: { id: 'postgres', label: 'PostgreSQL', order: 10, exists: true },
+        iotedge: { id: 'iotedge', label: 'IoT Edge', order: 90, exists: true }
+    };
+    const planner = createDeploymentPlanner({
+        appType: 'EDGE',
+        getPackageServiceId: () => 'iotedge',
+        getServiceDefinition: id => definitions[id],
+        configProvider: () => ({}),
+        getServiceStatus: async def => ({ ...def, running: false, status: 'stopped' }),
+        runComposeAction: async () => ({ status: 'success' }),
+        collectClusterRunningServiceIds: async () => { throw new Error('node unreachable'); }
+    });
+
+    const check = await planner.checkRequiredDependencies({});
+    assert.equal(check.ok, false);
+    assert.deepEqual(check.missingDependencyIds, ['postgres']);
+});
+
 test('missingServices still lists every stopped service for display', async () => {
     // missingServices 用于界面展示「哪些没跑」，语义与依赖判定不同，保持原样。
     const definitions = {
