@@ -760,7 +760,8 @@ test.describe('服务卡片信息层级', () => {
         const card = page.locator('.service-card[data-service-id="postgres-ha"]');
         // 原先主标题用 id，postgres-ha 会被截断成「postgre...」。
         await expect(card.locator('.cm-svc-name')).toHaveText('PostgreSQL 双机热备');
-        await expect(card.locator('.cm-svc-image')).toContainText('postgres-ha');
+        // 容器名不再占卡片正面一行，改由标题 tooltip 承载。
+        await expect(card.locator('.cm-svc-name')).toHaveAttribute('title', /postgres-ha/);
     });
 
     test('the startup-dependency marker appears exactly once', async ({ page }) => {
@@ -1093,13 +1094,10 @@ test.describe('集群模式下的卡片标题', () => {
     });
 });
 
-test.describe('卡片副标题只在有信息时出现', () => {
+test.describe('卡片正面只留服务名', () => {
     const services = [
-        // id 就是名字的小写形式，副标题重复一遍等于噪声。
         { id: 'cassandra', label: 'Cassandra', tier: 'storage', status: 'stopped', running: false },
-        { id: 'iotdb', label: 'IoTDB', tier: 'storage', status: 'stopped', running: false },
         { id: 'iotcloud', label: 'IoT Cloud', tier: 'business', status: 'running', running: true },
-        // 容器名与显示名确实不同，必须留着——去命令行看日志用的是它。
         { id: 'postgres-ha', label: 'PostgreSQL 双机热备', tier: 'storage', status: 'stopped', running: false, readOnly: true, kind: 'ha-cluster' },
         { id: 'wechat', label: '企业微信告警', tier: 'business', status: 'stopped', running: false, image: 'wechat-messenger:v2.1.0' }
     ];
@@ -1117,27 +1115,42 @@ test.describe('卡片副标题只在有信息时出现', () => {
         await expect(page.locator('#service-grid [data-service-id]').first()).toBeVisible();
     }
 
-    test('a redundant id is not repeated under the name', async ({ page }) => {
+    test('no card repeats an id under the name', async ({ page }) => {
+        /* 名称下面原本还有一行服务 id。多数服务的 id 就是名字的小写形式
+           （Cassandra / cassandra、IoT Cloud / iotcloud），每张卡都把同一个词
+           重复一遍；少数不同的又让各卡高矮不一。统一去掉。 */
         await open(page);
-        for (const id of ['cassandra', 'iotdb', 'iotcloud']) {
-            const sub = page.locator(`#service-grid [data-service-id="${id}"] .cm-svc-image`);
-            await expect(sub, `「${id}」的 id 与名称相同，不应再出现副标题`).toHaveCount(0);
-        }
+        await expect(page.locator('#service-grid .cm-svc-image')).toHaveCount(0);
     });
 
-    test('a container name that differs from the label is kept', async ({ page }) => {
+    test('the container name and image stay reachable from the tooltip', async ({ page }) => {
+        // 去掉的只是重复展示，信息本身不能丢——去命令行看日志要用容器名。
         await open(page);
-        await expect(page.locator('#service-grid [data-service-id="postgres-ha"] .cm-svc-image'))
-            .toHaveText('postgres-ha');
-        // 镜像带版本号，核对现场版本时要用。
-        await expect(page.locator('#service-grid [data-service-id="wechat"] .cm-svc-image'))
-            .toHaveText('wechat · wechat-messenger:v2.1.0');
+        const title = (id: string) => page.locator(`#service-grid [data-service-id="${id}"] .cm-svc-name`);
+        await expect(title('postgres-ha')).toHaveAttribute('title', /postgres-ha/);
+        await expect(title('wechat')).toHaveAttribute('title', /wechat-messenger:v2\.1\.0/);
+        // 名称与 id 等价时，tooltip 里也不重复一遍。
+        await expect(title('cassandra')).toHaveAttribute('title', 'Cassandra');
     });
 
-    test('an omitted id is still reachable from the title tooltip', async ({ page }) => {
-        // 省掉的只是重复展示，信息本身不能丢。
+    test('filtering still matches id and image, and now the display name too', async ({ page }) => {
+        /* 筛选原本从副标题元素读文字，卡片正面不再显示 id / 镜像后会失效。
+           顺带修掉一个既有问题：输入框写「筛选服务名 / 镜像」，但原来不匹配
+           显示名，输入「瀚高」「PostgreSQL」筛不出任何东西。 */
         await open(page);
-        const name = page.locator('#service-grid [data-service-id="iotcloud"] .cm-svc-name');
-        await expect(name).toHaveAttribute('title', /iotcloud/);
+        const box = page.locator('#deployment-search, input[placeholder*="筛选"]').first();
+        const visible = () => page.locator('#service-grid .service-card:not(.is-filtered)');
+
+        await box.fill('wechat-messenger');           // 按镜像
+        await expect(visible()).toHaveCount(1);
+
+        await box.fill('postgres-ha');                // 按 id
+        await expect(visible()).toHaveCount(1);
+
+        await box.fill('双机热备');                    // 按显示名
+        await expect(visible()).toHaveCount(1);
+
+        await box.fill('');
+        await expect(visible()).toHaveCount(services.length);
     });
 });

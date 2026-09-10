@@ -472,16 +472,6 @@
     white-space: nowrap;
 }
 
-.cm-svc-image {
-    font-family: var(--cm-font-mono);
-    font-size: 12px;
-    line-height: 1.25;
-    color: var(--cm-cloud-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .cm-svc-status {
     display: inline-flex;
     align-items: center;

@@ -1796,10 +1796,11 @@ function applyDeploymentFilters() {
     const term = deploymentSearchTerm;
     grid.querySelectorAll('.service-card').forEach(card => {
         const cardTier = card.dataset.tier || 'business';
-        const id = (card.dataset.serviceId || '').toLowerCase();
-        const image = (card.querySelector('.cm-svc-image')?.textContent || '').toLowerCase();
+        /* 可搜索文本由卡片自己给出（名称 + id + 镜像）。原来是从 DOM 里读
+           副标题元素的文字，卡片正面不再显示 id / 镜像后就读不到了。 */
+        const haystack = (card.dataset.search || card.dataset.serviceId || '').toLowerCase();
         const tierOk = tier === 'all' || cardTier === tier;
-        const termOk = !term || id.includes(term) || image.includes(term);
+        const termOk = !term || haystack.includes(term);
         card.classList.toggle('is-filtered', !(tierOk && termOk));
     });
 }

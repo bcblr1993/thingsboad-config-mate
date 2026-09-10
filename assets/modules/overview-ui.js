@@ -192,20 +192,14 @@
             const running = !!s.running;
             const statusLabel = running ? 'Running' : (s.status === 'missing' || s.status === 'unsupported' ? '不可用' : 'Stopped');
             const statusClass = running ? 'cm-tile-status-ok' : (s.status === 'missing' || s.status === 'unsupported' ? 'cm-tile-status-warn' : 'cm-tile-status-stopped');
-            /* 不再回落到 label：label 已作为主标题，回落会让副标题变成
-               「postgres-ha · PostgreSQL 双机热备」这种重复。 */
             const image = s.image || s.composeService || '';
             const tierIcon = TIER_ICONS[tier] || TIER_ICONS.business;
-            /* 与服务管理页保持同一层级和同一条副标题规则：主标题可读名称，
-               副标题只在 id / 镜像确实不同于名称时才出现。共用同一个实现，
-               避免两个页面各写一份后规则漂移。 */
-            const tileSubtitle = window.ConfigMateServicesUi?.buildServiceSubtitle
-                ? window.ConfigMateServicesUi.buildServiceSubtitle(s, image)
-                : '';
-            // 省略 id 时 tooltip 里仍要能查到容器名。
-            const tileNameTitle = tileSubtitle
-                ? (s.label || s.id)
-                : [s.label || s.id, s.id].filter(Boolean).join(' · ');
+            /* 磁贴正面只留服务名，与服务管理页一致；容器名和镜像放进 tooltip。
+               共用同一个实现，避免两个页面各写一份后规则漂移——此前两页各写
+               一份，出现过标题层级相反的问题。 */
+            const tileNameTitle = window.ConfigMateServicesUi?.buildServiceIdentityHint
+                ? window.ConfigMateServicesUi.buildServiceIdentityHint(s, image)
+                : (s.label || s.id);
             const uptime = running ? formatUptime(s.startedAt) : '—';
             const cpu = running ? formatCpu(s) : '—';
             const memory = running ? formatMemory(s) : '—';
@@ -215,7 +209,6 @@
                         <span class="cm-tile-icon" aria-hidden="true">${tierIcon}</span>
                         <span class="cm-tile-meta">
                             <span class="cm-tile-name" title="${escapeHtml(tileNameTitle)}">${escapeHtml(s.label || s.id)}</span>
-                            ${tileSubtitle ? `<span class="cm-tile-desc" title="${escapeHtml(tileSubtitle)}">${escapeHtml(tileSubtitle)}</span>` : ''}
                         </span>
                         <span class="cm-tile-status ${statusClass}">
                             <span class="cm-tile-dot"></span>${escapeHtml(statusLabel)}

@@ -339,29 +339,26 @@
     }
 
     /**
-     * 卡片副标题：只在确实能提供新信息时才出现。
+     * 卡片标题的 tooltip：名称 + 容器名 + 镜像。
      *
-     * 副标题原本无条件显示服务 id。但多数服务的 id 就是名字的小写形式
-     * （Cassandra / cassandra、IoTDB / iotdb、IoT Cloud / iotcloud……），
-     * 等于每张卡都把同一个词重复一遍，是纯噪声。
+     * 卡片正面只留服务名。原先名称下面还有一行服务 id，但多数服务的 id 就是
+     * 名字的小写形式（Cassandra / cassandra、IoTDB / iotdb、IoT Cloud /
+     * iotcloud……），每张卡都把同一个词重复一遍；少数不同的又让各卡高矮不一。
+     * 统一去掉那一行，卡片正面只回答「这是什么服务、在不在跑」。
      *
-     * 保留的是真正不同的那些：容器名与显示名不一致（企业微信告警 / wechat、
-     * PostgreSQL 双机热备 / postgres-ha），以及镜像名带了版本号需要核对时。
-     * 被省略的 id 仍可在标题的 tooltip 与详情里看到，信息没有丢。
+     * 容器名和镜像并没有丢：悬停标题即可看到，服务详情里也有「镜像」「容器名」
+     * 两项。需要去命令行 `docker logs <容器名>` 或核对镜像版本时都能查到。
      */
-    function buildServiceSubtitle(service, image) {
+    function buildServiceIdentityHint(service, image) {
         const label = service.label || service.id || '';
-        const parts = [];
-        if (service.id && normalizeName(service.id) !== normalizeName(label)) {
-            parts.push(service.id);
-        }
-        // 镜像与已显示的名字重复时不再叠加（如 postgres · postgres）。
-        if (image
-            && normalizeName(image) !== normalizeName(label)
-            && !parts.some(part => normalizeName(part) === normalizeName(image))) {
-            parts.push(image);
-        }
-        return parts.join(' · ');
+        const parts = [label];
+        [service.id, image].forEach(value => {
+            if (!value) return;
+            // 与已列出的名字等价时不重复叠加（如 postgres · postgres）。
+            if (parts.some(part => normalizeName(part) === normalizeName(value))) return;
+            parts.push(value);
+        });
+        return parts.filter(Boolean).join(' · ');
     }
 
     function renderServiceCards({
@@ -390,12 +387,12 @@
             const image = service.image || service.composeService || '';
             const tierIcon = getTierIcon(tier);
             const readOnly = !!service.readOnly;
-            const subtitle = buildServiceSubtitle(service, image);
-            /* 副标题省略 id 时，tooltip 里仍要能查到容器名——去命令行看日志
-               或找部署目录时用的是它。 */
-            const nameTitle = subtitle
-                ? (service.label || service.id)
-                : [service.label || service.id, service.id].filter(Boolean).join(' · ');
+            const nameTitle = buildServiceIdentityHint(service, image);
+            /* 筛选用的文本放进 data 属性，而不是从卡片 DOM 里读——卡片正面
+               不再显示 id 与镜像了。顺便把显示名也纳入匹配：输入框写的是
+               「筛选服务名 / 镜像」，但原来只匹配 id 和镜像，输入「瀚高」或
+               「PostgreSQL」筛不出任何东西。 */
+            const searchText = [service.label, service.id, image].filter(Boolean).join(' ').toLowerCase();
             const actionsHtml = renderServiceActionButtons({
                 idArg,
                 status,
@@ -426,7 +423,7 @@
                 readOnly ? 'is-readonly' : '',
             ].filter(Boolean).join(' ');
             return `
-                <div class="${classes}" data-service-id="${escapeHtml(service.id)}" data-tier="${escapeHtml(tier)}">
+                <div class="${classes}" data-service-id="${escapeHtml(service.id)}" data-tier="${escapeHtml(tier)}" data-search="${escapeHtml(searchText)}">
                     <div class="cm-svc-head">
                         <div class="cm-svc-head-left">
                             <span class="cm-svc-icon">${tierIcon}</span>
@@ -437,7 +434,6 @@
                                     ${nodeBadgeHtml}
                                     ${haBadgesHtml}
                                 </div>
-                                ${subtitle ? `<span class="cm-svc-image" title="${escapeHtml(subtitle)}">${escapeHtml(subtitle)}</span>` : ''}
                             </div>
                         </div>
                         <span class="cm-svc-status ${escapeHtml(status)}">
@@ -690,7 +686,7 @@
     }
 
     window.ConfigMateServicesUi = {
-        buildServiceSubtitle,
+        buildServiceIdentityHint,
         isCleanupSupportedService,
         isDisabledStatus,
         renderHaBadges,

@@ -335,15 +335,6 @@ body[data-workbench-page="overview-page"] #overview-page.overview-page {
     white-space: nowrap;
 }
 
-.cm-tile-desc {
-    font-family: var(--cm-font-mono);
-    font-size: 12px;
-    color: var(--cm-cloud-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .cm-tile-metrics {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
