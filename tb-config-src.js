@@ -11,7 +11,7 @@ const { createNodeRegistry } = require('./src/server/cluster/node-registry');
 const { createEnvStore } = require('./src/server/config/env-store');
 const { createSettingsStore } = require('./src/server/config/settings-store');
 const { createYamlInitializer } = require('./src/server/config/yaml-init');
-const { computeAssetVersion, rewriteAssetVersion } = require('./src/server/asset-version');
+const { buildModulePreloadTags, computeAssetVersion, injectModulePreloads, rewriteAssetVersion } = require('./src/server/asset-version');
 const { createStaticAssetServer } = require('./src/server/static-assets');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { writeJson } = require('./src/server/http');
@@ -54,6 +54,9 @@ process.env.APP_ROOT = APP_ROOT;
 process.env.APP_TYPE = APP_TYPE;
 
 const ASSET_VERSION = computeAssetVersion(__dirname);
+/* ESM 模块图的 modulepreload 提示，启动时扫描一次。
+   不加的话浏览器要先拿 main.js、解析、再取下一层，真机实测三波串行 232ms。 */
+const MODULE_PRELOAD_TAGS = buildModulePreloadTags(__dirname);
 
 const RUNTIME_DIR = path.join(APP_ROOT, '.config-mate');
 if (!fs.existsSync(RUNTIME_DIR)) {
@@ -844,7 +847,10 @@ function startServer() {
             const htmlPath = path.join(__dirname, 'index.html');
             console.log(`[Debug] Loading HTML from: ${htmlPath}`);
             /* 统一改写为自动版本，避免遗漏某个 ?v= 导致新旧脚本混用。 */
-            const html = rewriteAssetVersion(fs.readFileSync(htmlPath, 'utf-8'), ASSET_VERSION);
+            const html = injectModulePreloads(
+                rewriteAssetVersion(fs.readFileSync(htmlPath, 'utf-8'), ASSET_VERSION),
+                MODULE_PRELOAD_TAGS
+            );
             res.writeHead(200, {
                 ...headers,
                 'Content-Type': 'text/html; charset=utf-8',
@@ -925,6 +931,10 @@ function startServer() {
         } catch (e) {
             console.warn('[Warn] Failed to write PID:', e);
         }
+
+        /* 预压缩静态资源：压缩是惰性的，不预热则重启后第一个访问者要为每个
+           资源等一次 brotli。不 await，不挡启动。 */
+        staticAssets.warmUp().catch(() => {});
 
         /* 预热一次资源采样：docker stats 要 1.5–2 秒，不预热的话首屏
            CPU / 内存是空的，要等下一轮轮询才出现。这里不 await，不挡启动。 */

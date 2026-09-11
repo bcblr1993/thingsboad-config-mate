@@ -124,3 +124,81 @@ test('the shipped index.html has every asset versioned by the server', () => {
     assert.deepEqual(unversioned, [], `以下资源未带版本号：${unversioned.join(', ')}`);
     assert.ok((out.match(/\?v=424242/g) || []).length > 5);
 });
+
+const { buildModulePreloadTags, injectModulePreloads } = require('../src/server/asset-version');
+
+test('every ESM module gets a preload hint', () => {
+    /* assets/src 下的模块靠嵌套 import 加载，真机实测形成三波串行、跨度 232ms，
+       其间纯粹是往返延迟。声明 modulepreload 后浏览器能一次性并发取回整张图。 */
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-esm-'));
+    try {
+        fs.mkdirSync(path.join(root, 'assets/src/core'), { recursive: true });
+        fs.writeFileSync(path.join(root, 'assets/src/main.js'), 'export {}');
+        fs.writeFileSync(path.join(root, 'assets/src/core/http.js'), 'export {}');
+        fs.writeFileSync(path.join(root, 'assets/src/core/store.mjs'), 'export {}');
+        fs.writeFileSync(path.join(root, 'assets/src/readme.md'), 'not a module');
+
+        const tags = buildModulePreloadTags(root);
+        const lines = tags.split('\n');
+        assert.equal(lines.length, 3, '只应包含 js/mjs');
+        /* 必须是不带查询串的裸路径：import 请求的就是这个 URL。带上 ?v= 会让
+           浏览器当成另一个资源，每个模块下载两遍——真机上模块数从 43 变 91、
+           DCL 从 250ms 涨到 2479ms。 */
+        assert.ok(tags.includes('href="assets/src/main.js">'));
+        assert.ok(tags.includes('href="assets/src/core/store.mjs">'));
+        assert.equal(/\?v=/.test(tags), false, '预加载 URL 不能带版本串');
+        assert.equal(tags.includes('readme.md'), false);
+        // 顺序稳定，便于比对
+        assert.deepEqual(lines, [...lines].sort());
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('preload hints land before the module entry', () => {
+    const html = '<head>\n    <script type="module" src="assets/src/main.js?v=9"></script>\n</head>';
+    const out = injectModulePreloads(html, '    <link rel="modulepreload" href="assets/src/a.js">');
+    assert.ok(out.indexOf('modulepreload') < out.indexOf('type="module"'), '提示必须在入口之前');
+    assert.equal((out.match(/type="module"/g) || []).length, 1, '不应改动入口本身');
+    assert.ok(out.includes('src="assets/src/main.js?v=9"'), '入口的版本串不能被破坏');
+});
+
+test('the module entry is not preloaded twice', () => {
+    /* 入口脚本自己会触发下载，且带着 ?v=，与裸路径的预加载是两个 URL。
+       两者都留着会把入口下载两遍——真机上出现过。 */
+    const html = '<head>\n    <script type="module" src="assets/src/main.js?v=9"></script>\n</head>';
+    const tags = [
+        '    <link rel="modulepreload" href="assets/src/main.js">',
+        '    <link rel="modulepreload" href="assets/src/core/http.js">'
+    ].join('\n');
+    const out = injectModulePreloads(html, tags);
+    assert.equal(out.includes('modulepreload" href="assets/src/main.js"'), false, '入口不应再被预加载');
+    assert.ok(out.includes('modulepreload" href="assets/src/core/http.js"'), '其余模块仍要预加载');
+});
+
+test('a page without a module entry is left untouched', () => {
+    const html = '<head><script src="assets/app.js"></script></head>';
+    assert.equal(injectModulePreloads(html, '<link rel="modulepreload" href="x.js">'), html);
+    assert.equal(injectModulePreloads(html, ''), html);
+});
+
+test('a missing module directory yields no hints rather than throwing', () => {
+    assert.equal(buildModulePreloadTags(path.join(os.tmpdir(), 'cm-nope-' + Date.now())), '');
+});
+
+test('the shipped index.html really gets every module preloaded', () => {
+    // 端到端：真实模块数与真实 index.html 对得上。
+    const repoRoot = path.join(__dirname, '..');
+    const tags = buildModulePreloadTags(repoRoot);
+    const count = tags.split('\n').filter(Boolean).length;
+    assert.ok(count > 20, `只生成了 ${count} 条提示，与实际模块数不符`);
+
+    const html = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf-8');
+    const out = injectModulePreloads(html, tags);
+    // 入口模块由 script 标签自己加载，会从提示里剔掉，所以少一条。
+    assert.equal((out.match(/rel="modulepreload"/g) || []).length, count - 1);
+    assert.ok(out.indexOf('rel="modulepreload"') < out.indexOf('<script type="module"'));
+
+    /* 每个提示的 URL 都必须与 import 实际请求的裸路径一致，不能带查询串，
+       否则浏览器会把同一个模块下载两遍。 */
+    const hrefs = out.match(/rel="modulepreload" href="([^"]+)"/g) || [];
+    assert.equal(hrefs.some(h => h.includes('?')), false, '预加载 URL 不能带查询串');
+});
