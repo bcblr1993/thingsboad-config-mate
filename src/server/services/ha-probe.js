@@ -191,7 +191,7 @@ function parseHighgoLicense(stdout) {
     };
 }
 
-function createHaProbe({ docker, logger = console, timeoutMs = HA_PROBE_TIMEOUT_MS }) {
+function createHaProbe({ docker, logger = console, timeoutMs = HA_PROBE_TIMEOUT_MS, containerIndex = null }) {
     function dockerExec(args) {
         return docker.exec(docker.dockerPath, args, { timeout: timeoutMs });
     }
@@ -204,6 +204,17 @@ function createHaProbe({ docker, logger = console, timeoutMs = HA_PROBE_TIMEOUT_
     }
 
     async function inspectContainer(containerName) {
+        /* 先查全量容器快照：发现流程每次 /api/services 前都会跑，每个变体一次
+           docker inspect，容器内实测三次并发要 113ms。快照本来就已经把所有容器
+           连同标签、状态、环境变量都取回来了，没必要再单独问一遍。 */
+        if (containerIndex) {
+            try {
+                const index = await containerIndex.get();
+                if (index) return index.findByName(containerName);
+            } catch (error) {
+                // 快照不可用时退回单独 inspect，行为不变。
+            }
+        }
         const result = await dockerExec(['inspect', containerName]);
         if (result.error) return null;
         try {

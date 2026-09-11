@@ -12,6 +12,7 @@ const { createEnvStore } = require('./src/server/config/env-store');
 const { createSettingsStore } = require('./src/server/config/settings-store');
 const { createYamlInitializer } = require('./src/server/config/yaml-init');
 const { computeAssetVersion, rewriteAssetVersion } = require('./src/server/asset-version');
+const { createStaticAssetServer } = require('./src/server/static-assets');
 const { createDockerComposeRuntime } = require('./src/server/docker/compose');
 const { writeJson } = require('./src/server/http');
 const { createCleanupService } = require('./src/server/services/cleanup');
@@ -22,6 +23,7 @@ const { createHaProbe } = require('./src/server/services/ha-probe');
 const { createLogStreamService } = require('./src/server/services/log-stream');
 const { createRedisClusterProbe } = require('./src/server/services/redis-cluster-probe');
 const { createServiceRegistry } = require('./src/server/services/registry');
+const { createContainerIndex } = require('./src/server/services/container-index');
 const { createContainerStatsCache } = require('./src/server/services/container-stats');
 const { createServiceRuntime, parseDockerStatsPayload } = require('./src/server/services/runtime');
 const { createServiceSnapshot } = require('./src/server/services/service-snapshot');
@@ -83,7 +85,10 @@ const {
 const serviceRegistry = createServiceRegistry({ appRoot: APP_ROOT, appType: APP_TYPE });
 const { getPackageServiceId, getServiceDefinition, listServiceDefinitions } = serviceRegistry;
 const dockerRuntime = createDockerComposeRuntime({ appRoot: APP_ROOT });
-const haProbe = createHaProbe({ docker: dockerRuntime });
+/* 一次 docker ps + 一次 inspect + 一次 images 覆盖全部容器与镜像，
+   替代逐服务的 compose ps / image inspect 与逐变体的 HA 发现 inspect。 */
+const containerIndex = createContainerIndex({ docker: dockerRuntime });
+const haProbe = createHaProbe({ docker: dockerRuntime, containerIndex });
 const redisClusterProbe = createRedisClusterProbe({ docker: dockerRuntime });
 /* CPU / 内存单独走批量采样缓存：docker stats 单次就要 1.5–2 秒，
    按服务逐个 await 会把服务列表拖到 3 秒以上。 */
@@ -96,7 +101,8 @@ const serviceRuntime = createServiceRuntime({
     getServiceDefinition,
     haProbe,
     redisClusterProbe,
-    containerStats
+    containerStats,
+    containerIndex
 });
 const { getServiceStatus, runComposeAction } = serviceRuntime;
 
@@ -125,11 +131,29 @@ const envStore = createEnvStore({
     logger: console
 });
 const { parseEnvFile, saveEnvFile } = envStore;
+/* 部署计划的服务状态走本机快照，不再自己重探一遍。
+   前端每次刷新会并发调 /api/services 与 /api/plan，两者需要的是同一批容器状态；
+   plan 原先绕开快照直接逐个探测，等于把 compose ps + inspect 又跑了一遍——
+   真机实测 /api/services 500ms、/api/plan 778ms，后者大部分是重复劳动。
+   快照 TTL 1.5s，且任何启停/清理/安装都会主动失效，不会出现「操作完看不到变化」。
+   惰性引用 collectLocalServices：它在本行之后才定义。 */
+async function getPlanServiceStatus(def) {
+    if (!def) return getServiceStatus(def);
+    try {
+        const snapshot = await collectLocalServices();
+        const hit = (snapshot?.services || []).find(service => service.id === def.id);
+        if (hit) return hit;
+    } catch (e) {
+        // 快照不可用时退回直接探测，行为与改造前一致。
+    }
+    return getServiceStatus(def);
+}
+
 const deploymentPlanner = createDeploymentPlanner({
     appType: APP_TYPE,
     getPackageServiceId,
     getServiceDefinition,
-    getServiceStatus,
+    getServiceStatus: getPlanServiceStatus,
     runComposeAction,
     configProvider: parseEnvFile,
     listCapabilityServiceIds: serviceRegistry.listCapabilityServiceIds,
@@ -716,6 +740,7 @@ serviceRoutes = createServiceRoutes({
         localServiceSnapshot.invalidate();
         // 启停后容器换了 id，旧样本必须作废，否则会把上一个容器的占用显示出来。
         containerStats.invalidate();
+        containerIndex.invalidate();
         clusterAggregator?.invalidateCache();
     }
 });
@@ -782,41 +807,20 @@ const appRoutes = createAppRoutes({
 
 // --- HTTP Server ---
 
-function serveStaticAsset(pathname, res, headers) {
-    const assetRoot = path.resolve(__dirname, 'assets');
-    const relativePath = decodeURIComponent(pathname.replace(/^\/assets\//, ''));
-    const assetPath = path.resolve(assetRoot, relativePath);
+/* 静态资源改由 static-assets.js 处理：gzip + 版本化长缓存。
+   原实现每次都读盘、不压缩、且一律 no-store，刷新一次要重下 770KB。 */
+const staticAssets = createStaticAssetServer({
+    assetRoot: path.resolve(__dirname, 'assets'),
+    assetVersion: ASSET_VERSION
+});
 
-    if (!assetPath.startsWith(assetRoot + path.sep)) {
-        writeJson(res, 403, { status: 'error', message: 'Forbidden' }, headers);
-        return;
-    }
-
-    if (!fs.existsSync(assetPath) || !fs.statSync(assetPath).isFile()) {
-        writeJson(res, 404, { status: 'error', message: 'Asset not found' }, headers);
-        return;
-    }
-
-    const ext = path.extname(assetPath).toLowerCase();
-    const contentTypes = {
-        '.html': 'text/html; charset=utf-8',
-        '.css': 'text/css; charset=utf-8',
-        '.js': 'application/javascript; charset=utf-8',
-        '.svg': 'image/svg+xml',
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.webp': 'image/webp'
-    };
-
-    res.writeHead(200, {
-        ...headers,
-        'Content-Type': contentTypes[ext] || 'application/octet-stream',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
+function serveStaticAsset(req, res, { pathname, search, headers }) {
+    staticAssets.serve(req, res, {
+        pathname,
+        search,
+        headers,
+        onError: (status, message) => writeJson(res, status, { status: 'error', message }, headers)
     });
-    res.end(fs.readFileSync(assetPath));
 }
 
 function startServer() {
@@ -852,8 +856,8 @@ function startServer() {
             return;
         }
 
-        if (pathname.startsWith('/assets/') && method === 'GET') {
-            serveStaticAsset(pathname, res, headers);
+        if (pathname.startsWith('/assets/') && (method === 'GET' || method === 'HEAD')) {
+            serveStaticAsset(req, res, { pathname, search: requestUrl.search, headers });
             return;
         }
 

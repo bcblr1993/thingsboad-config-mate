@@ -96,7 +96,8 @@ function createServiceRuntime({
     getServiceDefinition,
     haProbe = null,
     redisClusterProbe = null,
-    containerStats = null
+    containerStats = null,
+    containerIndex = null
 }) {
     /* 动态服务（HA / redis-cluster）没有可用的 compose 文件路径，
        状态改由各自的只读探测器提供。 */
@@ -148,6 +149,41 @@ function createServiceRuntime({
         const preparedDefinition = typeof docker.prepareComposeDefinition === 'function'
             ? docker.prepareComposeDefinition(def)
             : null;
+
+        /* 优先走全量容器快照：一次 docker ps + 一次 inspect 覆盖所有服务。
+           原来每个服务各跑一次 `docker compose ps`，compose CLI 每次都要启动并
+           解析编排文件——容器内实测 8 个服务并发要 831ms，是整个接口最大的开销。
+           快照取不到时（docker 异常等）退回下面的逐服务路径，行为不变。 */
+        const index = containerIndex ? await containerIndex.get() : null;
+        if (index) {
+            const matched = index.findForDefinition(def, preparedDefinition);
+            if (!matched) {
+                if (def.image) {
+                    /* 镜像是否存在优先查快照里的镜像清单：现场多数服务处于停止状态，
+                       原先每个都要单独跑一次 `docker image inspect`。
+                       清单取不到时（hasImage 返回 null）才退回单独查。 */
+                    const known = index.hasImage(def.image);
+                    const missing = known === null
+                        ? !!(await docker.exec(docker.dockerPath, ['image', 'inspect', def.image, '--format', '{{.Os}}/{{.Architecture}}'])).error
+                        : !known;
+                    if (missing) {
+                        return { ...def, status: 'missing-image', running: false, containerId: '', message: def.missingImageMessage || `Image not found: ${def.image}` };
+                    }
+                }
+                return { ...def, status: 'stopped', running: false, containerId: '' };
+            }
+            const matchedId = matched.Id || '';
+            const matchedRunning = !!matched.State?.Running;
+            return {
+                ...def,
+                status: matchedRunning ? 'running' : 'stopped',
+                running: matchedRunning,
+                containerId: matchedId,
+                startedAt: matched.State?.StartedAt || '',
+                ...(matchedRunning ? getContainerStats(matchedId) : {})
+            };
+        }
+
         const ps = await docker.exec(docker.dockerComposeCmd, docker.composeArgsFor(def, ['ps', '-q', def.composeService]));
         const containerId = ps.stdout.trim().split('\n').filter(Boolean)[0] || '';
 
