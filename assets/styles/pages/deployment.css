@@ -614,8 +614,8 @@ body[data-workbench-page="deployment-panel"] #service-grid.cm-service-grid .serv
         color var(--cm-duration-fast) var(--cm-ease);
 }
 
-/* 按钮按下时给一点位移反馈。现场经常是远程桌面操作，画面有延迟，
-   点下去没有任何即时反应会让人怀疑是不是没点上，于是重复点击。 */
+/* 按钮按下时给一点位移反馈。点下去没有任何即时反应会让人怀疑是不是没点上，
+   于是重复点击——启停这类操作重复触发的代价不低。 */
 .cm-svc-actions button:active:not(:disabled) {
     transform: translateY(1px);
 }

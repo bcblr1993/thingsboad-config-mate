@@ -62,7 +62,7 @@
     --cm-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
     --cm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     /* 微型标签档（徽章、指标名、chip）。新增而非改动已有档位，不影响未使用它的样式。
-       此前这类文字散落着 9px 和 10px 共 24 处，现场笔记本与远程桌面上基本读不清；
+       此前这类文字散落着 9px 和 10px 共 24 处，小屏或缩放下基本读不清；
        11px 是可读下限，再小不要用。 */
     --cm-text-2xs: 11px;
     --cm-text-xs: 12px;
