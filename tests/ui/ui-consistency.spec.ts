@@ -296,6 +296,64 @@ test.describe('Config Mate UI consistency', () => {
         await page.locator('#cleanup-modal .btn-action-cancel').click();
     });
 
+    for (const runningService of ['', 'iotcloud', 'iotdb']) {
+        test(`IoTDB cleanup menu and confirmation with ${runningService || 'no service'} running`, async ({ page }) => {
+            const backupDir = '/opt/sprixin/services/config-mate/backups/iotdb-admin';
+            const cleanupRequests: unknown[] = [];
+            await mockConfigMateApi(page, {
+                authenticated: true,
+                apiHandler: ({ pathname, method, request }) => {
+                    if (pathname === '/api/services') return mockJson({
+                        status: 'success',
+                        services: [
+                            { id: 'iotdb', label: 'IoTDB', tier: 'storage', status: runningService === 'iotdb' ? 'running' : 'stopped', running: runningService === 'iotdb' },
+                            { id: 'iotcloud', label: 'IoT Cloud', tier: 'business', status: runningService === 'iotcloud' ? 'running' : 'stopped', running: runningService === 'iotcloud' }
+                        ]
+                    });
+                    if (pathname === '/api/services/iotdb/cleanup-plan') return mockJson({
+                        status: 'success',
+                        service: { id: 'iotdb', label: 'IoTDB' },
+                        appService: 'iotcloud',
+                        dataPath: '/opt/sprixin/services/iotdb/data',
+                        backupRoot: '/opt/sprixin/services/config-mate/backups',
+                        backupDir,
+                        appServiceRunning: runningService === 'iotcloud',
+                        targetServiceRunning: runningService === 'iotdb'
+                    });
+                    if (pathname === '/api/services/iotdb/cleanup' && method === 'POST') {
+                        cleanupRequests.push(request.postDataJSON());
+                        return mockJson({ status: 'success', backupDir });
+                    }
+                    return undefined;
+                }
+            });
+            await page.goto('/#/deployment');
+            await page.waitForFunction(() => !document.body.hasAttribute('data-route-booting'));
+            await page.locator('.service-card[data-service-id="iotdb"] .cm-svc-action-more').click();
+            await page.getByRole('menuitem', { name: '数据清理' }).click();
+            await expect(page.locator('#cleanup-modal.active')).toBeVisible();
+            await expect(page.locator('#cleanup-source-path')).toHaveText('/opt/sprixin/services/iotdb/data');
+            await expect(page.locator('#cleanup-backup-dir')).toHaveText(backupDir);
+            const confirm = page.locator('#btn-cleanup-confirm');
+            const input = page.locator('#cleanup-confirm-input');
+            await expect(confirm).toBeDisabled();
+            await input.fill('redis');
+            await expect(confirm).toBeDisabled();
+            await input.fill('iotdb');
+            if (runningService) {
+                await expect(page.locator('#cleanup-block-note')).toContainText('停止后再执行数据清理');
+                await expect(confirm).toBeDisabled();
+                await page.locator('#cleanup-modal .btn-action-cancel').click();
+                expect(cleanupRequests).toEqual([]);
+            } else {
+                await expect(confirm).toBeEnabled();
+                await confirm.click();
+                await expect.poll(() => cleanupRequests).toEqual([{ confirmServiceId: 'iotdb', backupDir }]);
+                await expect(page.locator('#cleanup-modal')).not.toBeVisible();
+            }
+        });
+    }
+
     test('config save apply confirmation opens without slow plan refresh', async ({ page }) => {
         await mockConfigMateApi(page, {
             authenticated: true,

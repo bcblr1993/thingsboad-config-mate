@@ -42,7 +42,7 @@ export const DISABLED_STATUSES = new Set([
 
 /** Services known to support credential copy and data cleanup. Sourced from services-ui.js. */
 export const COPY_ENABLED_SERVICES = new Set(['postgres', 'redis', 'kafka', 'cassandra', 'wechat']);
-export const CLEANUP_SUPPORTED_SERVICES = new Set(['postgres', 'redis', 'kafka', 'cassandra']);
+export const CLEANUP_SUPPORTED_SERVICES = new Set(['postgres', 'redis', 'kafka', 'cassandra', 'iotdb']);
 
 export function isDisabledStatus(status) {
     return DISABLED_STATUSES.has(status);

@@ -1,6 +1,6 @@
 (function () {
     const COPY_ENABLED_SERVICES = new Set(['postgres', 'redis', 'kafka', 'cassandra', 'wechat']);
-    const CLEANUP_SUPPORTED_SERVICES = new Set(['postgres', 'redis', 'kafka', 'cassandra']);
+    const CLEANUP_SUPPORTED_SERVICES = new Set(['postgres', 'redis', 'kafka', 'cassandra', 'iotdb']);
     const DISABLED_STATUSES = new Set(['missing', 'unknown', 'missing-image', 'unsupported']);
     const escapeHtml = window.ConfigMateUi.escapeHtml;
 
