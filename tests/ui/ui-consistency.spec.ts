@@ -314,7 +314,7 @@ test.describe('Config Mate UI consistency', () => {
                         status: 'success',
                         service: { id: 'iotdb', label: 'IoTDB' },
                         appService: 'iotcloud',
-                        dataPath: '/opt/sprixin/services/iotdb/data',
+                        dataPath: '/opt/sprixin/services/apache-iotdb/data',
                         backupRoot: '/opt/sprixin/services/config-mate/backups',
                         backupDir,
                         appServiceRunning: runningService === 'iotcloud',
@@ -332,7 +332,7 @@ test.describe('Config Mate UI consistency', () => {
             await page.locator('.service-card[data-service-id="iotdb"] .cm-svc-action-more').click();
             await page.getByRole('menuitem', { name: '数据清理' }).click();
             await expect(page.locator('#cleanup-modal.active')).toBeVisible();
-            await expect(page.locator('#cleanup-source-path')).toHaveText('/opt/sprixin/services/iotdb/data');
+            await expect(page.locator('#cleanup-source-path')).toHaveText('/opt/sprixin/services/apache-iotdb/data');
             await expect(page.locator('#cleanup-backup-dir')).toHaveText(backupDir);
             const confirm = page.locator('#btn-cleanup-confirm');
             const input = page.locator('#cleanup-confirm-input');

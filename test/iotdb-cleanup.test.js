@@ -13,6 +13,8 @@ for (const appType of ['CLOUD', 'EDGE']) {
         const registry = createServiceRegistry({ appRoot: root, appType });
         const dataDir = path.join(root, registry.cleanupServiceDataDirs.iotdb);
         const composePath = registry.getServiceDefinition('iotdb').composeAbsPath;
+        assert.equal(dataDir, path.join(root, 'services/apache-iotdb/data'));
+        assert.equal(composePath, path.join(root, 'services/apache-iotdb/docker-compose.yml'));
         const backupRoot = path.join(root, 'services/config-mate/backups');
         const auditLogFile = path.join(backupRoot, 'audit.log');
         fs.mkdirSync(path.join(dataDir, 'datanode'), { recursive: true });
